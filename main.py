@@ -5,6 +5,7 @@ import logging
 import os
 import shutil
 import time
+from collections import deque
 from typing import Any
 import yaml
 import numpy as np
@@ -435,6 +436,7 @@ def _greedy_loop(
     best_reward: float = float("-inf"),
     learning_rate: float = 0.01,
     mutation_share: float = 1.0,
+    adaptive_mutation: bool = True,
 ) -> tuple[BasePolicy, float, list[GreedySimResult]]:
     """
     ES gradient-estimation loop for WeightedLinearPolicy (hill_climbing policy type).
@@ -453,13 +455,22 @@ def _greedy_loop(
 
     Returns (best_policy, best_reward, greedy_sims).
     """
+    # 1/5th success rule constants
+    ADAPT_WINDOW = 20
+    ADAPT_UP     = 1.2
+    ADAPT_DOWN   = 0.85
+    SCALE_MIN    = 0.001
+    SCALE_MAX    = 1.0
+    current_scale = mutation_scale
+    improvement_history: deque[bool] = deque(maxlen=ADAPT_WINDOW)
+
     best_policy = policy
     if isinstance(best_policy, NeuralNetPolicy):
         # Fallback: single-candidate greedy for neural_net
         greedy_sims = []
         try:
             for sim in range(1, n_sims + 1):
-                candidate = best_policy.mutated(scale=mutation_scale)
+                candidate = best_policy.mutated(scale=current_scale)
                 logger.info("--- Sim %d/%d --- (respawning)", sim, n_sims)
                 obs, _ = env.reset()
                 reward, info, throttle_counts, total_steps, trace = _run_episode(env, candidate, obs)
@@ -473,12 +484,26 @@ def _greedy_loop(
                 else:
                     verdict = f"no improvement  candidate={reward:+.1f}  best={best_reward:+.1f}"
                 logger.info("  >> %s", verdict)
+
+                improvement_history.append(improved)
+                if adaptive_mutation and len(improvement_history) == ADAPT_WINDOW and sim % ADAPT_WINDOW == 0:
+                    p = sum(improvement_history) / ADAPT_WINDOW
+                    prev_scale = current_scale
+                    if p > 1 / 5:
+                        current_scale = min(current_scale * ADAPT_UP, SCALE_MAX)
+                    elif p < 1 / 5:
+                        current_scale = max(current_scale * ADAPT_DOWN, SCALE_MIN)
+                    if current_scale != prev_scale:
+                        logger.info("  [adaptive] scale %.4f → %.4f  (success_rate=%.2f)",
+                                    prev_scale, current_scale, p)
+
                 greedy_sims.append(GreedySimResult(
                     sim=sim, reward=reward, improved=improved,
                     throttle_counts=list(throttle_counts), total_steps=total_steps,
                     trace=trace, weights=candidate.to_cfg(),
                     final_track_progress=info.get("track_progress", 0.0),
                     laps_completed=info.get("laps_completed", 0),
+                    mutation_scale=current_scale,
                 ))
         except KeyboardInterrupt:
             logger.warning("Training interrupted.")
@@ -494,14 +519,14 @@ def _greedy_loop(
     full_episode_time_s = env._max_episode_time_s
     try:
         for sim in range(1, n_sims + 1):
-            eps = rng.standard_normal(len(theta)).astype(np.float32) * mutation_scale
+            eps = rng.standard_normal(len(theta)).astype(np.float32) * current_scale
 
             policy_plus  = best_policy.with_flat(theta + eps)
             policy_minus = best_policy.with_flat(theta - eps)
 
             logger.debug("--- Sim %d/%d (+) --- (respawning)", sim, n_sims)
             env._max_episode_time_s = _scaled_episode_time(sim, n_sims, full_episode_time_s)
-            candidate = best_policy.mutated(scale=mutation_scale, share=mutation_share)
+            candidate = best_policy.mutated(scale=current_scale, share=mutation_share)
 
             logger.debug("--- Sim %d/%d --- (respawning, episode_time=%.1fs)", sim, n_sims, env._max_episode_time_s)
             obs, _ = env.reset()
@@ -535,6 +560,19 @@ def _greedy_loop(
                            f"best={best_reward:+.1f}  gradient_signal={r_plus - r_minus:+.1f}")
 
             logger.info("  >> %s", verdict)
+
+            improvement_history.append(improved)
+            if adaptive_mutation and len(improvement_history) == ADAPT_WINDOW and sim % ADAPT_WINDOW == 0:
+                p = sum(improvement_history) / ADAPT_WINDOW
+                prev_scale = current_scale
+                if p > 1 / 5:
+                    current_scale = min(current_scale * ADAPT_UP, SCALE_MAX)
+                elif p < 1 / 5:
+                    current_scale = max(current_scale * ADAPT_DOWN, SCALE_MIN)
+                if current_scale != prev_scale:
+                    logger.info("  [adaptive] scale %.4f → %.4f  (success_rate=%.2f)",
+                                prev_scale, current_scale, p)
+
             greedy_sims.append(GreedySimResult(
                 sim=sim, reward=best_r, improved=improved,
                 throttle_counts=list(best_tc), total_steps=best_steps,
@@ -542,6 +580,7 @@ def _greedy_loop(
                 weights=best_candidate.to_cfg(),
                 final_track_progress=best_info.get("track_progress", 0.0),
                 laps_completed=best_info.get("laps_completed", 0),
+                mutation_scale=current_scale,
             ))
     except KeyboardInterrupt:
         logger.warning("Training interrupted.")
@@ -687,6 +726,7 @@ def train_rl(
     policy_params: dict[str, Any] | None = None,
     centerline_file: str = "tracks/a03_centerline.npy",
     track: str = "",
+    adaptive_mutation: bool = True,
 ) -> ExperimentData:
     """
     Train a driving policy via the selected algorithm.
@@ -767,6 +807,7 @@ def train_rl(
             mutation_share=mutation_share,
             best_reward=best_reward,
             weights_file=weights_file,
+            adaptive_mutation=adaptive_mutation,
         )
     elif policy_type in ("epsilon_greedy", "mcts"):
         best_policy, best_reward, greedy_sims = _greedy_loop_q_learning(
@@ -790,7 +831,8 @@ def train_rl(
             mutation_scale=mutation_scale,
             mutation_share=mutation_share,
             weights_file=weights_file,
-            best_reward=best_reward
+            best_reward=best_reward,
+            adaptive_mutation=adaptive_mutation,
         )
 
     env.close()
@@ -897,6 +939,7 @@ def main() -> None:
         policy_params=p.get("policy_params") or {},
         centerline_file=centerline_file,
         track=track,
+        adaptive_mutation=p.get("adaptive_mutation", True),
     )
 
     save_experiment_results(data, results_dir=f"{experiment_dir}/results")
