@@ -75,6 +75,7 @@ class GreedySimResult:
     weights: dict | None = None  # candidate.to_cfg() — steer/throttle weights for this sim
     final_track_progress: float = 0.0   # track_progress at episode end [0, 1)
     laps_completed: int = 0             # full laps finished (auto-respawn); 0 normally
+    mutation_scale: float | None = None  # active mutation scale at this sim (adaptive)
 
 
 @dataclass

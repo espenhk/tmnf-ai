@@ -4,6 +4,7 @@ in_game_episode_s: 30.0  # in-game seconds per episode (braking phase + driving)
 n_sims: 100              # greedy simulations / generations after cold-start
 mutation_scale: 0.05      # std-dev of Gaussian noise applied to each perturbed weight
 mutation_share: 1.0       # fraction of weights perturbed per mutation (1.0 = all, 0.2 = ~6/30)
+adaptive_mutation: true   # apply 1/5th success rule to adapt mutation_scale during greedy phase
 probe_s: 15.0             # in-game seconds for each of the 9 single-action probe runs
 cold_restarts: 20         # max random restarts during cold-start search (hill_climbing only)
 cold_sims: 5            # hill-climb sims per cold-start restart (hill_climbing only)
