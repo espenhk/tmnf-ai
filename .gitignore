@@ -210,6 +210,6 @@ __marimo__/
 .claude/
 
 replays/
-tracks/
+tracks/*.npy
 
 docs/codestyle/

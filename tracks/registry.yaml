@@ -1,0 +1,4 @@
+a03:
+  centerline_path: tracks/a03_centerline.npy
+  default_par_time_s: 60.0
+  source_replay: replays/a03_centerline.Replay.Gbx
