@@ -70,6 +70,8 @@ class RewardConfig:
     airborne_penalty:   float = -1.0
     lidar_wall_weight:  float = 0.0
     crash_threshold_m:  float = 25.0
+    track_name:         str   = "a03"
+    centerline_path:    str   = "tracks/a03_centerline.npy"
 
     @classmethod
     def from_yaml(cls, path: str) -> RewardConfig:

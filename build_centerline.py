@@ -4,13 +4,15 @@ an evenly-spaced centerline as a .npy file.
 
 Usage:
     python build_centerline.py path/to/replay.Replay.Gbx
-    python build_centerline.py path/to/replay.Replay.Gbx --output runs/centerline.npy --spacing 2.0
+    python build_centerline.py path/to/replay.Replay.Gbx --output tracks/b05_centerline.npy --track-name b05 --spacing 2.0
 """
 
 import argparse
 import logging
+from pathlib import Path
 
 import numpy as np
+import yaml
 
 logger = logging.getLogger(__name__)
 from pygbx import Gbx, GbxType
@@ -58,10 +60,24 @@ def resample_centerline(positions: np.ndarray, spacing: float) -> np.ndarray:
     return centerline
 
 
+def update_registry(registry_path: Path, track_name: str, output_path: Path, replay_path: str) -> None:
+    """Upsert an entry for *track_name* in *registry_path*."""
+    registry = yaml.safe_load(registry_path.read_text()) if registry_path.exists() else {}
+    registry[track_name] = {
+        "centerline_path": str(output_path),
+        "default_par_time_s": None,   # user fills in manually
+        "source_replay": str(replay_path),
+    }
+    registry_path.write_text(yaml.dump(registry, sort_keys=True))
+    logger.info("Updated registry %s  (track=%r)", registry_path, track_name)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build a track centerline from a TMNF ghost replay.")
     parser.add_argument("replay", help="Path to .Replay.Gbx file")
     parser.add_argument("--output", default="runs/centerline.npy", help="Output .npy path (default: runs/centerline.npy)")
+    parser.add_argument("--track-name", default=None,
+                        help="Track identifier for tracks/registry.yaml (defaults to stem of --output)")
     parser.add_argument("--spacing", type=float, default=2.0, help="Point spacing in metres (default: 2.0)")
     parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"],
                         help="Logging verbosity (default: INFO)")
@@ -72,6 +88,9 @@ def main() -> None:
         format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
         datefmt="%H:%M:%S",
     )
+
+    output_path = Path(args.output)
+    track_name = args.track_name or output_path.stem
 
     logger.info("Reading %r ...", args.replay)
     try:
@@ -88,6 +107,8 @@ def main() -> None:
 
     np.save(args.output, centerline)
     logger.info("Saved centerline to %r  shape=%s", args.output, centerline.shape)
+
+    update_registry(Path("tracks/registry.yaml"), track_name, output_path, args.replay)
 
 
 if __name__ == "__main__":

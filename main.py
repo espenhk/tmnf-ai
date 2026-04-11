@@ -724,7 +724,6 @@ def train_rl(
     re_initialize: bool = False,
     policy_type: str = "hill_climbing",
     policy_params: dict[str, Any] | None = None,
-    centerline_file: str = "tracks/a03_centerline.npy",
     track: str = "",
     adaptive_mutation: bool = True,
 ) -> ExperimentData:
@@ -755,7 +754,6 @@ def train_rl(
         speed=speed,
         in_game_episode_s=in_game_episode_s,
         n_lidar_rays=n_lidar_rays,
-        centerline_file=centerline_file
     )
 
     probe_results: list[ProbeResult] = []
@@ -896,7 +894,6 @@ def main() -> None:
     with open("config/training_params.yaml") as f:
         master_p = yaml.safe_load(f)
     track = master_p.get("track", "a03_centerline")
-    centerline_file = f"tracks/{track}.npy"
 
     experiment_dir  = f"experiments/{track}/{args.experiment}"
     weights_file    = f"{experiment_dir}/policy_weights.yaml"
@@ -917,7 +914,6 @@ def main() -> None:
 
     # Allow per-experiment overrides of track (if the copied config was edited).
     track = p.get("track", track)
-    centerline_file = f"tracks/{track}.npy"
 
     data = train_rl(
         experiment_name=args.experiment,
@@ -937,7 +933,6 @@ def main() -> None:
         re_initialize=args.re_initialize,
         policy_type=p.get("policy_type", "hill_climbing"),
         policy_params=p.get("policy_params") or {},
-        centerline_file=centerline_file,
         track=track,
         adaptive_mutation=p.get("adaptive_mutation", True),
     )

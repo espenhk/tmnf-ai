@@ -330,7 +330,6 @@ def make_env(
     experiment_dir: str | Path,
     speed: float = 10.0,
     in_game_episode_s: float = 20.0,
-    centerline_file: str = _DEFAULT_CENTERLINE,
     n_lidar_rays: int = 0,
 ) -> TMNFEnv:
     """
@@ -338,12 +337,14 @@ def make_env(
 
     Loads reward_config.yaml from *experiment_dir* and converts
     *in_game_episode_s* to a wall-clock episode limit at the given speed.
+    The centerline path is read from reward_config.centerline_path so that
+    different experiments can target different tracks without touching source code.
     Both main.py and rl/train.py call this instead of constructing TMNFEnv directly.
     """
     experiment_dir = Path(experiment_dir)
     reward_config = RewardConfig.from_yaml(str(experiment_dir / "reward_config.yaml"))
     return TMNFEnv(
-        centerline_file=centerline_file,
+        centerline_file=reward_config.centerline_path,
         speed=speed,
         reward_config=reward_config,
         max_episode_time_s=in_game_episode_s / speed,
