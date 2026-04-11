@@ -59,3 +59,7 @@ policy_params:
   #epsilon_end: 0.05            # minimum exploration rate
   #epsilon_decay_steps: 5000    # steps over which epsilon decays linearly
   #gamma: 0.99                  # discount factor
+  
+  # cmaes — CMA-ES over flat WeightedLinearPolicy weight vector (Hansen 2016)
+  #population_size: 20     # λ — offspring sampled each generation
+  #initial_sigma: 0.3      # initial step size (adapted automatically)
