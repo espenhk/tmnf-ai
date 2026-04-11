@@ -123,6 +123,13 @@ class TestCMAESPolicyUpdate(unittest.TestCase):
         with self.assertRaises(ValueError):
             policy.update_distribution([0.0] * (policy._lam - 1))
 
+    def test_update_without_sample_raises(self):
+        policy = CMAESPolicy(population_size=6)
+        policy.initialize_random()
+        # Never called sample_population() — _pop_xs/_pop_ys are empty
+        with self.assertRaises(RuntimeError):
+            policy.update_distribution([0.0] * 6)
+
     def test_mean_moves_after_update(self):
         policy = CMAESPolicy(population_size=10, initial_sigma=0.5)
         policy.initialize_random()
@@ -200,7 +207,7 @@ class TestCMAESConvergence(unittest.TestCase):
         """CMA-ES mean should move toward the maximizer of a quadratic in <=50 generations."""
         from obs_spec import BASE_OBS_DIM
 
-        policy  = CMAESPolicy(population_size=20, initial_sigma=1.0, n_lidar_rays=0)
+        policy  = CMAESPolicy(population_size=20, initial_sigma=1.0, n_lidar_rays=0, seed=42)
         policy.initialize_random()
 
         n_weights = BASE_OBS_DIM * 3

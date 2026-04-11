@@ -746,7 +746,8 @@ def _greedy_loop_cmaes(
 
     logger.info(
         "[CMAES] population_size=%d, total episodes = %d × %d = %d",
-        policy._lam, n_generations, policy._lam, n_generations * policy._lam,
+        policy.population_size, n_generations, policy.population_size,
+        n_generations * policy.population_size,
     )
 
     try:
@@ -756,7 +757,7 @@ def _greedy_loop_cmaes(
             pop_size   = len(population)
             logger.info(
                 "--- Generation %d/%d --- evaluating %d individuals (σ=%.4f, episode_time=%.1fs)",
-                gen, n_generations, pop_size, policy._sigma, env._max_episode_time_s,
+                gen, n_generations, pop_size, policy.sigma, env._max_episode_time_s,
             )
 
             rewards     = []
@@ -780,12 +781,12 @@ def _greedy_loop_cmaes(
                 policy.save(weights_file)
                 verdict = (
                     f"NEW BEST champion  reward={policy.champion_reward:+.1f}"
-                    f"  σ={policy._sigma:.4f}"
+                    f"  σ={policy.sigma:.4f}"
                 )
             else:
                 verdict = (
                     f"no improvement  gen_best={gen_best:+.1f}"
-                    f"  champion={policy.champion_reward:+.1f}  σ={policy._sigma:.4f}"
+                    f"  champion={policy.champion_reward:+.1f}  σ={policy.sigma:.4f}"
                 )
 
             logger.info("  >> %s", verdict)

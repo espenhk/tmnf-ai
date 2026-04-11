@@ -834,6 +834,7 @@ class CMAESPolicy(BasePolicy):
         population_size: int = 20,
         initial_sigma: float = 0.3,
         n_lidar_rays: int = 0,
+        seed: int | None = None,
     ) -> None:
         from obs_spec import BASE_OBS_DIM
         self._lam          = population_size
@@ -863,9 +864,11 @@ class CMAESPolicy(BasePolicy):
             2.0 * (self._mu_eff - 2 + 1.0 / self._mu_eff) / ((n + 2) ** 2 + self._mu_eff),
         )
 
+        # Shared RNG — seeding makes sampling reproducible (useful for tests)
+        self._rng = np.random.default_rng(seed)
+
         # Distribution state (float64 for numerical stability)
-        rng             = np.random.default_rng()
-        self._mean      = rng.standard_normal(n).astype(np.float64)
+        self._mean      = self._rng.standard_normal(n).astype(np.float64)
         self._sigma     = float(initial_sigma)
         self._ps        = np.zeros(n, dtype=np.float64)   # step-size evolution path
         self._pc        = np.zeros(n, dtype=np.float64)   # covariance evolution path
@@ -891,6 +894,16 @@ class CMAESPolicy(BasePolicy):
     @property
     def champion_reward(self) -> float:
         return self._champion_reward
+
+    @property
+    def population_size(self) -> int:
+        """Number of offspring sampled each generation (λ)."""
+        return self._lam
+
+    @property
+    def sigma(self) -> float:
+        """Current step size σ (adapts each generation)."""
+        return self._sigma
 
     # ------------------------------------------------------------------
     # Initialisation
@@ -961,8 +974,7 @@ class CMAESPolicy(BasePolicy):
         Returns a list of WeightedLinearPolicy instances ready for evaluation.
         Must be followed by update_distribution(rewards) with the same ordering.
         """
-        n   = self._n
-        rng = np.random.default_rng()
+        n = self._n
 
         # Refresh eigendecomposition every generation (λ/(10n) < 1 for typical dims)
         if self._gen - self._eigengen >= max(1, self._lam // max(1, 10 * n)):
@@ -971,7 +983,7 @@ class CMAESPolicy(BasePolicy):
         self._pop_xs = []
         self._pop_ys = []
         for _ in range(self._lam):
-            z = rng.standard_normal(n)
+            z = self._rng.standard_normal(n)
             y = self._B @ (self._D * z)        # sample from N(0, C)
             x = self._mean + self._sigma * y
             self._pop_xs.append(x)
@@ -989,6 +1001,13 @@ class CMAESPolicy(BasePolicy):
         """
         if len(rewards) != self._lam:
             raise ValueError(f"Expected {self._lam} rewards, got {len(rewards)}")
+        if len(self._pop_xs) != self._lam or len(self._pop_ys) != self._lam:
+            raise RuntimeError(
+                "update_distribution() called before a matching sample_population(). "
+                f"Expected {self._lam} samples in _pop_xs/_pop_ys, "
+                f"got {len(self._pop_xs)}/{len(self._pop_ys)}. "
+                "Call sample_population() first."
+            )
         n = self._n
 
         # Rank offspring descending by reward
