@@ -192,9 +192,10 @@ class TestNTicksScaling(unittest.TestCase):
         curr = make_state_data(track_progress=0.1, speed=(0.0, 0.0, 0.0))
         r1 = self._r(prev, curr, n_ticks=1)
         r3 = self._r(prev, curr, n_ticks=3)
-        # progress contribution is identical in both; difference is only per-tick terms
+        # progress contribution is identical in both; only per-tick terms scale
         per_tick_diff = r3 - r1
-        self.assertLess(abs(per_tick_diff), self.cfg.progress_weight * 0.1)
+        expected_diff = 2.0 * self.cfg.step_penalty
+        self.assertAlmostEqual(per_tick_diff, expected_diff, places=5)
 
 
 if __name__ == "__main__":
