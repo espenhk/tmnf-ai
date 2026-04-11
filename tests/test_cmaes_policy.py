@@ -171,7 +171,7 @@ class TestCMAESPolicySerialisation(unittest.TestCase):
     def test_to_cfg_contains_required_keys(self):
         policy = CMAESPolicy(population_size=10, initial_sigma=0.3)
         cfg    = policy.to_cfg()
-        for key in ("policy_type", "population_size", "initial_sigma",
+        for key in ("policy_type", "population_size", "sigma",
                     "n_lidar_rays", "champion_reward"):
             self.assertIn(key, cfg)
 
