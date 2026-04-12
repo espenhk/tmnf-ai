@@ -202,16 +202,15 @@ class TMNFEnv(BaseGameEnv):
             self._ep_max_skip = n
 
         accelerating = bool(float(action[1]) >= 0.5)
-        lidar_rays = self._lidar.get_distances() if self._lidar is not None else None
+        lidar_rays   = self._lidar.get_distances() if self._lidar is not None else None
 
         reward = self._reward_calc.compute(
-            prev=self._prev_state,
-            curr=data,
-            finished=finished,
-            elapsed_s=self._elapsed_s,
-            accelerating=accelerating,
-            lidar_rays=lidar_rays,
-            n_ticks=step.ticks_this_step,
+            prev_state = self._prev_state,
+            curr_state = data,
+            finished   = finished,
+            elapsed_s  = self._elapsed_s,
+            info       = {"accelerating": accelerating, "lidar_rays": lidar_rays},
+            n_ticks    = step.ticks_this_step,
         )
 
         time_over = self._elapsed_s > self._max_episode_time_s

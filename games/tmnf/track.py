@@ -20,27 +20,30 @@ class Centerline:
             up_vector: World up-vector for the game's coordinate system.
                        Defaults to Y-up [0, 1, 0] which is correct for TMNF.
         """
-        self._up = up_vector if up_vector is not None else _DEFAULT_UP.copy()
+        raw_up = up_vector if up_vector is not None else _DEFAULT_UP.copy()
+        up_len = float(np.linalg.norm(raw_up))
+        self._up = raw_up / up_len if up_len > 1e-9 else _DEFAULT_UP.copy()
         self._points = np.load(path)  # (N, 3) float32
         diffs = np.diff(self._points, axis=0)
         seg_lengths = np.linalg.norm(diffs, axis=1)
         self._arc = np.concatenate([[0.0], np.cumsum(seg_lengths)])
         self._total_length = self._arc[-1]
-        # KDTree for O(log N) nearest-point queries instead of O(N) argmin.
+        # KDTree for O(log N) nearest-point queries used in the default path.
         self._kdtree = KDTree(self._points)
 
     def project_with_forward(
         self, pos: Vec3, hint_idx: int | None = None, window: int = 50
     ) -> tuple[float, float, float, np.ndarray, int]:
-        """
-        Single O(N) scan returning all centerline quantities at once.
+        """Return all centerline quantities for *pos* in one pass.
 
         Returns (progress, lateral_offset, vertical_offset, forward_dir, nearest_idx).
 
         Prefer this over calling project() and forward_at() separately — they each
-        did an independent O(N) nearest-point search.  Passing hint_idx (the index
-        returned by the previous call) with a suitable window reduces the search to
-        O(window) once the car is moving predictably.
+        did an independent nearest-point search.
+
+        Default path (hint_idx=None): O(log N) via KDTree.
+        Hint path (hint_idx provided): O(window) linear scan around the previous
+            index, which is faster when the car is moving predictably along the track.
         """
         p = np.array([pos.x, pos.y, pos.z], dtype=np.float64)
 
@@ -54,11 +57,11 @@ class Centerline:
                 local_dists = np.linalg.norm(self._points[lo:hi + 1] - p, axis=1)
                 idx = lo + int(np.argmin(local_dists))
             else:
-                dists = np.linalg.norm(self._points - p, axis=1)
-                idx = int(np.argmin(dists))
+                _, idx = self._kdtree.query(p)
+                idx = int(idx)
         else:
-            dists = np.linalg.norm(self._points - p, axis=1)
-            idx = int(np.argmin(dists))
+            _, idx = self._kdtree.query(p)
+            idx = int(idx)
 
         idx = min(idx, len(self._points) - 2)
 
@@ -82,8 +85,8 @@ class Centerline:
         else:
             right = np.array([1.0, 0.0, 0.0])
 
-        lateral_offset = float(np.dot(offset, right))
-        vertical_offset = float(offset[1])
+        lateral_offset  = float(np.dot(offset, right))
+        vertical_offset = float(np.dot(offset, self._up))
 
         return float(progress), lateral_offset, vertical_offset, forward, idx
 
@@ -125,7 +128,7 @@ class Centerline:
         # Heading change: signed angle between fwd0 and fwd1 (Y-up cross product)
         cos_a = float(np.clip(np.dot(fwd0, fwd1), -1.0, 1.0))
         cross = np.cross(fwd0, fwd1)
-        sign = 1.0 if float(cross[1]) >= 0.0 else -1.0
+        sign  = 1.0 if float(np.dot(cross, self._up)) >= 0.0 else -1.0
         heading_change = sign * math.acos(cos_a)
 
         return lateral_offset, heading_change

@@ -84,6 +84,7 @@ class NeuralDQNPolicy(BasePolicy):
         epsilon_decay_steps: int = 5000,
         gamma: float = 0.99,
         n_lidar_rays: int = 0,
+        seed: int | None = None,
     ) -> None:
         self._hidden       = list(hidden_sizes or [64, 64])
         self._buf_maxlen   = int(replay_buffer_size)
@@ -100,6 +101,7 @@ class NeuralDQNPolicy(BasePolicy):
         self._n_lidar_rays = n_lidar_rays
         self._obs_dim      = BASE_OBS_DIM + n_lidar_rays
         self._scales       = obs_scales_with_lidar(n_lidar_rays)
+        self._seed         = seed
 
         self._replay      = ReplayBuffer(replay_buffer_size)
         self._total_steps = 0   # transitions pushed (drives epsilon schedule)
@@ -130,6 +132,7 @@ class NeuralDQNPolicy(BasePolicy):
             epsilon_decay_steps = cfg.get("epsilon_decay_steps", 5000),
             gamma               = cfg.get("gamma",               0.99),
             n_lidar_rays        = n_lidar_rays,
+            seed                = cfg.get("seed",                None),
         )
         if "online_weights" in cfg:
             required = ["online_weights", "online_biases", "target_weights", "target_biases"]
@@ -162,7 +165,7 @@ class NeuralDQNPolicy(BasePolicy):
 
     def _build_net(self) -> dict:
         """He-initialised MLP: weights and biases as lists of float32 arrays."""
-        rng  = np.random.default_rng()
+        rng  = np.random.default_rng(self._seed)
         dims = [self._obs_dim] + self._hidden + [_N_DISCRETE_ACTIONS]
         weights, biases = [], []
         for i in range(len(dims) - 1):

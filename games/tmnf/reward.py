@@ -87,36 +87,44 @@ class RewardCalculator(RewardCalculatorBase):
     def __init__(self, config: RewardConfig) -> None:
         self.config = config
 
-    def compute(  # type: ignore[override]
+    def compute(
         self,
-        prev: StateData,
-        curr: StateData,
+        prev_state: StateData,
+        curr_state: StateData,
         finished: bool,
         elapsed_s: float,
-        accelerating: bool = False,
-        lidar_rays: np.ndarray | None = None,
+        info: dict,
         n_ticks: int = 1,
-        info: dict | None = None,
     ) -> float:
-        cfg = self.config
-        reward = 0.0
+        """Compute reward for one RL step.
+
+        Game-specific signals are passed through *info* rather than as extra
+        positional arguments so that the signature matches RewardCalculatorBase:
+
+            info["accelerating"]  bool    — whether the throttle was pressed
+            info["lidar_rays"]    ndarray — LIDAR wall-distance rays (optional)
+        """
+        cfg          = self.config
+        accelerating = bool(info.get("accelerating", False))
+        lidar_rays   = info.get("lidar_rays", None)
+        reward       = 0.0
 
         # Progress: reward for advancing along the track this step.
-        if curr.track_progress is not None and prev.track_progress is not None:
-            delta = curr.track_progress - prev.track_progress
+        if curr_state.track_progress is not None and prev_state.track_progress is not None:
+            delta = curr_state.track_progress - prev_state.track_progress
             reward += delta * cfg.progress_weight
 
         # Centerline: quadratic penalty for lateral deviation.
         # Scaled by n_ticks: the car was off-centreline for this many game ticks.
-        if curr.lateral_offset is not None:
+        if curr_state.lateral_offset is not None:
             reward += (
-                cfg.centerline_weight * abs(curr.lateral_offset) ** cfg.centerline_exp
+                cfg.centerline_weight * abs(curr_state.lateral_offset) ** cfg.centerline_exp
                 * n_ticks
             )
 
         # Speed: small reward for going fast.
         # Scaled by n_ticks: the car was travelling at this speed for this many ticks.
-        reward += cfg.speed_weight * curr.velocity.magnitude() * n_ticks
+        reward += cfg.speed_weight * curr_state.velocity.magnitude() * n_ticks
 
         # Acceleration bonus: nudge the policy away from coasting.
         # Scaled by n_ticks because the action was held for that many game ticks.
@@ -134,11 +142,11 @@ class RewardCalculator(RewardCalculatorBase):
 
         # Airborne penalty: only when below or beside the centerline.
         # Scaled by n_ticks: the car was airborne for this many game ticks.
-        if curr.vertical_offset is not None:
-            wheels_in_contact = sum(w.contact for w in curr.wheels)
+        if curr_state.vertical_offset is not None:
+            wheels_in_contact = sum(w.contact for w in curr_state.wheels)
             airborne = wheels_in_contact <= 1
             # vertical_offset > 0 → car is above centerline → legitimate jump → no penalty
-            if airborne and curr.vertical_offset <= 0.0:
+            if airborne and curr_state.vertical_offset <= 0.0:
                 reward += cfg.airborne_penalty * n_ticks
 
         # Lidar wall proximity: quadratic penalty for the nearest detected wall.

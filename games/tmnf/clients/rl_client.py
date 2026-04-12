@@ -31,6 +31,7 @@ import numpy as np
 from tminterface.interface import TMInterface
 
 from games.tmnf.clients.base import PhaseAwareClient
+from games.tmnf.constants import N_ACTIONS
 from games.tmnf.steering import angle_diff
 from games.tmnf.track import Centerline
 from games.tmnf.state import StateData
@@ -71,6 +72,10 @@ ACTIONS: list[tuple[bool, bool, int, str]] = [
     (True,  False,     0, "accelerate"),         # 7: accel  + straight   ← default
     (True,  False,   100, "accelerate right"),   # 8: accel  + full right
 ]
+assert len(ACTIONS) == N_ACTIONS, (
+    f"ACTIONS has {len(ACTIONS)} entries but N_ACTIONS={N_ACTIONS}; "
+    "update games/tmnf/constants.py to match."
+)
 
 
 def get_action_description(idx: int) -> str:
