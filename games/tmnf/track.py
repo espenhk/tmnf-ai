@@ -125,7 +125,7 @@ class Centerline:
         p = np.array([pos.x, pos.y, pos.z], dtype=np.float64)
         lateral_offset = float(np.dot(a1 - p, right0))
 
-        # Heading change: signed angle between fwd0 and fwd1 (Y-up cross product)
+        # Heading change: signed angle between fwd0 and fwd1
         cos_a = float(np.clip(np.dot(fwd0, fwd1), -1.0, 1.0))
         cross = np.cross(fwd0, fwd1)
         sign  = 1.0 if float(np.dot(cross, self._up)) >= 0.0 else -1.0
