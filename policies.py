@@ -38,8 +38,16 @@ from games.tmnf.obs_spec import (
     obs_scales_with_lidar,
 )
 from games.tmnf.simple_policy import SimplePolicy  # noqa: F401
+from games.tmnf.policies import (  # noqa: F401
+    ReplayBuffer,
+    NeuralDQNPolicy,
+    CMAESPolicy,
+)
 
 logger = logging.getLogger(__name__)
+
+# Aliases expected by test_neural_dqn_policy.py (original code used _DISCRETE_ACTIONS)
+_DISCRETE_ACTIONS = DISCRETE_ACTIONS
 
 _HEAD_NAMES = ["steer", "accel", "brake"]
 

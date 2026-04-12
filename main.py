@@ -19,6 +19,7 @@ from framework.training import train_rl
 from games.tmnf.obs_spec import TMNF_OBS_SPEC
 from games.tmnf.actions import DISCRETE_ACTIONS, PROBE_ACTIONS, WARMUP_ACTION
 from games.tmnf.env import make_env
+from games.tmnf.policies import NeuralDQNPolicy, CMAESPolicy
 from analytics import save_experiment_results  # backward-compat shim
 
 logger = logging.getLogger(__name__)
@@ -77,6 +78,51 @@ def main() -> None:
 
     n_lidar_rays = p.get("n_lidar_rays", 0)
     obs_spec     = TMNF_OBS_SPEC.with_lidar(n_lidar_rays)
+    policy_type  = p.get("policy_type", "hill_climbing")
+    policy_params = p.get("policy_params") or {}
+    re_initialize = args.re_initialize
+
+    # Factory callables for TMNF-specific policy types (injected into framework).
+    def _make_neural_dqn() -> NeuralDQNPolicy:
+        if os.path.exists(weights_file) and not re_initialize:
+            with open(weights_file) as _f:
+                _cfg = yaml.safe_load(_f)
+            if isinstance(_cfg, dict) and _cfg.get("policy_type") == "neural_dqn":
+                return NeuralDQNPolicy.from_cfg(_cfg, n_lidar_rays=n_lidar_rays)
+        return NeuralDQNPolicy(
+            hidden_sizes        = policy_params.get("hidden_sizes",        [64, 64]),
+            replay_buffer_size  = policy_params.get("replay_buffer_size",  10000),
+            batch_size          = policy_params.get("batch_size",          64),
+            min_replay_size     = policy_params.get("min_replay_size",     500),
+            target_update_freq  = policy_params.get("target_update_freq",  200),
+            learning_rate       = policy_params.get("learning_rate",       0.001),
+            epsilon_start       = policy_params.get("epsilon_start",       1.0),
+            epsilon_end         = policy_params.get("epsilon_end",         0.05),
+            epsilon_decay_steps = policy_params.get("epsilon_decay_steps", 5000),
+            gamma               = policy_params.get("gamma",               0.99),
+            n_lidar_rays        = n_lidar_rays,
+        )
+
+    def _make_cmaes() -> CMAESPolicy:
+        pop_size = policy_params.get("population_size", 20)
+        sigma    = policy_params.get("initial_sigma",   0.3)
+        policy   = CMAESPolicy(
+            population_size = pop_size,
+            initial_sigma   = sigma,
+            n_lidar_rays    = n_lidar_rays,
+        )
+        if os.path.exists(weights_file) and not re_initialize:
+            from policies import WeightedLinearPolicy as _WLP
+            champion = _WLP.from_cfg(
+                yaml.safe_load(open(weights_file)) or {}, n_lidar_rays=n_lidar_rays
+            )
+            policy.initialize_from_champion(champion)
+        else:
+            policy.initialize_random()
+        return policy
+
+    extra_policy_types = {"neural_dqn": _make_neural_dqn, "cmaes": _make_cmaes}
+    extra_loop_dispatch = {"neural_dqn": "q_learning", "cmaes": "cmaes"}
 
     data = train_rl(
         experiment_name     = args.experiment,
@@ -104,11 +150,13 @@ def main() -> None:
         warmup_steps        = 100,
         training_params     = p,
         no_interrupt        = args.no_interrupt,
-        re_initialize       = args.re_initialize,
-        policy_type         = p.get("policy_type", "hill_climbing"),
-        policy_params       = p.get("policy_params") or {},
+        re_initialize       = re_initialize,
+        policy_type         = policy_type,
+        policy_params       = policy_params,
         track               = track,
         adaptive_mutation   = p.get("adaptive_mutation", True),
+        extra_policy_types  = extra_policy_types,
+        extra_loop_dispatch = extra_loop_dispatch,
     )
 
     save_experiment_results(data, results_dir=f"{experiment_dir}/results")

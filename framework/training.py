@@ -72,8 +72,14 @@ def _make_policy(
     weights_file: str,
     policy_params: dict,
     re_initialize: bool,
+    extra_policy_types: dict[str, Callable[[], BasePolicy]] | None = None,
 ) -> BasePolicy:
-    """Construct the appropriate policy given type, obs_spec, and hyperparams."""
+    """Construct the appropriate policy given type, obs_spec, and hyperparams.
+
+    extra_policy_types maps policy_type names to zero-arg factory callables.
+    This lets game-specific policy types (e.g. 'neural_dqn', 'cmaes') be
+    injected without the framework importing from games/.
+    """
 
     if policy_type == "hill_climbing":
         return WeightedLinearPolicy(obs_spec, head_names, weights_file
@@ -135,6 +141,9 @@ def _make_policy(
             policy.initialize_random()
             logger.info("[GeneticPolicy] random population of %d", pop_size)
         return policy
+
+    elif extra_policy_types and policy_type in extra_policy_types:
+        return extra_policy_types[policy_type]()
 
     else:
         raise ValueError(
@@ -545,6 +554,70 @@ def _maybe_adapt_scale(history, current, sim, window, up, down, mn, mx, enabled,
     out.append(new)
 
 
+def _greedy_loop_cmaes(
+    env,
+    policy,                # CMAESPolicy duck type: sample_population / update_distribution
+    n_generations: int,
+    weights_file: str,
+    warmup_action: np.ndarray | None = None,
+    warmup_steps: int = 0,
+) -> tuple[Any, float, list[GreedySimResult]]:
+    """CMA-ES loop: sample λ offspring, evaluate each for one episode, update distribution."""
+    pop_size    = policy.population_size
+    best_reward = policy.champion_reward
+    greedy_sims: list[GreedySimResult] = []
+    full_episode_time_s = env._max_episode_time_s
+
+    logger.info("[CMA-ES] population_size=%d, total episodes = %d × %d = %d",
+                pop_size, n_generations, pop_size, n_generations * pop_size)
+
+    try:
+        for gen in range(1, n_generations + 1):
+            env._max_episode_time_s = _scaled_episode_time(
+                gen, n_generations, full_episode_time_s,
+            )
+            offspring    = policy.sample_population()
+            rewards      = []
+            total_steps  = 0
+            info: dict   = {}
+            trace        = None
+
+            for individual in offspring:
+                obs, _ = env.reset()
+                reward, info, _, steps, trace = _run_episode(
+                    env, individual, obs,
+                    warmup_action=warmup_action, warmup_steps=warmup_steps,
+                )
+                rewards.append(reward)
+                total_steps += steps
+
+            improved = policy.update_distribution(rewards)
+            gen_best = max(rewards)
+            if gen_best > best_reward:
+                best_reward = gen_best
+            if improved:
+                policy.save(weights_file)
+                verdict = (f"NEW BEST champion  reward={policy.champion_reward:+.1f}"
+                           f"  sigma={policy.sigma:.4f}")
+            else:
+                verdict = (f"no improvement  gen_best={gen_best:+.1f}"
+                           f"  champion={policy.champion_reward:+.1f}"
+                           f"  sigma={policy.sigma:.4f}")
+            logger.info("  >> %s", verdict)
+
+            greedy_sims.append(GreedySimResult(
+                sim=gen, reward=gen_best, improved=improved,
+                throttle_counts=[0, 0, 0], total_steps=total_steps, trace=trace,
+                weights=policy.to_cfg(),
+                final_track_progress=info.get("track_progress", 0.0),
+                laps_completed=info.get("laps_completed", 0),
+            ))
+    except KeyboardInterrupt:
+        logger.warning("Training interrupted.")
+
+    return policy, best_reward, greedy_sims
+
+
 def _greedy_loop_q_learning(
     env,
     policy: BasePolicy,
@@ -687,6 +760,8 @@ def train_rl(
     track: str = "",
     adaptive_mutation: bool = True,
     save_results_fn: Callable[[ExperimentData, str], None] | None = None,
+    extra_policy_types: dict[str, Callable[[], BasePolicy]] | None = None,
+    extra_loop_dispatch: dict[str, str] | None = None,
 ) -> ExperimentData:
     """
     Train a policy via the selected algorithm.
@@ -757,6 +832,7 @@ def train_rl(
             policy_params  = {**policy_params,
                               "_mutation_scale_fallback": mutation_scale},
             re_initialize  = re_initialize,
+            extra_policy_types = extra_policy_types,
         )
         best_reward = float("-inf")
 
@@ -774,6 +850,8 @@ def train_rl(
 
     kw = dict(warmup_action=warmup_action, warmup_steps=warmup_steps)
 
+    _extra_dispatch = extra_loop_dispatch or {}
+
     if policy_type in ("hill_climbing", "neural_net"):
         best_policy, best_reward, greedy_sims = _greedy_loop(
             env=env, policy=best_policy, n_sims=n_sims,
@@ -789,6 +867,16 @@ def train_rl(
     elif policy_type == "genetic":
         best_policy, best_reward, greedy_sims = _greedy_loop_genetic(
             env=env, policy=best_policy,  # type: ignore[arg-type]
+            n_generations=n_sims, weights_file=weights_file, **kw,
+        )
+    elif _extra_dispatch.get(policy_type) == "q_learning":
+        best_policy, best_reward, greedy_sims = _greedy_loop_q_learning(
+            env=env, policy=best_policy, n_episodes=n_sims,
+            weights_file=weights_file, **kw,
+        )
+    elif _extra_dispatch.get(policy_type) == "cmaes":
+        best_policy, best_reward, greedy_sims = _greedy_loop_cmaes(
+            env=env, policy=best_policy,
             n_generations=n_sims, weights_file=weights_file, **kw,
         )
     else:
