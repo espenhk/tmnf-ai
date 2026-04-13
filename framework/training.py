@@ -82,13 +82,17 @@ def _make_policy(
     """
 
     if policy_type == "hill_climbing":
-        return WeightedLinearPolicy(obs_spec, head_names, weights_file
-                                    if not re_initialize else None)
+        if re_initialize and os.path.exists(weights_file):
+            os.remove(weights_file)
+            logger.info("[WeightedLinearPolicy] removed existing weights file for re-initialization: %s",
+                        weights_file)
+        return WeightedLinearPolicy(obs_spec, head_names, weights_file)
 
     elif policy_type == "neural_net":
         if os.path.exists(weights_file) and not re_initialize:
             with open(weights_file) as f:
-                cfg = yaml.safe_load(f)
+                loaded_cfg = yaml.safe_load(f)
+            cfg = loaded_cfg if isinstance(loaded_cfg, dict) else {}
             if cfg.get("policy_type") == "neural_net":
                 logger.info("[NeuralNetPolicy] loaded from %s", weights_file)
                 return NeuralNetPolicy.from_cfg(cfg, obs_spec)
