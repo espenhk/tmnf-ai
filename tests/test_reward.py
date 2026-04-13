@@ -27,7 +27,8 @@ class TestRewardCalculator(unittest.TestCase):
 
     def _r(self, prev, curr, finished=False, elapsed_s=0.0, accelerating=False,
            n_ticks=1):
-        return self.calc.compute(prev, curr, finished, elapsed_s, accelerating,
+        return self.calc.compute(prev, curr, finished, elapsed_s,
+                                 info={"accelerating": accelerating},
                                  n_ticks=n_ticks)
 
     # --- Progress ---
@@ -131,7 +132,8 @@ class TestNTicksScaling(unittest.TestCase):
 
     def _r(self, prev, curr, n_ticks=1, finished=False, elapsed_s=0.0,
            accelerating=False):
-        return self.calc.compute(prev, curr, finished, elapsed_s, accelerating,
+        return self.calc.compute(prev, curr, finished, elapsed_s,
+                                 info={"accelerating": accelerating},
                                  n_ticks=n_ticks)
 
     def test_centerline_scales_with_n_ticks(self):
