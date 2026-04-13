@@ -1,6 +1,5 @@
 import logging
 
-from tminterface.client import Client
 from tminterface.interface import TMInterface
 
 logger = logging.getLogger(__name__)

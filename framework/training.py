@@ -285,19 +285,21 @@ def _run_probes(
     results: dict[int, float] = {}
     probe_results: list[ProbeResult] = []
 
-    for i, (action_arr, action_name) in enumerate(probe_actions):
-        logger.info("Probe %d/%d: %s", i + 1, len(probe_actions), action_name)
-        obs, _ = env.reset()
-        reward, _, throttle_counts, total_steps, trace = _run_episode(
-            env, _ConstantPolicy(action_arr), obs,
-            warmup_action=warmup_action, warmup_steps=warmup_steps,
-        )
-        results[i] = reward
-        probe_results.append(
-            ProbeResult(action_idx=i, action_name=action_name, reward=reward, trace=trace)
-        )
-
-    env.set_episode_time_limit(saved_limit)
+    try:
+        for i, (action_arr, action_name) in enumerate(probe_actions):
+            logger.info("Probe %d/%d: %s", i + 1, len(probe_actions), action_name)
+            obs, _ = env.reset()
+            reward, _, throttle_counts, total_steps, trace = _run_episode(
+                env, _ConstantPolicy(action_arr), obs,
+                warmup_action=warmup_action, warmup_steps=warmup_steps,
+            )
+            results[i] = reward
+            probe_results.append(
+                ProbeResult(action_idx=i, action_name=action_name, reward=reward, trace=trace)
+            )
+    finally:
+        if saved_limit is not None:
+            env.set_episode_time_limit(saved_limit)
 
     best_idx = max(results, key=lambda i: results[i])
     logger.info("Probe results:")
@@ -469,6 +471,7 @@ def _greedy_loop(
     rng   = np.random.default_rng()
     theta = best_policy.to_flat()
     full_episode_time_s = env.get_episode_time_limit()
+    has_episode_time_limit = full_episode_time_s is not None
 
     try:
         for sim in range(1, n_sims + 1):
@@ -476,7 +479,10 @@ def _greedy_loop(
             policy_plus  = best_policy.with_flat(theta + eps)
             policy_minus = best_policy.with_flat(theta - eps)
 
-            env.set_episode_time_limit(_scaled_episode_time(sim, n_sims, full_episode_time_s))
+            if has_episode_time_limit:
+                env.set_episode_time_limit(
+                    _scaled_episode_time(sim, n_sims, full_episode_time_s)
+                )
 
             obs, _ = env.reset()
             r_plus, info_plus, tc_plus, steps_plus, trace_plus = _run_episode(
@@ -573,9 +579,10 @@ def _greedy_loop_cmaes(
 
     try:
         for gen in range(1, n_generations + 1):
-            env.set_episode_time_limit(_scaled_episode_time(
-                gen, n_generations, full_episode_time_s,
-            ))
+            if full_episode_time_s is not None:
+                env.set_episode_time_limit(_scaled_episode_time(
+                    gen, n_generations, full_episode_time_s,
+                ))
             offspring    = policy.sample_population()
             rewards      = []
             total_steps  = 0
@@ -633,9 +640,10 @@ def _greedy_loop_q_learning(
 
     try:
         for episode in range(1, n_episodes + 1):
-            env.set_episode_time_limit(_scaled_episode_time(
-                episode, n_episodes, full_episode_time_s,
-            ))
+            if full_episode_time_s is not None:
+                env.set_episode_time_limit(_scaled_episode_time(
+                    episode, n_episodes, full_episode_time_s,
+                ))
             obs, _ = env.reset()
             reward, info, tc, total_steps, trace = _run_episode(
                 env, policy, obs,
@@ -684,12 +692,16 @@ def _greedy_loop_genetic(
 
     logger.info("[Genetic] population_size=%d, total episodes = %d × %d = %d",
                 pop_size, n_generations, pop_size, n_generations * pop_size)
+    if full_episode_time_s is None:
+        logger.info("[Genetic] environment has no adjustable episode time limit; "
+                    "skipping per-generation time scaling.")
 
     try:
         for gen in range(1, n_generations + 1):
-            env.set_episode_time_limit(_scaled_episode_time(
-                gen, n_generations, full_episode_time_s,
-            ))
+            if full_episode_time_s is not None:
+                env.set_episode_time_limit(_scaled_episode_time(
+                    gen, n_generations, full_episode_time_s,
+                ))
             rewards      = []
             total_steps  = 0
             trace        = None

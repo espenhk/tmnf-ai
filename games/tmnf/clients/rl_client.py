@@ -40,7 +40,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-_UP = np.array([0.0, 1.0, 0.0])
 VELOCITY_ZERO_THRESHOLD = 0.5  # m/s — wait for car to stop before starting episode
 
 # Default action: coast straight — no steer, no accel, no brake.

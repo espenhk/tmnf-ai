@@ -1,8 +1,10 @@
 """Abstract base class for game environment integrations.
 
-Game integrations subclass BaseGameEnv and implement the three abstract
-methods.  The framework layer only ever holds a reference of type BaseGameEnv
-and never imports from games/.
+Game integrations subclass BaseGameEnv and implement its abstract interface.
+In practice, subclasses must implement ``_build_obs`` and may override the
+optional default hooks for game-specific info and episode time limits.  The
+framework layer only ever holds a reference of type BaseGameEnv and never
+imports from games/.
 
 Relationship to Gymnasium
 --------------------------
