@@ -197,7 +197,15 @@ class WeightedLinearPolicy(BasePolicy):
         names = self._obs_spec.names
         if os.path.exists(self._weights_file):
             with open(self._weights_file) as f:
-                cfg = yaml.safe_load(f)
+                cfg = yaml.safe_load(f) or {}
+            if not isinstance(cfg, dict):
+                logger.warning(
+                    "[WeightedLinearPolicy] invalid weights config in %s; expected a mapping, got %s. "
+                    "Using empty config.",
+                    self._weights_file,
+                    type(cfg).__name__,
+                )
+                cfg = {}
             first_key   = f"{self._head_names[0]}_weights"
             loaded_dim  = len(cfg.get(first_key, {}))
             if loaded_dim != len(names):
