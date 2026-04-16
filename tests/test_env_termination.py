@@ -54,13 +54,16 @@ def _make_env(
     """Instantiate TMNFEnv bypassing __init__, wiring only what step() needs."""
     env = TMNFEnv.__new__(TMNFEnv)
     env._reward_config = RewardConfig(crash_threshold_m=crash_threshold_m)
-    env._reward_calc = RewardCalculator(env._reward_config)
+    # Stub reward computation so MagicMock prev_state fields never reach arithmetic.
+    env._reward_calc = MagicMock()
+    env._reward_calc.compute.return_value = 0.0
     env._max_episode_time_s = max_episode_time_s
     env._auto_respawn_on_finish = auto_respawn_on_finish
     env._lidar = None
     env._prev_state = MagicMock()
     env._elapsed_s = 0.0
-    env._episode_start_s = time.monotonic()
+    # Place episode start 1 s in the past so elapsed_s is deterministically > 0.
+    env._episode_start_s = time.monotonic() - 1.0
     env._laps_completed = 0
     env._ep_rl_steps = 0
     env._ep_total_ticks = 0
