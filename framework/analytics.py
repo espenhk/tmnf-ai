@@ -66,6 +66,7 @@ class ColdStartSimResult:
     throttle_counts: list  # [brake_steps, coast_steps, accel_steps]
     total_steps: int
     trace: RunTrace | None = None
+    termination_reason: str | None = None
 
 
 @dataclass
@@ -88,6 +89,7 @@ class GreedySimResult:
     final_track_progress: float = 0.0
     laps_completed: int = 0
     mutation_scale: float | None = None
+    termination_reason: str | None = None
 
 
 @dataclass
@@ -292,12 +294,13 @@ def _greedy_table_md(data: ExperimentData) -> str:
     lines = [
         "## Greedy Phase\n\n",
         f"Best reward: **{best_r:+.1f}**\n\n",
-        "| Sim  | Reward   | Result       |\n",
-        "|------|----------|--------------|\n",
+        "| Sim  | Reward   | Reason       | Result       |\n",
+        "|------|----------|--------------|-------------|\n",
     ]
     for s in data.greedy_sims:
-        tag = "**NEW BEST**" if s.improved else ""
-        lines.append(f"| {s.sim:4d} | {s.reward:+8.1f} | {tag} |\n")
+        tag    = "**NEW BEST**" if s.improved else ""
+        reason = s.termination_reason or ""
+        lines.append(f"| {s.sim:4d} | {s.reward:+8.1f} | {reason:12s} | {tag} |\n")
     return "".join(lines)
 
 

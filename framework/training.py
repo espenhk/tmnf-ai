@@ -369,13 +369,14 @@ def _cold_start_search(
         for sim in range(1, sims_per_restart + 1):
             candidate = local_best_policy.mutated(scale=mutation_scale, share=mutation_share)
             obs, _ = env.reset()
-            reward, _, tc, total_steps, trace = _run_episode(
+            reward, info, tc, total_steps, trace = _run_episode(
                 env, candidate, obs,
                 warmup_action=warmup_action, warmup_steps=warmup_steps,
             )
             sim_results.append(ColdStartSimResult(
                 sim=sim, reward=reward,
                 throttle_counts=list(tc), total_steps=total_steps, trace=trace,
+                termination_reason=info.get("termination_reason"),
             ))
             if reward > local_best_reward:
                 local_best_reward = reward
@@ -472,6 +473,7 @@ def _greedy_loop(
                     final_track_progress=info.get("track_progress", 0.0),
                     laps_completed=info.get("laps_completed", 0),
                     mutation_scale=current_scale,
+                    termination_reason=info.get("termination_reason"),
                 ))
         except KeyboardInterrupt:
             logger.warning("Training interrupted.")
@@ -552,6 +554,7 @@ def _greedy_loop(
                 final_track_progress=best_info.get("track_progress", 0.0),
                 laps_completed=best_info.get("laps_completed", 0),
                 mutation_scale=current_scale,
+                termination_reason=best_info.get("termination_reason"),
             ))
     except KeyboardInterrupt:
         logger.warning("Training interrupted.")
@@ -633,6 +636,7 @@ def _greedy_loop_cmaes(
                 weights=policy.to_cfg(),
                 final_track_progress=info.get("track_progress", 0.0),
                 laps_completed=info.get("laps_completed", 0),
+                termination_reason=info.get("termination_reason"),
             ))
     except KeyboardInterrupt:
         logger.warning("Training interrupted.")
@@ -684,6 +688,7 @@ def _greedy_loop_q_learning(
                 weights=cfg,
                 final_track_progress=info.get("track_progress", 0.0),
                 laps_completed=info.get("laps_completed", 0),
+                termination_reason=info.get("termination_reason"),
             ))
     except KeyboardInterrupt:
         logger.warning("Training interrupted.")
@@ -749,6 +754,7 @@ def _greedy_loop_genetic(
                 weights=policy.to_cfg(),
                 final_track_progress=info.get("track_progress", 0.0),
                 laps_completed=info.get("laps_completed", 0),
+                termination_reason=info.get("termination_reason"),
             ))
     except KeyboardInterrupt:
         logger.warning("Training interrupted.")

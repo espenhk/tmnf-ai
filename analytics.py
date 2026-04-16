@@ -48,6 +48,7 @@ from games.tmnf.analytics import (  # noqa: F401
     plot_greedy_progress,
     plot_weight_heatmap,
     plot_weight_evolution,
+    plot_termination_reasons,
     plot_gs_comparison_paths,
     plot_gs_comparison_progress,
 )
@@ -89,11 +90,13 @@ def save_experiment_results(data: ExperimentData, results_dir: str) -> None:
         plot_greedy_progress(data, results_dir)
         plot_greedy_best_run(data, results_dir)
         plot_weight_evolution(data, results_dir)
+        plot_termination_reasons(data, results_dir)
         sections.append(_greedy_table_md(data))
         sections.append("\n![Greedy rewards](greedy_rewards.png)\n\n")
         sections.append("![Greedy progress](greedy_progress.png)\n\n")
         sections.append("![Greedy best run](greedy_best_run.png)\n\n")
         sections.append("![Weight evolution](greedy_weight_evolution.png)\n\n")
+        sections.append("![Termination reasons](termination_reasons.png)\n\n")
 
     plot_greedy_action_dist(data, results_dir)
     plot_reward_trajectory(data, results_dir)
