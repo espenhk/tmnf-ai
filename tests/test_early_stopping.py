@@ -12,9 +12,14 @@ _root = os.path.normpath(os.path.join(os.path.dirname(__file__), ".."))
 if _root not in sys.path:
     sys.path.insert(0, _root)
 
-from framework.training import _greedy_loop
+# framework.training has no top-level shim; import directly.
+from framework.training import _greedy_loop, _greedy_loop_q_learning
+# framework.policies.WeightedLinearPolicy is used directly because the TMNF shim
+# in policies.py bakes in TMNF's obs_spec and a different from_cfg signature;
+# these tests exercise framework internals with a custom 3-dim obs_spec.
 from framework.policies import WeightedLinearPolicy
-from framework.obs_spec import ObsSpec, ObsDim
+# obs_spec shim re-exports ObsSpec/ObsDim unchanged — use it for consistency.
+from obs_spec import ObsSpec, ObsDim
 
 
 # ---------------------------------------------------------------------------
@@ -28,13 +33,11 @@ class _FixedRewardEnv:
         self._reward = reward
 
     def reset(self):
-        obs = np.zeros(3, dtype=np.float32)
-        return obs, {}
+        return np.zeros(3, dtype=np.float32), {}
 
     def step(self, action):
-        obs  = np.zeros(3, dtype=np.float32)
         info = {"track_progress": 0.5, "laps_completed": 0, "pos_x": 0.0, "pos_z": 0.0}
-        return obs, self._reward, True, False, info  # terminated after 1 step
+        return np.zeros(3, dtype=np.float32), self._reward, True, False, info
 
     def get_episode_time_limit(self):
         return None
@@ -71,6 +74,31 @@ class _IncreasingRewardEnv:
 
 
 # ---------------------------------------------------------------------------
+# Minimal stub policy for Q-learning loop tests
+# ---------------------------------------------------------------------------
+
+class _StubQPolicy:
+    """Minimal policy compatible with _greedy_loop_q_learning."""
+
+    def __call__(self, obs: np.ndarray) -> np.ndarray:
+        return np.array([0.0, 1.0, 0.0], dtype=np.float32)
+
+    def update(self, *_) -> None:
+        pass
+
+    def on_episode_end(self) -> None:
+        pass
+
+    def save(self, path: str) -> None:
+        import yaml
+        with open(path, "w") as f:
+            yaml.dump({}, f)
+
+    def to_cfg(self) -> dict:
+        return {}
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
@@ -94,10 +122,10 @@ def _make_wlp(weights_file: str) -> WeightedLinearPolicy:
 
 
 # ---------------------------------------------------------------------------
-# Tests
+# Tests — _greedy_loop (hill_climbing / neural_net)
 # ---------------------------------------------------------------------------
 
-class TestPatientEarlyStopping(unittest.TestCase):
+class TestPatienceEarlyStopping(unittest.TestCase):
 
     def test_stops_after_patience_sims_no_improvement(self):
         """With a fixed-reward env and a high best_reward seed, early stopping fires
@@ -150,7 +178,6 @@ class TestPatientEarlyStopping(unittest.TestCase):
             wf = f.name
         try:
             policy = _make_wlp(wf)
-            # Always improving → streak never reaches patience, so all sims run.
             env    = _IncreasingRewardEnv()
             n_sims   = 20
             patience = 5
@@ -185,6 +212,56 @@ class TestPatientEarlyStopping(unittest.TestCase):
             self.assertTrue(early_stopped)
             self.assertIsNotNone(early_stop_sim)
             self.assertEqual(sims[-1].sim, early_stop_sim)
+        finally:
+            os.unlink(wf)
+
+
+# ---------------------------------------------------------------------------
+# Tests — _greedy_loop_q_learning (epsilon_greedy / mcts)
+# ---------------------------------------------------------------------------
+
+class TestPatienceEarlyStoppingQLoop(unittest.TestCase):
+
+    def test_q_loop_stops_after_patience_no_improvement(self):
+        """Q-learning loop stops after exactly `patience` episodes when reward never improves."""
+        with tempfile.NamedTemporaryFile(suffix=".yaml", delete=False) as f:
+            wf = f.name
+        try:
+            policy   = _StubQPolicy()
+            env      = _FixedRewardEnv(reward=5.0)
+            patience = 4
+
+            # Seed best_reward above the fixed reward so nothing ever improves.
+            _, _, sims, early_stopped, early_stop_sim = _greedy_loop_q_learning(
+                env=env, policy=policy, n_episodes=100,
+                weights_file=wf, patience=patience,
+            )
+
+            # The stub always returns reward=5.0; first episode sets best from -inf,
+            # so streak starts counting from episode 2. Stop at episode 1+patience.
+            self.assertTrue(early_stopped)
+            self.assertEqual(len(sims), 1 + patience)
+            self.assertEqual(sims[-1].sim, early_stop_sim)
+        finally:
+            os.unlink(wf)
+
+    def test_q_loop_patience_zero_runs_all(self):
+        """patience=0 in Q-loop disables early stopping."""
+        with tempfile.NamedTemporaryFile(suffix=".yaml", delete=False) as f:
+            wf = f.name
+        try:
+            policy   = _StubQPolicy()
+            env      = _FixedRewardEnv(reward=5.0)
+            n_eps    = 8
+
+            _, _, sims, early_stopped, early_stop_sim = _greedy_loop_q_learning(
+                env=env, policy=policy, n_episodes=n_eps,
+                weights_file=wf, patience=0,
+            )
+
+            self.assertFalse(early_stopped)
+            self.assertIsNone(early_stop_sim)
+            self.assertEqual(len(sims), n_eps)
         finally:
             os.unlink(wf)
 
