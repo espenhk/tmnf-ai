@@ -310,6 +310,56 @@ def plot_weight_evolution(data: ExperimentData, results_dir: str) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Termination reason breakdown
+# ---------------------------------------------------------------------------
+
+_REASON_COLORS = {
+    "finish":     "#27ae60",
+    "crash":      "#c0392b",
+    "hard_crash": "#e74c3c",
+    "timeout":    "#f39c12",
+}
+_REASON_ORDER = ["finish", "crash", "hard_crash", "timeout"]
+
+
+def plot_termination_reasons(data: ExperimentData, results_dir: str) -> None:
+    if not _HAS_MPL:
+        return
+    sims = data.greedy_sims
+    if not sims:
+        return
+
+    counts: dict[str, int] = {}
+    for s in sims:
+        r = s.termination_reason or "unknown"
+        counts[r] = counts.get(r, 0) + 1
+
+    order  = _REASON_ORDER + sorted(k for k in counts if k not in _REASON_ORDER)
+    labels = [r for r in order if r in counts]
+    values = [counts[r] for r in labels]
+    colors = [_REASON_COLORS.get(r, "#95a5a6") for r in labels]
+    total  = len(sims)
+
+    fig, ax = plt.subplots(figsize=(max(5, len(labels) * 1.4), 5))
+    bars = ax.bar(labels, values, color=colors, edgecolor="white", linewidth=0.6)
+    for bar, v in zip(bars, values):
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height() + max(total * 0.005, 0.3),
+            f"{v} ({100 * v / total:.0f}%)",
+            ha="center", va="bottom", fontsize=9,
+        )
+    ax.set_title(
+        f"{data.experiment_name} — Greedy Phase: Termination Reasons ({total} sims)"
+    )
+    ax.set_xlabel("Reason")
+    ax.set_ylabel("Count")
+    ax.set_ylim(0, max(values) * 1.2)
+    fig.tight_layout()
+    _save(fig, os.path.join(results_dir, "termination_reasons.png"))
+
+
+# ---------------------------------------------------------------------------
 # Grid-search path comparison
 # ---------------------------------------------------------------------------
 
@@ -405,4 +455,5 @@ def save_tmnf_plots(data: ExperimentData, results_dir: str) -> None:
         plot_greedy_action_dist(data, results_dir)
         plot_greedy_progress(data, results_dir)
         plot_weight_evolution(data, results_dir)
+        plot_termination_reasons(data, results_dir)
     plot_weight_heatmap(data, results_dir)

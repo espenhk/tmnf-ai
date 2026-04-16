@@ -230,12 +230,24 @@ class TMNFEnv(BaseGameEnv):
                 "elapsed_s": self._elapsed_s,
                 "pos_x": init_step.state_data.position.x,
                 "pos_z": init_step.state_data.position.z,
+                "termination_reason": None,  # episode continues after lap
             }
             return obs, reward, False, False, info
 
         terminated = finished or crashed
         # step.done signals a hard crash (>50 m off, handled by client safety net)
         truncated = (step.done and not terminated) or time_over
+
+        if finished:
+            termination_reason: str | None = "finish"
+        elif crashed:
+            termination_reason = "crash"
+        elif step.done and not terminated:
+            termination_reason = "hard_crash"
+        elif time_over:
+            termination_reason = "timeout"
+        else:
+            termination_reason = None
 
         if terminated or truncated:
             self._log_skip_stats()
@@ -256,6 +268,7 @@ class TMNFEnv(BaseGameEnv):
             "ep_total_ticks": self._ep_total_ticks,
             "ep_skipped_ticks": self._ep_total_ticks - self._ep_rl_steps,
             "ep_max_skip": self._ep_max_skip,
+            "termination_reason": termination_reason,
         }
 
         return obs, reward, terminated, truncated, info
