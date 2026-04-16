@@ -17,6 +17,7 @@ from __future__ import annotations
 import logging
 import math
 import os
+import pickle
 from abc import ABC, abstractmethod
 
 import numpy as np
@@ -25,6 +26,14 @@ import yaml
 from framework.obs_spec import ObsSpec
 
 logger = logging.getLogger(__name__)
+
+
+_MAX_QTABLE_ENTRIES = 500_000
+
+
+def _qtable_pkl_path(yaml_path: str) -> str:
+    base, _ = os.path.splitext(yaml_path)
+    return base + "_qtable.pkl"
 
 
 # ---------------------------------------------------------------------------
@@ -404,6 +413,29 @@ class QTablePolicy(BasePolicy):
     @property
     def n_states_visited(self) -> int:
         return len(self._q_table)
+
+    def save(self, path: str) -> None:
+        super().save(path)
+        if len(self._q_table) > _MAX_QTABLE_ENTRIES:
+            logger.warning(
+                "Q-table has %d entries (>%d), skipping pickle.",
+                len(self._q_table), _MAX_QTABLE_ENTRIES,
+            )
+            return
+        pkl_path = _qtable_pkl_path(path)
+        with open(pkl_path, "wb") as f:
+            pickle.dump((self._q_table, self._n_sa, self._n_s), f)
+        logger.info("Q-table saved: %d states → %s", len(self._q_table), pkl_path)
+
+    def _load_table(self, path: str) -> None:
+        pkl_path = _qtable_pkl_path(path)
+        if os.path.exists(pkl_path):
+            with open(pkl_path, "rb") as f:
+                q_table, n_sa, n_s = pickle.load(f)
+            self._q_table = q_table
+            self._n_sa    = n_sa
+            self._n_s     = n_s
+            logger.info("Q-table loaded: %d states from %s", len(q_table), pkl_path)
 
 
 # ---------------------------------------------------------------------------
