@@ -102,19 +102,27 @@ def _make_policy(
                                hidden_sizes=hidden)
 
     elif policy_type == "epsilon_greedy":
-        return EpsilonGreedyPolicy(
+        epsilon = policy_params.get("epsilon", 1.0)
+        if os.path.exists(weights_file) and not re_initialize:
+            with open(weights_file) as f:
+                saved_cfg = yaml.safe_load(f) or {}
+            epsilon = float(saved_cfg.get("epsilon", epsilon))
+        policy = EpsilonGreedyPolicy(
             obs_spec=obs_spec,
             discrete_actions=discrete_actions,
             n_bins=policy_params.get("n_bins", 3),
-            epsilon=policy_params.get("epsilon", 1.0),
+            epsilon=epsilon,
             epsilon_decay=policy_params.get("epsilon_decay", 0.995),
             epsilon_min=policy_params.get("epsilon_min", 0.05),
             alpha=policy_params.get("alpha", 0.1),
             gamma=policy_params.get("gamma", 0.99),
         )
+        if os.path.exists(weights_file) and not re_initialize:
+            policy._load_table(weights_file)
+        return policy
 
     elif policy_type == "mcts":
-        return MCTSPolicy(
+        policy = MCTSPolicy(
             obs_spec=obs_spec,
             discrete_actions=discrete_actions,
             c=policy_params.get("c", 1.41),
@@ -122,6 +130,9 @@ def _make_policy(
             gamma=policy_params.get("gamma", 0.99),
             n_bins=policy_params.get("n_bins", 3),
         )
+        if os.path.exists(weights_file) and not re_initialize:
+            policy._load_table(weights_file)
+        return policy
 
     elif policy_type == "genetic":
         pop_size = policy_params.get("population_size", 10)
