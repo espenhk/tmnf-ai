@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import sys
+import tempfile
 from datetime import datetime
 
 _DEFAULT_DB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "param_exploration.json")
@@ -15,13 +16,24 @@ def _load_db(path):
     if not os.path.exists(path):
         return {"next_id": 1, "entries": []}
     with open(path) as f:
-        return json.load(f)
+        try:
+            db = json.load(f)
+        except json.JSONDecodeError as e:
+            sys.exit(f"Error: invalid JSON in {path!r} at line {e.lineno}, col {e.colno}: {e.msg}")
+    if not isinstance(db, dict) or "next_id" not in db or "entries" not in db:
+        sys.exit(f"Error: corrupt database {path!r} — missing 'next_id' or 'entries'")
+    if not isinstance(db["next_id"], int) or not isinstance(db["entries"], list):
+        sys.exit(f"Error: corrupt database {path!r} — wrong types for 'next_id' or 'entries'")
+    return db
 
 
 def _save_db(db, path):
-    with open(path, "w") as f:
-        json.dump(db, f, indent=2)
-        f.write("\n")
+    dir_ = os.path.dirname(path) or "."
+    with tempfile.NamedTemporaryFile("w", dir=dir_, delete=False, suffix=".tmp") as tmp:
+        json.dump(db, tmp, indent=2)
+        tmp.write("\n")
+        tmp_path = tmp.name
+    os.replace(tmp_path, path)
 
 
 def _parse_kv_args(extras):
@@ -60,21 +72,25 @@ def cmd_load(args, db_path):
     if not os.path.isdir(exp_dir):
         sys.exit(f"Error: not a directory: {exp_dir}")
 
+    import yaml
     params = {}
     for fname in ("training_params.yaml", "reward_config.yaml"):
         fpath = os.path.join(exp_dir, fname)
         if os.path.exists(fpath):
-            import yaml
             with open(fpath) as f:
                 data = yaml.safe_load(f) or {}
             for k, v in data.items():
                 if k in _EXCLUDED_LOAD_KEYS:
                     continue
                 if isinstance(v, (int, float)) and not isinstance(v, bool):
-                    params[k] = float(v)
+                    val = float(v)
                 elif isinstance(v, str):
-                    params[k] = v
-                # skip dicts (policy_params nested block)
+                    val = v
+                else:
+                    continue  # skip dicts (policy_params nested block)
+                if k in params and params[k] != val:
+                    print(f"Warning: key '{k}' in both YAML files; using value from {fname!r}", file=sys.stderr)
+                params[k] = val
 
     if not params:
         sys.exit(f"Error: no usable params found in {exp_dir}")
@@ -106,7 +122,7 @@ def cmd_list(args, db_path):
     # Build rows
     rows = []
     for e in entries:
-        param_str = ", ".join(f"{k}={v}" for k, v in e["params"].items())
+        param_str = ", ".join(f"{k}={v}" for k, v in sorted(e["params"].items()))
         if len(param_str) > 60:
             param_str = param_str[:57] + "..."
         note = e["note"][:30] + ("..." if len(e["note"]) > 30 else "")
@@ -125,7 +141,6 @@ def cmd_list(args, db_path):
 
 def cmd_plot(args, db_path):
     try:
-        import matplotlib.cm as cm
         import matplotlib.pyplot as plt
         import matplotlib.colors as mcolors
         import numpy as np
@@ -156,7 +171,7 @@ def cmd_plot(args, db_path):
     ys, y_labels = _encode(raw_ys)
 
     # Jitter overlapping points
-    np.random.seed(42)
+    rng = np.random.default_rng(42)
     xs = np.array(xs, dtype=float)
     ys = np.array(ys, dtype=float)
     x_range = max(xs) - min(xs) if len(xs) > 1 else 1.0
@@ -167,8 +182,8 @@ def cmd_plot(args, db_path):
     jy = np.zeros(len(ys))
     for i, (x, y) in enumerate(zip(xs.tolist(), ys.tolist())):
         if coord_counts[(x, y)] > 1:
-            jx[i] = np.random.normal(0, 0.02 * (x_range or 1))
-            jy[i] = np.random.normal(0, 0.02 * (y_range or 1))
+            jx[i] = rng.normal(0, 0.02 * (x_range or 1))
+            jy[i] = rng.normal(0, 0.02 * (y_range or 1))
     xs = xs + jx
     ys = ys + jy
 
@@ -177,7 +192,6 @@ def cmd_plot(args, db_path):
     if mn == mx:
         mn = mx - 1
     norm = mcolors.Normalize(vmin=mn, vmax=mx)
-    colors = [cm.RdYlGn(norm(s)) for s in scores]
 
     fig, ax = plt.subplots(figsize=(8, 7))
     sc = ax.scatter(xs, ys, c=scores, cmap="RdYlGn", norm=norm, s=80,
