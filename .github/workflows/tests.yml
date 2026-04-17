@@ -18,7 +18,8 @@ jobs:
           python-version: "3.11"
 
       - name: Install test dependencies
-        run: pip install pytest numpy scipy pyyaml
+        run: pip install pytest numpy scipy pyyaml gymnasium
 
       - name: Run tests
-        run: python -m pytest tests/
+        # test_env_termination requires tminterface (Windows-only, not on PyPI)
+        run: python -m pytest tests/ --ignore=tests/test_env_termination.py
