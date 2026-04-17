@@ -32,12 +32,16 @@
         Only version 1.4.x is compatible with the tminterface Python package
         used by this project.  Later versions changed the Python API.
 
-    Source packages (not on PyPI):
-        tminterface  https://github.com/donadigo/tminterface  (any recent commit on main)
-        pygbx        https://github.com/donadigo/pygbx        (any recent commit on main)
+    Python package dependencies (tminterface, pygbx, etc.):
+        All dependencies are managed by Poetry and pinned in poetry.lock.
+        Running `poetry install` (performed automatically by this script)
+        is sufficient — no manual source installation is required.
 
-    These are installed into the Poetry virtual-env with pip before
-    `poetry install` resolves the remaining dependencies.
+    winget:
+        This script uses winget to install Python and Git on Windows 10/11.
+        winget ships with Windows 10 1809+ and Windows 11 via the
+        "App Installer" package.  If winget is not available, install Python
+        and Git manually before running this script.
 #>
 
 [CmdletBinding()]
@@ -91,18 +95,27 @@ function Assert-Success([string]$context) {
     }
 }
 
+function Assert-Winget {
+    if (-not (Test-CommandExists "winget")) {
+        Write-Err "winget is not available on this machine."
+        Write-Err "Install the Windows Package Manager (App Installer) from the Microsoft Store,"
+        Write-Err "or install the missing tool manually, then re-run this script."
+        exit 1
+    }
+}
+
 # ---------------------------------------------------------------------------
 # Paths / constants
 # ---------------------------------------------------------------------------
 
-$ScriptDir      = $PSScriptRoot
-$TMIfaceDir     = Join-Path $env:USERPROFILE "TMInterface"
-$TMIfaceExe     = Join-Path $TMIfaceDir "TMInterface.exe"
-# Source repos — pinned to HEAD of the branches known to work with TMInterface 1.4
-$TminterfaceUrl = "https://github.com/donadigo/tminterface/archive/refs/heads/master.zip"
-$PygbxUrl       = "https://github.com/donadigo/pygbx/archive/refs/heads/master.zip"
-# TMInterface 1.4 installer (official release page; update hash/URL when a new 1.4.x drops)
-$TMIfaceInstallerUrl = "https://github.com/donadigo/tminterface/releases/download/1.4.3/TMInterface_1.4.3_Setup.exe"
+$ScriptDir  = $PSScriptRoot
+$TMIfaceDir = Join-Path $env:USERPROFILE "TMInterface"
+$TMIfaceExe = Join-Path $TMIfaceDir "TMInterface.exe"
+# TMInterface 1.4 installer (official release page; update URL + SHA-256 when a new 1.4.x drops)
+$TMIfaceInstallerUrl    = "https://github.com/donadigo/tminterface/releases/download/1.4.3/TMInterface_1.4.3_Setup.exe"
+# Set to the known SHA-256 of the installer above to enable integrity verification.
+# Leave empty to skip verification (not recommended for production use).
+$TMIfaceInstallerSha256 = ""
 
 # ---------------------------------------------------------------------------
 # 1. Python 3.11+
@@ -119,11 +132,25 @@ function Install-Python {
     }
 
     Invoke-Step "Installing Python 3.11 via winget" {
+        Assert-Winget
         winget install --id Python.Python.3.11 --source winget --silent --accept-package-agreements --accept-source-agreements
         Assert-Success "Python install"
         # Refresh PATH for the rest of this process
-        $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" +
-                    [System.Environment]::GetEnvironmentVariable("Path","User")
+        $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" +
+                    [System.Environment]::GetEnvironmentVariable("Path", "User")
+
+        # Verify the newly installed interpreter is actually on PATH at 3.11+
+        $pyNew = Get-Command python -ErrorAction SilentlyContinue
+        $verNew = $null
+        if ($pyNew) {
+            $verNew = & python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>$null
+        }
+        if (-not $verNew -or [version]$verNew -lt [version]"3.11") {
+            Write-Err "Python 3.11 was installed but 'python' on PATH still resolves to an older version ($verNew)."
+            Write-Err "Ensure the Python 3.11 install directory appears before older versions in your PATH, then re-run."
+            exit 1
+        }
+        Write-Ok "Python $verNew available."
     }
 }
 
@@ -138,10 +165,11 @@ function Install-Git {
     }
 
     Invoke-Step "Installing Git via winget" {
+        Assert-Winget
         winget install --id Git.Git --source winget --silent --accept-package-agreements --accept-source-agreements
         Assert-Success "Git install"
-        $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" +
-                    [System.Environment]::GetEnvironmentVariable("Path","User")
+        $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" +
+                    [System.Environment]::GetEnvironmentVariable("Path", "User")
     }
 }
 
@@ -157,6 +185,7 @@ function Install-Poetry {
 
     Invoke-Step "Installing Poetry" {
         $installer = Join-Path $env:TEMP "install-poetry.py"
+        # Official installer from https://install.python-poetry.org
         Invoke-WebRequest -Uri "https://install.python-poetry.org" -OutFile $installer -UseBasicParsing
         python $installer
         Assert-Success "Poetry install"
@@ -184,10 +213,28 @@ function Install-TMInterface {
         Invoke-WebRequest -Uri $TMIfaceInstallerUrl -OutFile $installer -UseBasicParsing
         Assert-Success "TMInterface download"
 
+        if ($TMIfaceInstallerSha256) {
+            $actualHash = (Get-FileHash -Path $installer -Algorithm SHA256).Hash
+            if ($actualHash.ToUpperInvariant() -ne $TMIfaceInstallerSha256.ToUpperInvariant()) {
+                Write-Err "TMInterface installer SHA-256 mismatch!"
+                Write-Err "  Expected: $TMIfaceInstallerSha256"
+                Write-Err "  Actual:   $actualHash"
+                Write-Err "Aborting to avoid executing an unexpected binary."
+                exit 1
+            }
+            Write-Ok "Installer checksum verified."
+        } else {
+            Write-Host "[WARN]  TMInterface installer SHA-256 not configured — skipping integrity check." -ForegroundColor Yellow
+        }
+
         Write-Step "  Running TMInterface installer (silent)"
         # /SILENT — run without wizard UI; /DIR — install location
-        Start-Process -FilePath $installer -ArgumentList "/SILENT", "/DIR=`"$TMIfaceDir`"" -Wait
-        Assert-Success "TMInterface installation"
+        $proc = Start-Process -FilePath $installer -ArgumentList "/SILENT", "/DIR=`"$TMIfaceDir`"" -Wait -PassThru
+        if ($proc.ExitCode -ne 0) {
+            Write-Err "TMInterface installation failed (exit code $($proc.ExitCode))."
+            Write-Err "Please install TMInterface 1.4 manually from: https://donadigo.com/tminterface"
+            exit $proc.ExitCode
+        }
 
         if (-not (Test-Path $TMIfaceExe)) {
             Write-Err "TMInterface executable not found after install at $TMIfaceExe."
@@ -198,41 +245,7 @@ function Install-TMInterface {
 }
 
 # ---------------------------------------------------------------------------
-# 5. Python source packages (tminterface, pygbx)
-# ---------------------------------------------------------------------------
-
-function Install-SourcePackage([string]$name, [string]$zipUrl) {
-    # Check whether the package is already importable inside the Poetry venv
-    $already = & poetry run python -c "import $name" 2>$null
-    if ($LASTEXITCODE -eq 0) {
-        Write-Skip "$name already importable in Poetry venv."
-        return
-    }
-
-    Invoke-Step "Installing $name from source ($zipUrl)" {
-        $zip  = Join-Path $env:TEMP "$name-master.zip"
-        $dest = Join-Path $env:TEMP "$name-src"
-
-        Invoke-WebRequest -Uri $zipUrl -OutFile $zip -UseBasicParsing
-        Assert-Success "$name download"
-
-        if (Test-Path $dest) { Remove-Item $dest -Recurse -Force }
-        Expand-Archive -Path $zip -DestinationPath $dest -Force
-
-        # The archive unpacks to a single subdirectory
-        $srcDir = Get-ChildItem -Path $dest -Directory | Select-Object -First 1
-        Push-Location $srcDir.FullName
-        try {
-            poetry run pip install .
-            Assert-Success "$name pip install"
-        } finally {
-            Pop-Location
-        }
-    }
-}
-
-# ---------------------------------------------------------------------------
-# 6. Poetry dependencies
+# 5. Poetry dependencies
 # ---------------------------------------------------------------------------
 
 function Install-PoetryDeps {
@@ -248,7 +261,7 @@ function Install-PoetryDeps {
 }
 
 # ---------------------------------------------------------------------------
-# 7. Launch TMInterface
+# 6. Launch TMInterface
 # ---------------------------------------------------------------------------
 
 function Start-TMInterface {
@@ -284,7 +297,7 @@ function Start-TMInterface {
 }
 
 # ---------------------------------------------------------------------------
-# 8. Run user command
+# 7. Run user command
 # ---------------------------------------------------------------------------
 
 function Invoke-UserCommand {
@@ -301,21 +314,37 @@ function Invoke-UserCommand {
 
     Push-Location $ScriptDir
     try {
-        # Split the command string so that Invoke-Expression is not required
-        $parts = $Command -split "\s+", 2
-        $exe   = $parts[0]
-        $args  = if ($parts.Length -gt 1) { $parts[1] } else { "" }
+        # Tokenize safely using PSParser — respects quoted arguments and avoids
+        # Invoke-Expression evaluation of arbitrary PowerShell syntax.
+        $parseErrors = $null
+        $tokens = [System.Management.Automation.PSParser]::Tokenize($Command, [ref]$parseErrors) |
+            Where-Object { $_.Type -notin @("NewLine", "Comment") }
+
+        if ($parseErrors -and $parseErrors.Count -gt 0) {
+            Write-Err "Unable to parse command safely: $Command"
+            exit 1
+        }
+
+        $unsupported = $tokens | Where-Object { $_.Type -notin @("Command", "CommandArgument", "String", "Number") }
+        if ($unsupported) {
+            Write-Err "Command contains unsupported PowerShell syntax.  Provide an executable and plain arguments only: $Command"
+            exit 1
+        }
+
+        $cmdParts = @($tokens | ForEach-Object { $_.Content })
+        if ($cmdParts.Count -eq 0) {
+            Write-Err "No executable found in command: $Command"
+            exit 1
+        }
+
+        $exe     = $cmdParts[0]
+        $cmdArgs = if ($cmdParts.Count -gt 1) { $cmdParts[1..($cmdParts.Count - 1)] } else { @() }
 
         if ($exe -eq "python") {
             # Run inside the Poetry venv
-            if ($args) {
-                poetry run python $args
-            } else {
-                poetry run python
-            }
+            & poetry run python @cmdArgs
         } else {
-            # Arbitrary command — forward as-is
-            Invoke-Expression $Command
+            & $exe @cmdArgs
         }
         Assert-Success "User command"
     } finally {
@@ -335,9 +364,6 @@ Install-Python
 Install-Git
 Install-Poetry
 Install-TMInterface
-# Source packages must come before full poetry install so the lock can resolve them
-Install-SourcePackage "tminterface" $TminterfaceUrl
-Install-SourcePackage "pygbx"        $PygbxUrl
 Install-PoetryDeps
 Start-TMInterface
 Invoke-UserCommand
