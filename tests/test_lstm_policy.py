@@ -134,6 +134,11 @@ class TestLSTMFlatInterface(unittest.TestCase):
         np.testing.assert_array_almost_equal(
             self.policy._W_steer, policy2._W_steer, decimal=6)
 
+    def test_with_flat_wrong_size_raises(self):
+        wrong_flat = np.zeros(self.policy.flat_dim + 1, dtype=np.float32)
+        with self.assertRaises(ValueError):
+            self.policy.with_flat(wrong_flat)
+
     def test_mutated_differs_from_original(self):
         mutant = self.policy.mutated(scale=0.1)
         flat_o = self.policy.to_flat()
@@ -288,6 +293,12 @@ class TestLSTMEvolutionPolicyUpdate(unittest.TestCase):
         policy = self._setup()
         with self.assertRaises(ValueError):
             policy.update_distribution([0.0] * 5)  # wrong count
+
+    def test_update_without_sample_raises(self):
+        policy = LSTMEvolutionPolicy(hidden_size=4, population_size=8, seed=0)
+        # Never called sample_population() — _pop is empty
+        with self.assertRaises(RuntimeError):
+            policy.update_distribution([0.0] * 8)
 
     def test_sigma_adapts(self):
         policy   = self._setup()

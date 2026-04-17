@@ -638,6 +638,10 @@ class REINFORCEPolicy(BasePolicy):
             running = self._ep_rewards[t] + self._gamma * running
             G[t]    = running
 
+        # Capture baseline before updating so this episode's returns don't bias
+        # the advantages computed below (avoids action-dependent baseline).
+        baseline_for_advantages = self._baseline_val
+
         # Baseline update (EMA of total episode return)
         if self._baseline_type == "running_mean":
             self._baseline_val = ((1 - self._baseline_alpha) * self._baseline_val
@@ -650,7 +654,7 @@ class REINFORCEPolicy(BasePolicy):
         if G_std > 1e-6:
             G_norm = (G - G.mean()) / (G_std + 1e-8)
         else:
-            G_norm = G - self._baseline_val
+            G_norm = G - baseline_for_advantages
 
         # Accumulate gradients
         dW = [np.zeros_like(w, dtype=np.float64) for w in self._weights]
@@ -798,6 +802,13 @@ class LSTMPolicy(BasePolicy):
 
     def with_flat(self, flat: np.ndarray) -> "LSTMPolicy":
         """Return a new LSTMPolicy whose weights come from a flat parameter vector."""
+        flat = np.asarray(flat, dtype=np.float32)
+        if flat.shape[0] != self.flat_dim:
+            raise ValueError(
+                f"LSTMPolicy.with_flat: expected flat vector of size {self.flat_dim}, "
+                f"got {flat.shape[0]}"
+            )
+
         obj = object.__new__(LSTMPolicy)
         obj._hidden_size  = self._hidden_size
         obj._n_lidar_rays = self._n_lidar_rays
@@ -806,7 +817,6 @@ class LSTMPolicy(BasePolicy):
 
         h    = self._hidden_size
         c_in = h + self._obs_dim
-        flat = np.asarray(flat, dtype=np.float32)
 
         off = 0
         def _take(shape: tuple) -> np.ndarray:
@@ -1025,6 +1035,12 @@ class LSTMEvolutionPolicy(BasePolicy):
     def update_distribution(self, rewards: list[float]) -> bool:
         if len(rewards) != self._lam:
             raise ValueError(f"Expected {self._lam} rewards, got {len(rewards)}")
+        if len(self._pop) != self._lam:
+            raise RuntimeError(
+                "update_distribution() called before a matching sample_population(). "
+                f"Expected {self._lam} samples in _pop, got {len(self._pop)}. "
+                "Call sample_population() first."
+            )
 
         order     = np.argsort(rewards)[::-1]
         prev_best = self._champion_reward
