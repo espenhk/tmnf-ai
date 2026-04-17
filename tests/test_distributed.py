@@ -173,27 +173,31 @@ class TestExperimentDataSerialization:
 # ---------------------------------------------------------------------------
 
 class TestCoordinator:
-    def _start_coord(self, combos, port=15900, hb_timeout=2.0):
-        coord = Coordinator(combos, port=port, heartbeat_timeout=hb_timeout)
+    def _start_coord(self, combos, hb_timeout=30.0):
+        """Start a coordinator on an OS-assigned free port (port=0)."""
+        coord = Coordinator(combos, port=0, heartbeat_timeout=hb_timeout)
         coord.start()
+        time.sleep(0.05)  # give the server thread a moment to accept connections
         return coord
+
+    def _url(self, coord, path: str) -> str:
+        return f"http://localhost:{coord.port}{path}"
 
     def test_work_queue_serves_all_combos(self):
         import urllib.request
 
         combos = [_make_combo(f"c{i}") for i in range(3)]
-        coord = self._start_coord(combos, port=15901, hb_timeout=30.0)
-        time.sleep(0.1)
+        coord = self._start_coord(combos)
 
         names_received = []
         for _ in range(3):
-            with urllib.request.urlopen("http://localhost:15901/work", timeout=5) as r:
+            with urllib.request.urlopen(self._url(coord, "/work"), timeout=5) as r:
                 assert r.status == 200
                 spec = combo_from_dict(json.loads(r.read()))
                 names_received.append(spec.name)
 
-        # Fourth request should be 204 (queue empty, no re-queue yet)
-        with urllib.request.urlopen("http://localhost:15901/work", timeout=5) as r:
+        # Fourth request should be 204 (queue empty, items in-progress, hb_timeout=30 s)
+        with urllib.request.urlopen(self._url(coord, "/work"), timeout=5) as r:
             assert r.status == 204
 
         coord.stop()
@@ -203,10 +207,9 @@ class TestCoordinator:
         import urllib.request
 
         combos = [_make_combo("s1"), _make_combo("s2")]
-        coord = self._start_coord(combos, port=15902)
-        time.sleep(0.1)
+        coord = self._start_coord(combos)
 
-        with urllib.request.urlopen("http://localhost:15902/status", timeout=5) as r:
+        with urllib.request.urlopen(self._url(coord, "/status"), timeout=5) as r:
             status = json.loads(r.read())
 
         assert status["total"] == 2
@@ -218,11 +221,10 @@ class TestCoordinator:
         import urllib.request
 
         combo = _make_combo("done_test")
-        coord = self._start_coord([combo], port=15903)
-        time.sleep(0.1)
+        coord = self._start_coord([combo])
 
         # Fetch work
-        with urllib.request.urlopen("http://localhost:15903/work", timeout=5) as r:
+        with urllib.request.urlopen(self._url(coord, "/work"), timeout=5) as r:
             assert r.status == 200
 
         # Post result
@@ -230,18 +232,70 @@ class TestCoordinator:
         payload = ResultPayload(name="done_test", data_json=experiment_to_json(data))
         body = json.dumps(result_to_dict(payload)).encode()
         req = urllib.request.Request(
-            "http://localhost:15903/result", data=body,
+            self._url(coord, "/result"), data=body,
             headers={"Content-Type": "application/json", "Content-Length": str(len(body))},
             method="POST",
         )
         with urllib.request.urlopen(req, timeout=5) as r:
             assert r.status == 200
 
-        # wait_for_all should return immediately
         assert coord._done_event.is_set()
         runs = coord.wait_for_all()
         assert len(runs) == 1
         assert runs[0][0] == "done_test"
+        coord.stop()
+
+    def test_unknown_combo_name_rejected(self):
+        import urllib.request
+
+        coord = self._start_coord([_make_combo("known")])
+
+        data = _make_experiment_data_dict("unknown")
+        payload = ResultPayload(name="unknown", data_json=experiment_to_json(data))
+        body = json.dumps(result_to_dict(payload)).encode()
+        req = urllib.request.Request(
+            self._url(coord, "/result"), data=body,
+            headers={"Content-Type": "application/json", "Content-Length": str(len(body))},
+            method="POST",
+        )
+        try:
+            urllib.request.urlopen(req, timeout=5)
+            assert False, "expected 400"
+        except urllib.error.HTTPError as e:
+            assert e.code == 400
+
+        assert not coord._done_event.is_set()
+        coord.stop()
+
+    def test_duplicate_result_ignored(self):
+        import urllib.request
+
+        combo = _make_combo("dup_test")
+        coord = self._start_coord([combo])
+
+        with urllib.request.urlopen(self._url(coord, "/work"), timeout=5) as r:
+            assert r.status == 200
+
+        def _post_result():
+            data = _make_experiment_data_dict("dup_test")
+            payload = ResultPayload(name="dup_test", data_json=experiment_to_json(data))
+            body = json.dumps(result_to_dict(payload)).encode()
+            req = urllib.request.Request(
+                self._url(coord, "/result"), data=body,
+                headers={"Content-Type": "application/json", "Content-Length": str(len(body))},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=5) as r:
+                return json.loads(r.read())
+
+        resp1 = _post_result()
+        assert resp1.get("status") == "ok"
+        assert coord._done_event.is_set()
+
+        resp2 = _post_result()
+        assert resp2.get("ignored") == "duplicate"
+        # Still only 1 result, total still 1
+        assert len(coord._results) == 1
         coord.stop()
 
     def test_stale_worker_item_requeued(self):
@@ -249,19 +303,18 @@ class TestCoordinator:
         import urllib.request
 
         combo = _make_combo("requeue_test")
-        # hb_timeout=0.5 → monitor fires every ~0.25s; item stale after 0.5s
-        coord = self._start_coord([combo], port=15904, hb_timeout=0.5)
-        time.sleep(0.1)
+        # hb_timeout=0.5 → monitor fires every 0.25 s; item stale after 0.5 s
+        coord = self._start_coord([combo], hb_timeout=0.5)
 
         # Fetch work (marks as in-progress) but send NO heartbeats
-        with urllib.request.urlopen("http://localhost:15904/work", timeout=5) as r:
+        with urllib.request.urlopen(self._url(coord, "/work"), timeout=5) as r:
             assert r.status == 200
 
         # Wait long enough for the monitor to re-queue the stale item
         time.sleep(1.5)
 
         # Item should now be back in the queue
-        with urllib.request.urlopen("http://localhost:15904/work", timeout=5) as r:
+        with urllib.request.urlopen(self._url(coord, "/work"), timeout=5) as r:
             assert r.status == 200
             spec = combo_from_dict(json.loads(r.read()))
             assert spec.name == "requeue_test"
@@ -273,10 +326,9 @@ class TestCoordinator:
         import urllib.request
 
         combo = _make_combo("hb_test")
-        coord = self._start_coord([combo], port=15905, hb_timeout=1.0)
-        time.sleep(0.1)
+        coord = self._start_coord([combo], hb_timeout=1.0)
 
-        with urllib.request.urlopen("http://localhost:15905/work", timeout=5) as r:
+        with urllib.request.urlopen(self._url(coord, "/work"), timeout=5) as r:
             assert r.status == 200
 
         # Send heartbeats every 0.3 s for 1.5 s — should keep item alive
@@ -284,7 +336,7 @@ class TestCoordinator:
             for _ in range(5):
                 body = json.dumps({"name": "hb_test", "worker_id": "tester"}).encode()
                 req = urllib.request.Request(
-                    "http://localhost:15905/heartbeat", data=body,
+                    self._url(coord, "/heartbeat"), data=body,
                     headers={"Content-Type": "application/json", "Content-Length": str(len(body))},
                     method="POST",
                 )
@@ -299,15 +351,13 @@ class TestCoordinator:
         hb_thread.join()
 
         # Queue should still be empty (item is still in-progress, not re-queued)
-        with urllib.request.urlopen("http://localhost:15905/work", timeout=5) as r:
+        with urllib.request.urlopen(self._url(coord, "/work"), timeout=5) as r:
             assert r.status == 204
 
         coord.stop()
 
     def test_empty_queue_returns_immediately(self):
-        coord = Coordinator([], port=15906)
-        coord.start()
-        time.sleep(0.05)
+        coord = self._start_coord([])
         runs = coord.wait_for_all()
         assert runs == []
         coord.stop()

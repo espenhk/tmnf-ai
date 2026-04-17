@@ -1,8 +1,6 @@
 """Tests for grid_search.py — grid expansion and name generation."""
 from __future__ import annotations
 
-import pytest
-
 from grid_search import _expand_grid, _make_experiment_name, _fmt_value
 
 

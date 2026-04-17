@@ -386,7 +386,7 @@ def main() -> None:
 
     names = []
     for c in combos:
-        name = _make_experiment_name(base_name, c["_flat"], varied_keys)
+        name = _make_experiment_name(base_name, c.get("_flat", {}), varied_keys)
         names.append(name)
         logger.info("  %s", name)
 

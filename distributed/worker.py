@@ -27,8 +27,6 @@ import time
 import urllib.error
 import urllib.request
 
-import yaml
-
 from distributed.protocol import (
     ComboSpec,
     ResultPayload,
@@ -116,8 +114,7 @@ def run_worker(
     from games.tmnf.env import make_env
     from analytics import save_experiment_results
 
-    # Import the policy-param builder from grid_search
-    from grid_search import _build_policy_params
+    from grid_search import _build_policy_params, _setup_experiment_dir
 
     logger.info("Worker %s connecting to %s", worker_id, base)
 
@@ -131,6 +128,24 @@ def run_worker(
             continue
 
         if status == 204:
+            # Queue is empty, but items may still be in-progress (assigned to other workers
+            # that could crash). Poll /status until done == total before exiting so this
+            # worker remains available to pick up any re-queued stale items.
+            try:
+                s_status, s_body = _http_get(f"{base}/status")
+                if s_status == 200:
+                    s = json.loads(s_body.decode())
+                    if s.get("done", 0) >= s.get("total", 0):
+                        logger.info("Grid complete — worker %s exiting", worker_id)
+                        return
+                    logger.info(
+                        "Queue empty but grid not complete (%d/%d done) — waiting for re-queue",
+                        s.get("done", 0), s.get("total", 0),
+                    )
+                    time.sleep(5)
+                    continue
+            except Exception as exc:
+                logger.debug("GET /status failed: %s", exc)
             logger.info("Queue empty — worker %s exiting", worker_id)
             return
 
@@ -146,23 +161,7 @@ def run_worker(
         track = spec.track
         t = spec.training_params
         r = spec.reward_params
-        experiment_dir = f"experiments/{track}/{spec.name}"
-        weights_file = f"{experiment_dir}/policy_weights.yaml"
-        reward_cfg_file = f"{experiment_dir}/reward_config.yaml"
-        training_params_file = f"{experiment_dir}/training_params.yaml"
-        centerline_path = f"tracks/{track}.npy"
-
-        os.makedirs(experiment_dir, exist_ok=True)
-
-        with open("config/reward_config.yaml") as f:
-            reward_cfg = yaml.safe_load(f) or {}
-        reward_cfg.update(r)
-        reward_cfg["track_name"] = track
-        reward_cfg["centerline_path"] = centerline_path
-        with open(reward_cfg_file, "w") as f:
-            yaml.dump(reward_cfg, f, default_flow_style=False, sort_keys=False)
-        with open(training_params_file, "w") as f:
-            yaml.dump(t, f, default_flow_style=False, sort_keys=False)
+        experiment_dir, weights_file, reward_cfg_file = _setup_experiment_dir(spec.name, track, t, r)
 
         # --- start heartbeat ---
         hb = _HeartbeatThread(base, spec.name, worker_id, heartbeat_interval)

@@ -34,7 +34,6 @@ from typing import Any
 from distributed.protocol import (
     ComboSpec,
     combo_to_dict,
-    combo_from_dict,
     result_from_dict,
     experiment_from_dict,
 )
@@ -59,6 +58,7 @@ class Coordinator:
         heartbeat_timeout: float = 60.0,
     ) -> None:
         self._work_queue: deque[ComboSpec] = deque(combos)
+        self._known_names: set[str] = {spec.name for spec in combos}
         self._in_progress: dict[str, dict[str, Any]] = {}   # name → info
         self._results: dict[str, Any] = {}                   # name → ExperimentData
         self._total = len(combos)
@@ -115,6 +115,7 @@ class Coordinator:
                 pass  # suppress default access logging
 
         self._server = _ThreadingHTTPServer(("", self._port), Handler)
+        actual_port = self._server.server_address[1]
 
         self._server_thread = threading.Thread(
             target=self._server.serve_forever, daemon=True, name="coord-http"
@@ -126,7 +127,14 @@ class Coordinator:
         )
         self._monitor_thread.start()
 
-        logger.info("Coordinator listening on port %d (%d combo(s) queued)", self._port, self._total)
+        logger.info("Coordinator listening on port %d (%d combo(s) queued)", actual_port, self._total)
+
+    @property
+    def port(self) -> int:
+        """The port the server is actually listening on (useful when port=0 was requested)."""
+        if self._server:
+            return self._server.server_address[1]
+        return self._port
 
     def wait_for_all(self) -> list[tuple[str, Any]]:
         """Block until every combo has a result. Returns list of (name, ExperimentData)."""
@@ -137,10 +145,16 @@ class Coordinator:
             return list(self._results.items())
 
     def stop(self) -> None:
-        """Shut down the HTTP server."""
+        """Shut down the HTTP server and background threads."""
+        self._done_event.set()  # signals monitor thread to exit
         if self._server:
             self._server.shutdown()
+            self._server.server_close()
             self._server = None
+        if self._server_thread and self._server_thread.is_alive():
+            self._server_thread.join(timeout=5)
+        if self._monitor_thread and self._monitor_thread.is_alive():
+            self._monitor_thread.join(timeout=5)
 
     # ------------------------------------------------------------------
     # HTTP handlers (called on handler threads)
@@ -164,6 +178,7 @@ class Coordinator:
         handler._send_json(200, combo_to_dict(spec))
 
     def _handle_post_result(self, handler: Any, body: bytes) -> None:
+        worker_id = handler.headers.get("X-Worker-Id", "unknown")
         try:
             payload = result_from_dict(json.loads(body.decode()))
             data = experiment_from_dict(json.loads(payload.data_json))
@@ -174,16 +189,27 @@ class Coordinator:
 
         done = False
         with self._lock:
+            if payload.name not in self._known_names:
+                logger.warning("Rejected result for unknown combo %s from worker %s", payload.name, worker_id)
+                handler._send_json(400, {"error": f"unknown combo: {payload.name}"})
+                return
+
+            if payload.name in self._results:
+                logger.info("Ignoring duplicate result for %s from worker %s", payload.name, worker_id)
+                handler._send_json(200, {"status": "ok", "ignored": "duplicate"})
+                return
+
             self._in_progress.pop(payload.name, None)
             self._results[payload.name] = data
-            if len(self._results) == self._total:
+            progress = len(self._results)
+            if progress == self._total:
                 done = True
 
         logger.info(
             "Received result for %s  best_reward=%+.1f  (%d/%d done)",
             payload.name,
             max((s.reward for s in data.greedy_sims), default=float("-inf")),
-            len(self._results),
+            progress,
             self._total,
         )
         handler._send_json(200, {"status": "ok"})
