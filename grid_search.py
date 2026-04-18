@@ -31,11 +31,11 @@ import os
 from typing import Any
 
 import yaml
-from analytics import save_experiment_results, save_grid_summary
-from framework.training import train_rl
-from games.tmnf.obs_spec import TMNF_OBS_SPEC
-from games.tmnf.actions import DISCRETE_ACTIONS, PROBE_ACTIONS, WARMUP_ACTION
-from games.tmnf.env import make_env
+from distributed.protocol import ComboSpec
+
+# Game-specific and analytics imports are deferred to the functions that need them
+# so that importing grid_search for testing (utility functions only) doesn't require
+# a live game environment or Windows-only modules.
 
 logger = logging.getLogger(__name__)
 
@@ -132,15 +132,16 @@ def _make_experiment_name(base_name: str, combo: dict[str, Any], varied_keys: li
 # Config loading and grid expansion
 # ---------------------------------------------------------------------------
 
-def _load_grid_config(path: str) -> tuple[str, str, dict[str, Any], dict[str, Any]]:
-    """Load grid config YAML. Returns (base_name, track, training_spec, reward_spec)."""
+def _load_grid_config(path: str) -> tuple[str, str, dict[str, Any], dict[str, Any], dict[str, Any]]:
+    """Load grid config YAML. Returns (base_name, track, training_spec, reward_spec, distribute_cfg)."""
     with open(path) as f:
         cfg = yaml.safe_load(f)
     base_name = cfg.get("base_name", "gs")
     track = cfg.get("track", "a03_centerline")
     training_spec = cfg.get("training_params", {})
     reward_spec = cfg.get("reward_params", {})
-    return base_name, track, training_spec, reward_spec
+    distribute_cfg = cfg.get("distribute", {})
+    return base_name, track, training_spec, reward_spec, distribute_cfg
 
 
 def _expand_grid(training_spec: dict[str, Any], reward_spec: dict[str, Any]) -> tuple[list[dict[str, Any]], list[str]]:
@@ -209,6 +210,141 @@ def _build_policy_params(t: dict[str, Any]) -> dict[str, Any]:
 # Entry point
 # ---------------------------------------------------------------------------
 
+def _setup_experiment_dir(
+    name: str, track: str, t: dict[str, Any], r: dict[str, Any]
+) -> tuple[str, str, str]:
+    """Create experiment dir, write config files. Returns (experiment_dir, weights_file, reward_cfg_file)."""
+    centerline_path = f"tracks/{track}.npy"
+    experiment_dir = f"experiments/{track}/{name}"
+    weights_file = f"{experiment_dir}/policy_weights.yaml"
+    reward_cfg_file = f"{experiment_dir}/reward_config.yaml"
+    training_params_file = f"{experiment_dir}/training_params.yaml"
+
+    os.makedirs(experiment_dir, exist_ok=True)
+
+    with open("config/reward_config.yaml") as f:
+        reward_cfg = yaml.safe_load(f) or {}
+    reward_cfg.update(r)
+    reward_cfg["track_name"] = track
+    reward_cfg["centerline_path"] = centerline_path
+    with open(reward_cfg_file, "w") as f:
+        yaml.dump(reward_cfg, f, default_flow_style=False, sort_keys=False)
+    with open(training_params_file, "w") as f:
+        yaml.dump(t, f, default_flow_style=False, sort_keys=False)
+
+    return experiment_dir, weights_file, reward_cfg_file
+
+
+def _run_local(
+    combos: list[dict[str, Any]],
+    names: list[str],
+    track: str,
+    no_interrupt: bool,
+    re_initialize: bool,
+) -> list[tuple[str, Any]]:
+    """Run all combos sequentially on this machine. Returns list of (name, ExperimentData)."""
+    from analytics import save_experiment_results
+    from framework.training import train_rl
+    from games.tmnf.obs_spec import TMNF_OBS_SPEC
+    from games.tmnf.actions import DISCRETE_ACTIONS, PROBE_ACTIONS, WARMUP_ACTION
+    from games.tmnf.env import make_env
+
+    all_runs = []
+    n = len(combos)
+    for i, (combo, name) in enumerate(zip(combos, names), 1):
+        t = combo["training_params"]
+        r = combo["reward_params"]
+        logger.info("=== Run %d/%d: %s ===", i, n, name)
+
+        experiment_dir, weights_file, reward_cfg_file = _setup_experiment_dir(name, track, t, r)
+        n_lidar_rays = t.get("n_lidar_rays", 0)
+        obs_spec = TMNF_OBS_SPEC.with_lidar(n_lidar_rays)
+
+        data = train_rl(
+            experiment_name=name,
+            make_env_fn=lambda _dir=experiment_dir, _sp=t["speed"], _ep=t["in_game_episode_s"], _lr=n_lidar_rays: make_env(
+                experiment_dir=_dir,
+                speed=_sp,
+                in_game_episode_s=_ep,
+                n_lidar_rays=_lr,
+            ),
+            obs_spec=obs_spec,
+            head_names=["steer", "accel", "brake"],
+            discrete_actions=DISCRETE_ACTIONS,
+            speed=t["speed"],
+            n_sims=t["n_sims"],
+            in_game_episode_s=t["in_game_episode_s"],
+            weights_file=weights_file,
+            reward_config_file=reward_cfg_file,
+            mutation_scale=t["mutation_scale"],
+            mutation_share=t.get("mutation_share", 1.0),
+            probe_actions=PROBE_ACTIONS,
+            probe_in_game_s=t.get("probe_s", 0),
+            cold_start_restarts=t.get("cold_restarts", 0),
+            cold_start_sims=t.get("cold_sims", 0),
+            warmup_action=WARMUP_ACTION,
+            warmup_steps=100,
+            training_params=t,
+            no_interrupt=no_interrupt or i > 1,
+            re_initialize=re_initialize,
+            policy_type=t.get("policy_type", "hill_climbing"),
+            policy_params=_build_policy_params(t),
+            track=track,
+            do_pretrain=t.get("do_pretrain", False),
+            patience=t.get("patience", 0),
+        )
+
+        save_experiment_results(data, results_dir=f"{experiment_dir}/results")
+        all_runs.append((name, data))
+        best = max((s.reward for s in data.greedy_sims), default=float("-inf"))
+        logger.info("[%d/%d] %s  best_reward=%+.1f", i, n, name, best)
+
+    return all_runs
+
+
+def _run_distributed(
+    combos: list[dict[str, Any]],
+    names: list[str],
+    track: str,
+    port: int,
+    heartbeat_timeout: float,
+) -> list[tuple[str, Any]]:
+    """Start coordinator, write local config files, block until all results arrive."""
+    from distributed.coordinator import Coordinator
+    from analytics import save_experiment_results
+
+    # Build ComboSpec list and write local experiment dirs so reward_config_file
+    # resolves on this machine when save_grid_summary reads it.
+    combo_specs = []
+    for combo, name in zip(combos, names):
+        t = combo["training_params"]
+        r = combo["reward_params"]
+        _setup_experiment_dir(name, track, t, r)
+        combo_specs.append(ComboSpec(name=name, track=track, training_params=t, reward_params=r))
+
+    coord = Coordinator(combo_specs, port=port, heartbeat_timeout=heartbeat_timeout)
+    coord.start()
+    logger.info(
+        "Coordinator ready on port %d — start workers with:\n"
+        "  python -m distributed.worker --coordinator http://<this-host>:%d",
+        port, port,
+    )
+
+    raw_runs = coord.wait_for_all()
+    coord.stop()
+
+    # Override reward_config_file to the local path written above, then save results.
+    all_runs = []
+    for name, data in raw_runs:
+        experiment_dir = f"experiments/{track}/{name}"
+        data.reward_config_file = f"{experiment_dir}/reward_config.yaml"
+        data.weights_file = f"{experiment_dir}/policy_weights.yaml"
+        save_experiment_results(data, results_dir=f"{experiment_dir}/results")
+        all_runs.append((name, data))
+
+    return all_runs
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Grid search over TMNF training/reward params")
     parser.add_argument("config", help="Path to grid search YAML config")
@@ -217,6 +353,15 @@ def main() -> None:
     parser.add_argument("--re-initialize", action="store_true",
                         help="Start each run from fresh random small-positive weights, "
                              "ignoring any existing weights file. Skips probe and cold-start.")
+    parser.add_argument("--distribute", action="store_true",
+                        help="Act as coordinator: serve work items over HTTP and wait for "
+                             "workers to post results instead of running locally")
+    parser.add_argument("--port", type=int, default=None,
+                        help="Coordinator HTTP port when --distribute is set (default: 5555, "
+                             "or value from config distribute.port)")
+    parser.add_argument("--heartbeat-timeout", type=float, default=None,
+                        help="Seconds before a silent worker's item is re-queued "
+                             "(default: 60, or value from config distribute.heartbeat_timeout)")
     parser.add_argument("--log-level", default="INFO",
                         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
                         help="Logging verbosity (default: INFO)")
@@ -228,104 +373,31 @@ def main() -> None:
         datefmt="%H:%M:%S",
     )
 
-    logging.basicConfig(
-        level=getattr(logging, args.log_level),
-        format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
-        datefmt="%H:%M:%S",
-    )
-
-    base_name, track, training_spec, reward_spec = _load_grid_config(args.config)
+    base_name, track, training_spec, reward_spec, distribute_cfg = _load_grid_config(args.config)
     combos, varied_keys = _expand_grid(training_spec, reward_spec)
-    centerline_path = f"tracks/{track}.npy"
 
     n = len(combos)
-    logger.info(f"  Grid search: {n} combination(s)")
-    logger.info(f"  Base name:   {base_name}")
-    logger.info(f"  Track:       {track}")
+    logger.info("  Grid search: %d combination(s)", n)
+    logger.info("  Base name:   %s", base_name)
+    logger.info("  Track:       %s", track)
     if varied_keys:
-        logger.info(f"  Varied:      {', '.join(varied_keys)}")
-    if varied_keys:
-        logger.info("  Varied:      %s", ', '.join(varied_keys))
-    logger.info("%s", "="*60)
+        logger.info("  Varied:      %s", ", ".join(varied_keys))
+    logger.info("%s", "=" * 60)
 
-    # Log all experiment names upfront so the user knows what's coming
     names = []
     for c in combos:
-        name = _make_experiment_name(base_name, c["_flat"], varied_keys)
+        name = _make_experiment_name(base_name, c.get("_flat", {}), varied_keys)
         names.append(name)
         logger.info("  %s", name)
 
-
-    all_runs = []   # list of (name, ExperimentData) for the summary
-
-    for i, (combo, name) in enumerate(zip(combos, names), 1):
-        t = combo["training_params"]
-        r = combo["reward_params"]
-
-        logger.info("=== Run %d/%d: %s ===", i, n, name)
-
-        experiment_dir = f"experiments/{track}/{name}"
-        weights_file   = f"{experiment_dir}/policy_weights.yaml"
-        reward_cfg_file = f"{experiment_dir}/reward_config.yaml"
-        training_params_file = f"{experiment_dir}/training_params.yaml"
-
-        os.makedirs(experiment_dir, exist_ok=True)
-
-        # Write reward config: master defaults merged with combo overrides.
-        # This ensures params not listed in the grid config (e.g. lidar_wall_weight)
-        # still get their master-config values rather than silently defaulting.
-        with open("config/reward_config.yaml") as f:
-            reward_cfg = yaml.safe_load(f) or {}
-        reward_cfg.update(r)
-        reward_cfg["track_name"] = track
-        reward_cfg["centerline_path"] = centerline_path
-        with open(reward_cfg_file, "w") as f:
-            yaml.dump(reward_cfg, f, default_flow_style=False, sort_keys=False)
-        with open(training_params_file, "w") as f:
-            yaml.dump(t, f, default_flow_style=False, sort_keys=False)
-
-        n_lidar_rays = t.get("n_lidar_rays", 0)
-        obs_spec     = TMNF_OBS_SPEC.with_lidar(n_lidar_rays)
-
-        data = train_rl(
-            experiment_name     = name,
-            make_env_fn         = lambda _dir=experiment_dir, _sp=t["speed"], _ep=t["in_game_episode_s"], _lr=n_lidar_rays: make_env(
-                experiment_dir    = _dir,
-                speed             = _sp,
-                in_game_episode_s = _ep,
-                n_lidar_rays      = _lr,
-            ),
-            obs_spec            = obs_spec,
-            head_names          = ["steer", "accel", "brake"],
-            discrete_actions    = DISCRETE_ACTIONS,
-            speed               = t["speed"],
-            n_sims              = t["n_sims"],
-            in_game_episode_s   = t["in_game_episode_s"],
-            weights_file        = weights_file,
-            reward_config_file  = reward_cfg_file,
-            mutation_scale      = t["mutation_scale"],
-            mutation_share      = t.get("mutation_share", 1.0),
-            probe_actions       = PROBE_ACTIONS,
-            probe_in_game_s     = t.get("probe_s", 0),
-            cold_start_restarts = t.get("cold_restarts", 0),
-            cold_start_sims     = t.get("cold_sims", 0),
-            warmup_action       = WARMUP_ACTION,
-            warmup_steps        = 100,
-            training_params     = t,
-            no_interrupt        = args.no_interrupt or i > 1,
-            re_initialize       = args.re_initialize,
-            policy_type         = t.get("policy_type", "hill_climbing"),
-            policy_params       = _build_policy_params(t),
-            track               = track,
-            do_pretrain         = t.get("do_pretrain", False),
-            patience            = t.get("patience", 0),
-        )
-
-        save_experiment_results(data, results_dir=f"{experiment_dir}/results")
-        all_runs.append((name, data))
-
-        best = max((s.reward for s in data.greedy_sims), default=float("-inf"))
-        logger.info("[%d/%d] %s  best_reward=%+.1f", i, n, name, best)
+    if args.distribute:
+        port = args.port or distribute_cfg.get("port", 5555)
+        hb_timeout = args.heartbeat_timeout or distribute_cfg.get("heartbeat_timeout", 60.0)
+        all_runs = _run_distributed(combos, names, track, port=port, heartbeat_timeout=hb_timeout)
+    else:
+        all_runs = _run_local(combos, names, track,
+                              no_interrupt=args.no_interrupt,
+                              re_initialize=args.re_initialize)
 
     # Final summary table
     logger.info("=== Grid search complete — %d run(s) ===", n)
@@ -337,6 +409,7 @@ def main() -> None:
         logger.info("  %-50s  %+12.1f", exp_name, best)
 
     # Cross-experiment summary report
+    from analytics import save_grid_summary
     summary_dir = f"experiments/{track}/{base_name}__summary"
     save_grid_summary(all_runs, varied_keys, summary_dir, base_name)
     logger.info("Summary report: %s/summary.md", summary_dir)
