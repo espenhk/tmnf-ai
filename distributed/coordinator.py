@@ -3,6 +3,9 @@ Distributed grid-search coordinator.
 
 Hosts an HTTP server that workers poll for work and post results to.
 
+Authentication: every request must carry  Authorization: Bearer <token>.
+Missing or wrong token → 401 Unauthorized.
+
 Endpoints:
   GET  /work       → 200 + ComboSpec JSON, or 204 when queue is empty
   POST /result     → 200 ack; stores ExperimentData from worker
@@ -14,7 +17,7 @@ Usage (called automatically by grid_search.py --distribute):
     from distributed.protocol import ComboSpec
 
     combos = [ComboSpec(name=..., track=..., training_params=..., reward_params=...)]
-    coord = Coordinator(combos, port=5555, heartbeat_timeout=60.0)
+    coord = Coordinator(combos, token="mysecret", port=5555, heartbeat_timeout=60.0)
     coord.start()
     print("Waiting for workers …")
     all_runs = coord.wait_for_all()   # blocks until all results received
@@ -54,9 +57,11 @@ class Coordinator:
     def __init__(
         self,
         combos: list[ComboSpec],
+        token: str,
         port: int = 5555,
         heartbeat_timeout: float = 60.0,
     ) -> None:
+        self._token = token
         self._work_queue: deque[ComboSpec] = deque(combos)
         self._known_names: set[str] = {spec.name for spec in combos}
         self._in_progress: dict[str, dict[str, Any]] = {}   # name → info
@@ -81,6 +86,8 @@ class Coordinator:
 
         class Handler(BaseHTTPRequestHandler):
             def do_GET(self) -> None:  # type: ignore[override]
+                if not coord._check_auth(self):
+                    return
                 if self.path == "/work":
                     coord._handle_get_work(self)
                 elif self.path == "/status":
@@ -89,6 +96,8 @@ class Coordinator:
                     self._send_json(404, {"error": "not found"})
 
             def do_POST(self) -> None:  # type: ignore[override]
+                if not coord._check_auth(self):
+                    return
                 body = self._read_body()
                 if self.path == "/result":
                     coord._handle_post_result(self, body)
@@ -155,6 +164,28 @@ class Coordinator:
             self._server_thread.join(timeout=5)
         if self._monitor_thread and self._monitor_thread.is_alive():
             self._monitor_thread.join(timeout=5)
+
+    # ------------------------------------------------------------------
+    # Auth
+    # ------------------------------------------------------------------
+
+    def _check_auth(self, handler: Any) -> bool:
+        """Check Bearer token. Sends 401 and returns False if invalid."""
+        import hmac
+        auth = handler.headers.get("Authorization", "")
+        parts = auth.split(" ", 1)
+        token_ok = (
+            len(parts) == 2
+            and parts[0].lower() == "bearer"
+            and hmac.compare_digest(parts[1].strip(), self._token.strip())
+        )
+        if token_ok:
+            return True
+        handler.send_response(401)
+        handler.send_header("WWW-Authenticate", 'Bearer realm="tmnf-grid"')
+        handler.send_header("Content-Length", "0")
+        handler.end_headers()
+        return False
 
     # ------------------------------------------------------------------
     # HTTP handlers (called on handler threads)
