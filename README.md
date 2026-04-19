@@ -262,6 +262,148 @@ When the worker finishes every combo, both processes exit on their own.
 
 ---
 
+## Azure worker VMs
+
+The `infrastructure/` directory ships a three-stage Terraform stack (`auth/`, `remote_state/`, `environment/`) that provisions a full distributed-training fleet on Azure: one coordinator VM plus N worker VMs, a Key Vault for admin passwords, and an NSG locked down to your public IP. Trackmania Nations Forever itself still has to be installed by hand on each VM — everything else is automated.
+
+### Topology
+
+| Component | Default SKU | Notes |
+|---|---|---|
+| Coordinator VM | `Standard_B1ms` | One per fleet, runs `grid_search.py --distribute` |
+| Worker VMs | `Standard_D2as_v5` | `worker_vm_count` copies, run `distributed.worker` |
+| OS | Windows 11 Pro 24H2 | Matches the TMInterface requirement |
+| Resource group | `rg-<project_name>` | Default `rg-tmnf-ai` (from `project_name = "tmnf-ai"` in `terraform.tfvars.example`) |
+| Key Vault | `kv-<project_name>-<random>` | Stores generated admin passwords for every VM |
+| NSG | `nsg-<project_name>` | Inbound RDP (3389) from `my_ip_address` only |
+
+### One-time Azure prerequisites
+
+1. An Azure subscription with sufficient vCPU quota in the target region (`centralindia` by default — the coordinator + 2 default workers need ~5 vCPUs).
+2. The Azure CLI installed and logged in: `az login`.
+3. Your Azure AD user object ID, needed so Terraform can grant you access to the Key Vault:
+   ```bash
+   az ad signed-in-user show --query id -o tsv
+   ```
+4. Your current public IP for the RDP NSG rule:
+   ```bash
+   curl ifconfig.me
+   ```
+5. Terraform ≥ 1.5 on the machine running the deploy.
+
+### Terraform deployment order
+
+The three stages must be applied in order — `auth/` creates the service principal with federated OIDC, `remote_state/` creates the storage backend, `environment/` creates the actual VMs and reads its state from that backend.
+
+```bash
+# 1. Service principal + federated credentials for GitHub Actions
+cd infrastructure/auth
+terraform init
+terraform apply
+
+# 2. Remote-state storage account + container
+cd ../remote_state
+terraform init
+terraform apply
+
+# 3. Wire the environment stack to the remote state
+cd ../environment
+cp backend.conf.example backend.conf        # fill in outputs from step 2
+cp terraform.tfvars.example terraform.tfvars # set my_object_id, my_ip_address, worker_vm_count
+
+# 4. Deploy the VMs
+terraform init -backend-config=backend.conf
+terraform apply
+```
+
+The public IPs and admin-user for every VM are printed in the `vm_details` output:
+
+```bash
+terraform output vm_details
+```
+
+Required variables in `terraform.tfvars` (see `infrastructure/environment/variables.tf` for all of them):
+
+| Variable | Purpose |
+|---|---|
+| `my_object_id` | Your AAD user object ID — gets Key Vault read access |
+| `my_ip_address` | Your public IP — allowed through the NSG on 3389 |
+| `worker_vm_count` | Number of worker VMs (main cost lever) |
+| `worker_vm_size` | SKU for worker VMs (default `Standard_D2as_v5`) |
+| `coordinator_vm_size` | SKU for the coordinator (default `Standard_B1ms`) |
+| `admin_username` | Local admin login name (default `adminuser`) |
+
+### Per-VM setup
+
+Fetch the generated admin password from Key Vault — the secret name is `<project_name>-worker-<index>-password` (or `<project_name>-coordinator-password`):
+
+```bash
+az keyvault secret show \
+  --vault-name <kv-name> \
+  --name tmnf-ai-worker-0-password \
+  --query value -o tsv
+```
+
+RDP into the VM with `adminuser` and that password, then clone the repo and run the bootstrap:
+
+```powershell
+git clone https://github.com/espenhk/tmnf-ai.git
+cd tmnf-ai
+.\setup_and_run.ps1 ""
+```
+
+`setup_and_run.ps1` installs Python 3.11, Git, Poetry, and TMInterface 1.4, and runs `poetry install --with tmnf`. Trackmania Nations Forever itself still needs to be installed manually on each worker (Ubisoft / Nadeo download); the coordinator VM doesn't need TMNF since it only schedules work.
+
+### Running a distributed sweep on Azure
+
+```bash
+# 1. Start every VM in the resource group
+az vm start --ids $(az vm list -g rg-tmnf-ai --query "[].id" -o tsv)
+```
+
+Then on the **coordinator** VM (RDP in first):
+
+```powershell
+python grid_search.py config/my_grid.yaml --distribute
+```
+
+Copy the coordinator URL and token that it logs. On each **worker** VM:
+
+```powershell
+python -m distributed.worker --coordinator http://<coordinator-ip>:5555 --token <secret>
+```
+
+When the sweep finishes, deallocate every VM to stop billing (stopped-but-allocated VMs still cost money — `deallocate` is the right verb):
+
+```bash
+az vm deallocate --ids $(az vm list -g rg-tmnf-ai --query "[].id" -o tsv)
+```
+
+> **Operational caveat** — the Terraform NSG only opens inbound **3389** (RDP). Port **5555** (coordinator HTTP) is not exposed to the public internet. Workers reach the coordinator over the shared VNet via its private IP, or you can add an NSG rule / use RDP port-forwarding while testing. Never expose the coordinator port without adding authentication-aware firewall rules.
+
+### Cost controls
+
+- `worker_vm_count` is the main cost lever — scale it down before committing the grid-search run and back up only for the sweep itself.
+- Always `az vm deallocate` when the fleet is idle. Stopped-but-allocated VMs keep accruing compute charges.
+- `worker_vm_size` and `coordinator_vm_size` are configurable — drop to a smaller SKU for smoke tests.
+
+### Teardown
+
+Tear down the compute when you're done for the day:
+
+```bash
+cd infrastructure/environment
+terraform destroy
+```
+
+This removes the resource group, VMs, NSG, Key Vault, and NICs but leaves the remote state intact so the next `apply` is incremental. Only destroy `infrastructure/remote_state/` and `infrastructure/auth/` when you're permanently abandoning the project — those stages hold the Terraform state backend and GitHub Actions OIDC credentials.
+
+### Follow-up
+
+A cloud-init / custom-script extension that fully automates per-VM setup (including the TMNF install itself) is a natural next step but is not part of the current Terraform. Contributions welcome — open an issue before picking it up.
+
+---
+
 ## Reward & parameter tuning reference
 
 ### When a reward param needs changing
@@ -292,3 +434,52 @@ When the worker finishes every combo, both processes exit on their own.
 ### Episode length vs finish signals
 
 `in_game_episode_s = 13.0` with `par_time_s = 60.0` means the finish line is unreachable in a normal episode. `finish_bonus` and `finish_time_weight` have no effect until `in_game_episode_s` is increased to cover the full track. This is intentional during early training (focus on the track start), but should be revisited once the policy is competent for the first section.
+
+---
+
+## Repository layout
+
+```
+tmnf-ai/
+├── main.py                 # Entry point — python main.py <experiment_name>
+├── grid_search.py          # Local + distributed grid search driver
+├── setup_and_run.ps1       # Windows bootstrap (Python/Poetry/TMInterface + run)
+├── pyproject.toml          # Poetry dependencies (tmnf / tmnf-test groups)
+├── framework/              # Game-agnostic RL primitives (base env, policies, training loop, analytics)
+├── games/
+│   └── tmnf/               # Trackmania-specific code — the real source of truth
+│       ├── env.py          # TMNFEnv Gymnasium environment
+│       ├── clients/        # TMInterface bridge (base, RL, instruction)
+│       ├── lidar.py        # Screenshot-based wall-distance sensor
+│       ├── policies.py     # TMNF policy implementations
+│       ├── reward.py       # RewardCalculator + RewardConfig
+│       ├── track.py        # Centerline loader / projection
+│       └── tools/          # CLI helpers (build_centerline, debug_straight, …)
+├── distributed/            # HTTP coordinator + worker for multi-box sweeps
+├── infrastructure/         # Terraform stack for Azure worker VMs — see infrastructure/README.md
+├── clients/                # Backward-compat shim → re-exports games.tmnf.clients.*
+├── rl/                     # Backward-compat shim → re-exports games.tmnf.env
+├── config/                 # Master training / reward / grid-search config templates
+├── tracks/                 # Centerline `.npy` files
+├── replays/                # `.Replay.Gbx` inputs for centerline builds
+├── tests/                  # Pytest suite (policies, env, reward, distributed, …)
+├── experiments/            # Per-experiment results (git-ignored)
+├── runs/                   # Saved run artefacts
+├── plans/                  # Design notes
+└── .github/                # CI workflows + agent configs
+```
+
+> **Heads-up on shims** — the top-level `clients/` and `rl/` directories are thin backward-compat re-exports for code that moved under `games/tmnf/`. Treat `games/tmnf/` as the source of truth when reading, debugging, or editing — the shims only exist so older import paths keep working.
+
+---
+
+## Troubleshooting
+
+| Symptom | Likely cause / fix |
+|---|---|
+| **"Game window not found" / LIDAR returns all zeros** | Trackmania window isn't focused or its title doesn't start with `TmForever` (see `games/tmnf/lidar.py`). Bring the game window to the foreground and retry. |
+| **`401 Unauthorized` in worker logs** | Token mismatch between coordinator and worker. Pass the same value via `--token` on both ends, or set `TMNF_GRID_TOKEN` in the environment. |
+| **Worker never picks up work** | Coordinator is unreachable. Double-check the `--coordinator` URL, any host firewall, and — on Azure — that the coordinator port (5555 by default) is reachable. The current Terraform NSG does **not** open 5555; use the VNet private IP, add an NSG rule, or RDP port-forward while testing. |
+| **`poetry install` fails on Linux** | Expected. The `tmnf` group depends on `pywin32`, `mss`, and `tminterface`, none of which work off Windows. On non-Windows CI, install `--with tmnf-test` instead — it pulls only the cross-platform deps the test suite needs. |
+| **No progress after cold-start** | The reward config is likely off. Start with the [Reward & parameter tuning reference](#reward--parameter-tuning-reference) tables — `progress_weight`, `centerline_weight`, and `accel_bonus` are the usual culprits. |
+| **Weights file schema mismatch on load** | `WeightedLinearPolicy` auto-migrates new observation keys, but if load still fails, rerun with `--re-initialize` to discard the stale weights and re-run probe + cold-start. |
