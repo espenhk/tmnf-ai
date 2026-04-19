@@ -4,8 +4,9 @@
 
 .DESCRIPTION
     Two modes:
-      Fresh machine  — installs Python 3.11+, Poetry, Git, TMInterface 1.4, and
-                       Python dependencies, then launches everything.
+      Fresh machine  — installs Python 3.11+, Poetry, Git, Trackmania Nations
+                       Forever, TMInterface 1.4, and Python dependencies, then
+                       launches everything.
       Existing setup — detects what is already present, skips install steps, and
                        goes straight to launching TMInterface + the requested command.
 
@@ -24,8 +25,11 @@
     .\setup_and_run.ps1 "python grid_search.py config/gs_cmaes.yaml" -DryRun
 
 .NOTES
-    Prerequisites this script does NOT handle:
-        - Trackmania Nations Forever must already be installed.
+    Trackmania Nations Forever:
+        Official installer from Nadeo's CDN.  Silent install is supported via
+        the NSIS `/S` flag; the game installs to
+        C:\Program Files (x86)\TmNationsForever by default.  TMInterface
+        requires this to be installed before it is launched.
 
     TMInterface 1.4:
         Official installer: https://donadigo.com/tminterface
@@ -117,6 +121,15 @@ $TMIfaceInstallerUrl    = "https://github.com/donadigo/tminterface/releases/down
 # Leave empty to skip verification (not recommended for production use).
 $TMIfaceInstallerSha256 = ""
 
+# Trackmania Nations Forever (official Nadeo CDN).  NSIS installer — supports
+# `/S` for silent install and `/D=<path>` for a custom directory.
+$TMNFDir           = Join-Path ${env:ProgramFiles(x86)} "TmNationsForever"
+$TMNFExe           = Join-Path $TMNFDir "TmForever.exe"
+$TMNFInstallerUrl  = "https://nadeo-download.cdn.ubi.com/trackmaniaforever/tmnationsforever_setup.exe"
+# Set to the known SHA-256 of the installer above to enable integrity verification.
+# Leave empty to skip verification (not recommended for production use).
+$TMNFInstallerSha256 = ""
+
 # ---------------------------------------------------------------------------
 # 1. Python 3.11+
 # ---------------------------------------------------------------------------
@@ -198,7 +211,55 @@ function Install-Poetry {
 }
 
 # ---------------------------------------------------------------------------
-# 4. TMInterface 1.4
+# 4. Trackmania Nations Forever
+# ---------------------------------------------------------------------------
+
+function Install-Trackmania {
+    if (Test-Path $TMNFExe) {
+        Write-Skip "Trackmania Nations Forever already found at $TMNFExe."
+        return
+    }
+
+    Invoke-Step "Downloading Trackmania Nations Forever installer" {
+        $installer = Join-Path $env:TEMP "tmnationsforever_setup.exe"
+        Write-Step "  Fetching $TMNFInstallerUrl"
+        Invoke-WebRequest -Uri $TMNFInstallerUrl -OutFile $installer -UseBasicParsing
+        Assert-Success "Trackmania download"
+
+        if ($TMNFInstallerSha256) {
+            $actualHash = (Get-FileHash -Path $installer -Algorithm SHA256).Hash
+            if ($actualHash.ToUpperInvariant() -ne $TMNFInstallerSha256.ToUpperInvariant()) {
+                Write-Err "Trackmania installer SHA-256 mismatch!"
+                Write-Err "  Expected: $TMNFInstallerSha256"
+                Write-Err "  Actual:   $actualHash"
+                Write-Err "Aborting to avoid executing an unexpected binary."
+                exit 1
+            }
+            Write-Ok "Installer checksum verified."
+        } else {
+            Write-Host "[WARN]  Trackmania installer SHA-256 not configured — skipping integrity check." -ForegroundColor Yellow
+        }
+
+        Write-Step "  Running Trackmania installer (silent)"
+        # NSIS: /S = silent, /D=<path> must be the LAST argument and unquoted.
+        $proc = Start-Process -FilePath $installer -ArgumentList "/S", "/D=$TMNFDir" -Wait -PassThru
+        if ($proc.ExitCode -ne 0) {
+            Write-Err "Trackmania installation failed (exit code $($proc.ExitCode))."
+            Write-Err "Please install Trackmania Nations Forever manually from: $TMNFInstallerUrl"
+            exit $proc.ExitCode
+        }
+
+        if (-not (Test-Path $TMNFExe)) {
+            Write-Err "TmForever.exe not found after install at $TMNFExe."
+            Write-Err "Please install Trackmania Nations Forever manually from: $TMNFInstallerUrl"
+            exit 1
+        }
+        Write-Ok "Trackmania Nations Forever installed at $TMNFDir."
+    }
+}
+
+# ---------------------------------------------------------------------------
+# 5. TMInterface 1.4
 # ---------------------------------------------------------------------------
 
 function Install-TMInterface {
@@ -245,7 +306,7 @@ function Install-TMInterface {
 }
 
 # ---------------------------------------------------------------------------
-# 5. Poetry dependencies
+# 6. Poetry dependencies
 # ---------------------------------------------------------------------------
 
 function Install-PoetryDeps {
@@ -261,7 +322,7 @@ function Install-PoetryDeps {
 }
 
 # ---------------------------------------------------------------------------
-# 6. Launch TMInterface
+# 7. Launch TMInterface
 # ---------------------------------------------------------------------------
 
 function Start-TMInterface {
@@ -297,7 +358,7 @@ function Start-TMInterface {
 }
 
 # ---------------------------------------------------------------------------
-# 7. Run user command
+# 8. Run user command
 # ---------------------------------------------------------------------------
 
 function Invoke-UserCommand {
@@ -363,6 +424,7 @@ if ($DryRun) {
 Install-Python
 Install-Git
 Install-Poetry
+Install-Trackmania
 Install-TMInterface
 Install-PoetryDeps
 Start-TMInterface
