@@ -24,9 +24,6 @@
     .\setup_and_run.ps1 "python grid_search.py config/gs_cmaes.yaml" -DryRun
 
 .NOTES
-    Prerequisites this script does NOT handle:
-        - Trackmania Nations Forever must already be installed.
-
     TMInterface 1.4:
         Official installer: https://donadigo.com/tminterface
         Only version 1.4.x is compatible with the tminterface Python package
@@ -109,6 +106,13 @@ function Assert-Winget {
 # ---------------------------------------------------------------------------
 
 $ScriptDir  = $PSScriptRoot
+
+# Trackmania Nations Forever
+$TMNFInstallDir      = "C:\Program Files (x86)\TmNationsForever"
+$TMNFExe             = Join-Path $TMNFInstallDir "TmForever.exe"
+$TMNFInstallerUrl    = "https://nadeo-download.cdn.ubi.com/trackmaniaforever/tmnationsforever_setup.exe"
+
+# TMInterface 1.4
 $TMIfaceDir = Join-Path $env:USERPROFILE "TMInterface"
 $TMIfaceExe = Join-Path $TMIfaceDir "TMInterface.exe"
 # TMInterface 1.4 installer (official release page; update URL + SHA-256 when a new 1.4.x drops)
@@ -198,7 +202,41 @@ function Install-Poetry {
 }
 
 # ---------------------------------------------------------------------------
-# 4. TMInterface 1.4
+# 4. Trackmania Nations Forever
+# ---------------------------------------------------------------------------
+
+function Install-TMNF {
+    if (Test-Path $TMNFExe) {
+        Write-Skip "Trackmania Nations Forever already installed at $TMNFExe."
+        return
+    }
+
+    Invoke-Step "Downloading Trackmania Nations Forever installer" {
+        $installer = Join-Path $env:TEMP "tmnationsforever_setup.exe"
+        Write-Step "  Fetching $TMNFInstallerUrl"
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        Invoke-WebRequest -Uri $TMNFInstallerUrl -OutFile $installer -UseBasicParsing
+        Assert-Success "TMNF download"
+
+        Write-Step "  Running TMNF installer (silent)"
+        # /S = NSIS silent install (case-sensitive!)
+        # /D= sets install directory (no quotes, no space after =)
+        $proc = Start-Process -FilePath $installer -ArgumentList "/S", "/D=$TMNFInstallDir" -Wait -PassThru
+        if ($proc.ExitCode -ne 0) {
+            Write-Err "TMNF installation failed (exit code $($proc.ExitCode))."
+            exit $proc.ExitCode
+        }
+
+        if (-not (Test-Path $TMNFExe)) {
+            Write-Err "TMNF executable not found after install at $TMNFExe."
+            exit 1
+        }
+        Write-Ok "Trackmania Nations Forever installed."
+    }
+}
+
+# ---------------------------------------------------------------------------
+# 5. TMInterface 1.4
 # ---------------------------------------------------------------------------
 
 function Install-TMInterface {
@@ -245,7 +283,7 @@ function Install-TMInterface {
 }
 
 # ---------------------------------------------------------------------------
-# 5. Poetry dependencies
+# 6. Poetry dependencies
 # ---------------------------------------------------------------------------
 
 function Install-PoetryDeps {
@@ -261,7 +299,7 @@ function Install-PoetryDeps {
 }
 
 # ---------------------------------------------------------------------------
-# 6. Launch TMInterface
+# 7. Launch TMInterface
 # ---------------------------------------------------------------------------
 
 function Start-TMInterface {
@@ -297,7 +335,7 @@ function Start-TMInterface {
 }
 
 # ---------------------------------------------------------------------------
-# 7. Run user command
+# 8. Run user command
 # ---------------------------------------------------------------------------
 
 function Invoke-UserCommand {
@@ -363,6 +401,7 @@ if ($DryRun) {
 Install-Python
 Install-Git
 Install-Poetry
+Install-TMNF
 Install-TMInterface
 Install-PoetryDeps
 Start-TMInterface
