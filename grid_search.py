@@ -66,6 +66,8 @@ _ABBREV = {
     # genetic policy params
     "population_size": "pop",
     "elite_k": "ek",
+    # cmaes policy params
+    "initial_sigma": "sigma",
     # epsilon-greedy params
     "epsilon": "eps",
     "epsilon_decay": "ed",
@@ -102,8 +104,9 @@ _POLICY_PARAM_MAP = {
     "gamma": "gamma",  # epsilon_greedy / mcts
     "n_bins": "n_bins",  # epsilon_greedy / mcts
     "mcts_c": "c",  # mcts (renamed)
-    "population_size": "population_size",  # genetic
+    "population_size": "population_size",  # genetic / cmaes
     "elite_k": "elite_k",  # genetic
+    "initial_sigma": "initial_sigma",  # cmaes
 }
 
 
