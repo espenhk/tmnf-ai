@@ -4,10 +4,11 @@
 #   population_size — lambda in CMA-ES. Drives the total episode budget
 #                     (= n_sims * population_size) and the quality of the
 #                     rank-mu covariance update. Very small populations
-#                     (< 10) give noisy covariance estimates for a 63-dim
-#                     search; very large ones burn the episode budget on
-#                     individual evaluations rather than generations.
-#                     20 is the Hansen 2016 default for this dimension.
+#                     (< 10) give noisy covariance estimates for an 87-dim
+#                     search ((BASE_OBS_DIM + n_lidar_rays) * 3 = (21+8)*3
+#                     with this template's n_lidar_rays=8); very large ones
+#                     burn the episode budget on individual evaluations
+#                     rather than generations.
 #   initial_sigma   — starting step size. CSA adapts sigma automatically
 #                     each generation, but the initial value still controls
 #                     how far the first samples spread. Too small → slow
@@ -29,11 +30,11 @@ training_params:
   speed: 10.0
   n_sims: 30
   in_game_episode_s: 90.0
-  mutation_scale: 0.05   # unused for CMA-ES but required by grid_search.py
-  mutation_share: 1.0    # unused for CMA-ES but required by grid_search.py
+  mutation_scale: 0.05   # unused for CMA-ES but indexed directly by grid_search.py
+  mutation_share: 1.0    # unused for CMA-ES; optional in grid_search.py
   probe_s: 8.0
-  cold_restarts: 1       # unused for CMA-ES but required by grid_search.py
-  cold_sims: 1           # unused for CMA-ES but required by grid_search.py
+  cold_restarts: 1       # unused for CMA-ES; optional in grid_search.py
+  cold_sims: 1           # unused for CMA-ES; optional in grid_search.py
   n_lidar_rays: 8
   policy_type: cmaes
 

@@ -225,6 +225,119 @@ def _build_policy_params(t: dict[str, Any]) -> dict[str, Any]:
     return params
 
 
+def _build_tmnf_extras(
+    weights_file: str,
+    n_lidar_rays: int,
+    re_initialize: bool,
+    policy_params: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, str]]:
+    """
+    Build (extra_policy_types, extra_loop_dispatch) for TMNF-specific policy
+    types so train_rl() can construct and route them. Mirrors main.py's setup
+    so `policy_type: cmaes | neural_dqn | reinforce | lstm` works from grid
+    search and distributed workers, not just from main.py.
+    """
+    import yaml as _yaml
+    from games.tmnf.policies import (
+        CMAESPolicy,
+        LSTMEvolutionPolicy,
+        LSTMPolicy,
+        NeuralDQNPolicy,
+        REINFORCEPolicy,
+    )
+
+    def _make_neural_dqn() -> NeuralDQNPolicy:
+        if os.path.exists(weights_file) and not re_initialize:
+            with open(weights_file) as _f:
+                _cfg = _yaml.safe_load(_f)
+            if isinstance(_cfg, dict) and _cfg.get("policy_type") == "neural_dqn":
+                return NeuralDQNPolicy.from_cfg(_cfg, n_lidar_rays=n_lidar_rays)
+        return NeuralDQNPolicy(
+            hidden_sizes        = policy_params.get("hidden_sizes",        [64, 64]),
+            replay_buffer_size  = policy_params.get("replay_buffer_size",  10000),
+            batch_size          = policy_params.get("batch_size",          64),
+            min_replay_size     = policy_params.get("min_replay_size",     500),
+            target_update_freq  = policy_params.get("target_update_freq",  200),
+            learning_rate       = policy_params.get("learning_rate",       0.001),
+            epsilon_start       = policy_params.get("epsilon_start",       1.0),
+            epsilon_end         = policy_params.get("epsilon_end",         0.05),
+            epsilon_decay_steps = policy_params.get("epsilon_decay_steps", 5000),
+            gamma               = policy_params.get("gamma",               0.99),
+            n_lidar_rays        = n_lidar_rays,
+        )
+
+    def _make_cmaes() -> CMAESPolicy:
+        policy = CMAESPolicy(
+            population_size = policy_params.get("population_size", 20),
+            initial_sigma   = policy_params.get("initial_sigma",   0.3),
+            n_lidar_rays    = n_lidar_rays,
+        )
+        if os.path.exists(weights_file) and not re_initialize:
+            from policies import WeightedLinearPolicy as _WLP
+            with open(weights_file) as _f:
+                champion = _WLP.from_cfg(_yaml.safe_load(_f) or {}, n_lidar_rays=n_lidar_rays)
+            policy.initialize_from_champion(champion)
+        else:
+            policy.initialize_random()
+        return policy
+
+    def _make_reinforce() -> REINFORCEPolicy:
+        if os.path.exists(weights_file) and not re_initialize:
+            with open(weights_file) as _f:
+                _cfg = _yaml.safe_load(_f) or {}
+            if isinstance(_cfg, dict) and _cfg.get("policy_type") == "reinforce":
+                return REINFORCEPolicy.from_cfg(_cfg, n_lidar_rays=n_lidar_rays)
+        return REINFORCEPolicy(
+            hidden_sizes  = policy_params.get("hidden_sizes",  [64, 64]),
+            learning_rate = policy_params.get("learning_rate", 0.001),
+            gamma         = policy_params.get("gamma",         0.99),
+            entropy_coeff = policy_params.get("entropy_coeff", 0.01),
+            baseline      = policy_params.get("baseline",      "running_mean"),
+            n_lidar_rays  = n_lidar_rays,
+        )
+
+    def _make_lstm() -> LSTMEvolutionPolicy:
+        hidden_size = policy_params.get("hidden_size",     32)
+        policy = LSTMEvolutionPolicy(
+            hidden_size     = hidden_size,
+            population_size = policy_params.get("population_size", 20),
+            initial_sigma   = policy_params.get("initial_sigma",   0.05),
+            n_lidar_rays    = n_lidar_rays,
+        )
+        if os.path.exists(weights_file) and not re_initialize:
+            with open(weights_file) as _f:
+                _cfg = _yaml.safe_load(_f) or {}
+            if isinstance(_cfg, dict) and _cfg.get("policy_type") == "lstm":
+                saved_hidden = _cfg.get("hidden_size")
+                saved_lidar  = _cfg.get("n_lidar_rays")
+                if saved_hidden is not None and saved_hidden != hidden_size:
+                    raise ValueError(
+                        "Saved LSTM champion hidden_size does not match current run: "
+                        f"saved={saved_hidden}, current={hidden_size}"
+                    )
+                if saved_lidar is not None and saved_lidar != n_lidar_rays:
+                    raise ValueError(
+                        "Saved LSTM champion n_lidar_rays does not match current run: "
+                        f"saved={saved_lidar}, current={n_lidar_rays}"
+                    )
+                policy.initialize_from_champion(LSTMPolicy.from_cfg(_cfg))
+        return policy
+
+    extras = {
+        "neural_dqn": _make_neural_dqn,
+        "cmaes":      _make_cmaes,
+        "reinforce":  _make_reinforce,
+        "lstm":       _make_lstm,
+    }
+    dispatch = {
+        "neural_dqn": "q_learning",
+        "cmaes":      "cmaes",
+        "reinforce":  "q_learning",
+        "lstm":       "cmaes",
+    }
+    return extras, dispatch
+
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
@@ -281,6 +394,13 @@ def _run_local(
         )
         n_lidar_rays = t.get("n_lidar_rays", 0)
         obs_spec = TMNF_OBS_SPEC.with_lidar(n_lidar_rays)
+        policy_params = _build_policy_params(t)
+        extras, dispatch = _build_tmnf_extras(
+            weights_file=weights_file,
+            n_lidar_rays=n_lidar_rays,
+            re_initialize=re_initialize,
+            policy_params=policy_params,
+        )
 
         data = train_rl(
             experiment_name=name,
@@ -312,7 +432,9 @@ def _run_local(
             no_interrupt=no_interrupt or i > 1,
             re_initialize=re_initialize,
             policy_type=t.get("policy_type", "hill_climbing"),
-            policy_params=_build_policy_params(t),
+            policy_params=policy_params,
+            extra_policy_types=extras,
+            extra_loop_dispatch=dispatch,
             track=track,
             do_pretrain=t.get("do_pretrain", False),
             patience=t.get("patience", 0),
