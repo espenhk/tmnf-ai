@@ -28,6 +28,7 @@ import argparse
 import itertools
 import logging
 import os
+from time import sleep
 from typing import Any
 import uuid as _uuid
 
@@ -443,6 +444,7 @@ def _run_local(
         all_runs.append((name, data))
         best = max((s.reward for s in data.greedy_sims), default=float("-inf"))
         logger.info("[%d/%d] %s  best_reward=%+.1f", i, n, name, best)
+        sleep(10)  # brief pause between runs to avoid overwhelming the system
 
     return all_runs
 
@@ -557,9 +559,19 @@ def main() -> None:
     combos, varied_keys = _expand_grid(training_spec, reward_spec)
 
     n = len(combos)
-    logger.info("  Grid search: %d combination(s)", n)
-    logger.info("  Base name:   %s", base_name)
-    logger.info("  Track:       %s", track)
+    logger.info("  Grid search:       %d combination(s)", n)
+    logger.info("  Base name:         %s", base_name)
+    logger.info("  Track:             %s", track)
+    logger.info("  Training config:")
+    for k, v in training_spec.items():
+        logger.info("    %s: %s", k, v)
+    logger.info("  Reward config:")
+    for k, v in reward_spec.items():
+        logger.info("    %s: %s", k, v)
+    if args.distribute:
+        logger.info("  Distribute config: %s", distribute_cfg)
+        for k, v in distribute_cfg.items():
+            logger.info("    %s: %s", k, v)
     if varied_keys:
         logger.info("  Varied:      %s", ", ".join(varied_keys))
     logger.info("%s", "=" * 60)

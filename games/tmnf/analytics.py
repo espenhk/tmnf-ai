@@ -10,6 +10,14 @@ from __future__ import annotations
 
 import logging
 import os
+import numpy as np
+import yaml
+
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
+
 
 from framework.analytics import (
     ExperimentData,
@@ -25,20 +33,10 @@ from framework.analytics import (
     _summary_md,
     save_grid_summary as _framework_save_grid_summary,
 )
+from games.tmnf.obs_spec import OBS_NAMES
 
 logger = logging.getLogger(__name__)
 
-try:
-    import matplotlib.pyplot as plt
-    import matplotlib.cm as cm
-    from matplotlib.axes import Axes
-    from matplotlib.figure import Figure
-    _HAS_MPL = True
-except ImportError:
-    _HAS_MPL = False
-
-import numpy as np
-import yaml
 
 
 def _save(fig: "Figure", path: str) -> None:
@@ -72,8 +70,6 @@ def _plot_throttle_trace(ax: "Axes", throttle_state: list, title: str) -> None:
 # ---------------------------------------------------------------------------
 
 def plot_probe_paths(data: ExperimentData, results_dir: str) -> None:
-    if not _HAS_MPL:
-        return
     probes = [p for p in sorted(data.probe_results, key=lambda p: p.action_idx)
               if p.trace and p.trace.pos_x]
     if not probes:
@@ -99,8 +95,6 @@ def plot_probe_paths(data: ExperimentData, results_dir: str) -> None:
 # ---------------------------------------------------------------------------
 
 def plot_cold_start_best_run(data: ExperimentData, results_dir: str) -> None:
-    if not _HAS_MPL:
-        return
     best_sim = None
     best_r   = float("-inf")
     for restart in data.cold_start_restarts:
@@ -127,8 +121,6 @@ def plot_cold_start_best_run(data: ExperimentData, results_dir: str) -> None:
 
 
 def plot_cold_start_action_dist(data: ExperimentData, results_dir: str) -> None:
-    if not _HAS_MPL:
-        return
     restarts = data.cold_start_restarts
     xs = [r.restart for r in restarts]
     accel_pcts, brake_pcts = [], []
@@ -161,8 +153,6 @@ def plot_cold_start_action_dist(data: ExperimentData, results_dir: str) -> None:
 # ---------------------------------------------------------------------------
 
 def plot_greedy_best_run(data: ExperimentData, results_dir: str) -> None:
-    if not _HAS_MPL:
-        return
     if not data.greedy_sims:
         return
     best  = max(data.greedy_sims, key=lambda s: s.reward)
@@ -185,8 +175,6 @@ def plot_greedy_best_run(data: ExperimentData, results_dir: str) -> None:
 
 
 def plot_greedy_action_dist(data: ExperimentData, results_dir: str) -> None:
-    if not _HAS_MPL:
-        return
     sims = data.greedy_sims
     xs   = [s.sim for s in sims]
     accel_pcts, brake_pcts = [], []
@@ -211,8 +199,6 @@ def plot_greedy_action_dist(data: ExperimentData, results_dir: str) -> None:
 
 
 def plot_greedy_progress(data: ExperimentData, results_dir: str) -> None:
-    if not _HAS_MPL:
-        return
     sims = data.greedy_sims
     xs   = [s.sim for s in sims]
     ys   = [s.laps_completed + s.final_track_progress for s in sims]
@@ -255,14 +241,11 @@ def plot_greedy_progress(data: ExperimentData, results_dir: str) -> None:
 # ---------------------------------------------------------------------------
 
 def plot_weight_heatmap(data: ExperimentData, results_dir: str) -> None:
-    if not _HAS_MPL or not os.path.exists(data.weights_file):
-        return
     with open(data.weights_file) as f:
         cfg = yaml.safe_load(f) or {}
     if "steer_weights" not in cfg:
         return
 
-    from games.tmnf.obs_spec import OBS_NAMES
     obs_names = OBS_NAMES
     steer_w = np.array([cfg["steer_weights"].get(n, 0.0) for n in obs_names])
     accel_w = np.array([cfg["accel_weights"].get(n, 0.0) for n in obs_names])
@@ -283,14 +266,11 @@ def plot_weight_heatmap(data: ExperimentData, results_dir: str) -> None:
 
 
 def plot_weight_evolution(data: ExperimentData, results_dir: str) -> None:
-    if not _HAS_MPL:
-        return
     sims = [s for s in data.greedy_sims
             if s.weights is not None and "steer_weights" in s.weights]
     if len(sims) < 2:
         return
 
-    from games.tmnf.obs_spec import OBS_NAMES
     obs_names = OBS_NAMES
     xs = [s.sim for s in sims]
     improvement_xs = [s.sim for s in sims if s.improved]
@@ -339,8 +319,6 @@ _REASON_ORDER = ["finish", "crash", "hard_crash", "timeout"]
 
 
 def plot_termination_reasons(data: ExperimentData, results_dir: str) -> None:
-    if not _HAS_MPL:
-        return
     sims = data.greedy_sims
     if not sims:
         return
@@ -383,8 +361,6 @@ def plot_gs_comparison_paths(
     runs: list[tuple[str, ExperimentData]],
     summary_dir: str,
 ) -> None:
-    if not _HAS_MPL:
-        return
     traced = []
     for name, data in runs:
         if not data.greedy_sims:
@@ -417,8 +393,6 @@ def plot_gs_comparison_progress(
     runs: list[tuple[str, ExperimentData]],
     summary_dir: str,
 ) -> None:
-    if not _HAS_MPL:
-        return
     series = []
     for name, data in runs:
         if not data.greedy_sims:
