@@ -63,14 +63,14 @@ class WeightedLinearPolicy(_FrameworkWLP):
         logger.info("[WeightedLinearPolicy] loaded weights from %s", weights_file)
 
     @classmethod
-    def from_cfg(cls, cfg: dict, n_lidar_rays: int = 0) -> "WeightedLinearPolicy":
+    def from_cfg(cls, cfg: dict, n_lidar_rays: int = 0, head_names: list[str] | None = None) -> "WeightedLinearPolicy":
         """Create a policy from a weights dict (not backed by a file)."""
         obs_spec   = TMNF_OBS_SPEC.with_lidar(n_lidar_rays)
         normalized = _normalize_weight_cfg(cfg, obs_spec.names)
         obj = object.__new__(cls)
         obj._weights_file = None
         obj._obs_spec     = obs_spec
-        obj._head_names   = _HEAD_NAMES
+        obj._head_names   = head_names if head_names is not None else _HEAD_NAMES
         obj._apply_cfg(normalized)
         return obj
 
