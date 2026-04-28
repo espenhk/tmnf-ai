@@ -427,7 +427,7 @@ def _run_local(
             cold_start_restarts=t.get("cold_restarts", 0),
             cold_start_sims=t.get("cold_sims", 0),
             warmup_action=WARMUP_ACTION,
-            warmup_steps=100,
+            warmup_steps=5,
             training_params=t,
             no_interrupt=no_interrupt or i > 1,
             re_initialize=re_initialize,

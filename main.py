@@ -202,7 +202,7 @@ def main() -> None:
         cold_start_restarts = p["cold_restarts"],
         cold_start_sims     = p["cold_sims"],
         warmup_action       = WARMUP_ACTION,
-        warmup_steps        = 100,
+        warmup_steps        = 5,
         training_params     = p,
         no_interrupt        = args.no_interrupt,
         re_initialize       = re_initialize,
