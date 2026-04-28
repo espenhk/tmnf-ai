@@ -214,6 +214,8 @@ class RewardCalculator(RewardCalculatorBase):
         # Disabled when no module is attached or the weight is zero — the
         # extrinsic reward above is then bit-for-bit identical to the
         # pre-curiosity calculator (backward compatibility).
+        # Scaled by n_ticks so the intrinsic-vs-extrinsic ratio is invariant
+        # to skip-event frequency, matching the other per-tick components.
         if self._curiosity is not None and cfg.curiosity_weight != 0.0:
             prev_obs = info.get("prev_obs")
             curr_obs = info.get("curr_obs")
@@ -221,6 +223,6 @@ class RewardCalculator(RewardCalculatorBase):
             if prev_obs is not None and curr_obs is not None and action is not None:
                 r_intrinsic = self._curiosity.reward(prev_obs, action, curr_obs)
                 self._curiosity.update(prev_obs, action, curr_obs)
-                reward += cfg.curiosity_weight * r_intrinsic
+                reward += cfg.curiosity_weight * r_intrinsic * n_ticks
 
         return reward

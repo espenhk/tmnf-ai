@@ -341,6 +341,37 @@ class TestRewardCuriosityIntegration(unittest.TestCase):
         )
         self.assertGreater(r_with, r_without)
 
+    def test_intrinsic_reward_scales_with_n_ticks(self):
+        # Intrinsic bonus should scale linearly with n_ticks, like the other
+        # per-tick reward components, so the intrinsic-vs-extrinsic ratio is
+        # invariant to skip-event frequency.
+        cfg = RewardConfig(curiosity_type="rnd", curiosity_weight=10.0,
+                           accel_bonus=0.0, step_penalty=0.0)
+        rnd = make_curiosity("rnd", obs_dim=4, action_dim=3,
+                             feature_dim=4, hidden_size=8, seed=11)
+        calc = RewardCalculator(cfg, curiosity=rnd)
+        prev, curr = self._states()
+        rng = np.random.default_rng(13)
+        prev_obs = rng.standard_normal(4).astype(np.float32)
+        curr_obs = rng.standard_normal(4).astype(np.float32)
+        action   = rng.standard_normal(3).astype(np.float32)
+        # Two separate calculators with identical seeds so the underlying
+        # intrinsic value matches; only n_ticks differs.
+        rnd1 = make_curiosity("rnd", obs_dim=4, action_dim=3,
+                              feature_dim=4, hidden_size=8, seed=11)
+        calc1 = RewardCalculator(cfg, curiosity=rnd1)
+        info = {"accelerating": False,
+                "prev_obs": prev_obs, "curr_obs": curr_obs, "action": action}
+        r1 = calc1.compute(prev, curr, finished=False, elapsed_s=0.0,
+                           info=info, n_ticks=1)
+
+        rnd3 = make_curiosity("rnd", obs_dim=4, action_dim=3,
+                              feature_dim=4, hidden_size=8, seed=11)
+        calc3 = RewardCalculator(cfg, curiosity=rnd3)
+        r3 = calc3.compute(prev, curr, finished=False, elapsed_s=0.0,
+                           info=info, n_ticks=3)
+        self.assertAlmostEqual(r3, 3.0 * r1, places=4)
+
     def test_curiosity_skipped_when_obs_missing(self):
         # If the env forgets to supply obs/action, curiosity is silently skipped
         # rather than crashing — extrinsic reward is unaffected.
