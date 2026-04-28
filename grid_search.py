@@ -35,7 +35,20 @@ import yaml
 
 from distributed.protocol import ComboSpec
 from distributed.coordinator import Coordinator
-from games.tmnf.analytics import save_experiment_results
+
+from games.tmnf.analytics import save_experiment_results, save_grid_summary
+from framework.training import train_rl
+from games.tmnf.obs_spec import TMNF_OBS_SPEC
+from games.tmnf.actions import DISCRETE_ACTIONS, PROBE_ACTIONS, WARMUP_ACTION
+from games.tmnf.env import make_env
+from games.tmnf.policies import (
+    CMAESPolicy,
+    LSTMEvolutionPolicy,
+    LSTMPolicy,
+    NeuralDQNPolicy,
+    REINFORCEPolicy,
+    WeightedLinearPolicy,
+)
 
 # Game-specific and analytics imports are deferred to the functions that need them
 # so that importing grid_search for testing (utility functions only) doesn't require
@@ -237,19 +250,11 @@ def _build_tmnf_extras(
     so `policy_type: cmaes | neural_dqn | reinforce | lstm` works from grid
     search and distributed workers, not just from main.py.
     """
-    import yaml as _yaml
-    from games.tmnf.policies import (
-        CMAESPolicy,
-        LSTMEvolutionPolicy,
-        LSTMPolicy,
-        NeuralDQNPolicy,
-        REINFORCEPolicy,
-    )
 
     def _make_neural_dqn() -> NeuralDQNPolicy:
         if os.path.exists(weights_file) and not re_initialize:
             with open(weights_file) as _f:
-                _cfg = _yaml.safe_load(_f)
+                _cfg = yaml.safe_load(_f)
             if isinstance(_cfg, dict) and _cfg.get("policy_type") == "neural_dqn":
                 return NeuralDQNPolicy.from_cfg(_cfg, n_lidar_rays=n_lidar_rays)
         return NeuralDQNPolicy(
@@ -273,9 +278,8 @@ def _build_tmnf_extras(
             n_lidar_rays    = n_lidar_rays,
         )
         if os.path.exists(weights_file) and not re_initialize:
-            from games.tmnf.policies import WeightedLinearPolicy as _WLP
             with open(weights_file) as _f:
-                champion = _WLP.from_cfg(_yaml.safe_load(_f) or {}, n_lidar_rays=n_lidar_rays)
+                champion = WeightedLinearPolicy.from_cfg(yaml.safe_load(_f) or {}, n_lidar_rays=n_lidar_rays)
             policy.initialize_from_champion(champion)
         else:
             policy.initialize_random()
@@ -284,7 +288,7 @@ def _build_tmnf_extras(
     def _make_reinforce() -> REINFORCEPolicy:
         if os.path.exists(weights_file) and not re_initialize:
             with open(weights_file) as _f:
-                _cfg = _yaml.safe_load(_f) or {}
+                _cfg = yaml.safe_load(_f) or {}
             if isinstance(_cfg, dict) and _cfg.get("policy_type") == "reinforce":
                 return REINFORCEPolicy.from_cfg(_cfg, n_lidar_rays=n_lidar_rays)
         return REINFORCEPolicy(
@@ -306,7 +310,7 @@ def _build_tmnf_extras(
         )
         if os.path.exists(weights_file) and not re_initialize:
             with open(weights_file) as _f:
-                _cfg = _yaml.safe_load(_f) or {}
+                _cfg = yaml.safe_load(_f) or {}
             if isinstance(_cfg, dict) and _cfg.get("policy_type") == "lstm":
                 saved_hidden = _cfg.get("hidden_size")
                 saved_lidar  = _cfg.get("n_lidar_rays")
@@ -347,15 +351,15 @@ def _setup_experiment_dir(
     name: str, track: str, t: dict[str, Any], r: dict[str, Any]
 ) -> tuple[str, str, str]:
     """Create experiment dir, write config files. Returns (experiment_dir, weights_file, reward_cfg_file)."""
-    centerline_path = f"tracks/{track}.npy"
-    experiment_dir = f"experiments/{track}/{name}"
+    centerline_path = f"games/tmnf/tracks/{track}.npy"
+    experiment_dir = f"games/tmnf/experiments/{track}/{name}"
     weights_file = f"{experiment_dir}/policy_weights.yaml"
     reward_cfg_file = f"{experiment_dir}/reward_config.yaml"
     training_params_file = f"{experiment_dir}/training_params.yaml"
 
     os.makedirs(experiment_dir, exist_ok=True)
 
-    with open("config/reward_config.yaml") as f:
+    with open("games/tmnf/config/reward_config.yaml") as f:
         reward_cfg = yaml.safe_load(f) or {}
     reward_cfg.update(r)
     reward_cfg["track_name"] = track
@@ -376,11 +380,6 @@ def _run_local(
     re_initialize: bool,
 ) -> list[tuple[str, Any]]:
     """Run all combos sequentially on this machine. Returns list of (name, ExperimentData)."""
-    from games.tmnf.analytics import save_experiment_results
-    from framework.training import train_rl
-    from games.tmnf.obs_spec import TMNF_OBS_SPEC
-    from games.tmnf.actions import DISCRETE_ACTIONS, PROBE_ACTIONS, WARMUP_ACTION
-    from games.tmnf.env import make_env
 
     all_runs = []
     n = len(combos)
@@ -606,7 +605,6 @@ def main() -> None:
         logger.info("  %-50s  %+12.1f", exp_name, best)
 
     # Cross-experiment summary report
-    from games.tmnf.analytics import save_grid_summary
 
     summary_dir = f"experiments/{track}/{base_name}__summary"
     save_grid_summary(all_runs, varied_keys, summary_dir, base_name)
