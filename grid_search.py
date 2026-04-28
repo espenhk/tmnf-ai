@@ -35,7 +35,7 @@ import yaml
 
 from distributed.protocol import ComboSpec
 from distributed.coordinator import Coordinator
-from analytics import save_experiment_results
+from games.tmnf.analytics import save_experiment_results
 
 # Game-specific and analytics imports are deferred to the functions that need them
 # so that importing grid_search for testing (utility functions only) doesn't require
@@ -273,7 +273,7 @@ def _build_tmnf_extras(
             n_lidar_rays    = n_lidar_rays,
         )
         if os.path.exists(weights_file) and not re_initialize:
-            from policies import WeightedLinearPolicy as _WLP
+            from games.tmnf.policies import WeightedLinearPolicy as _WLP
             with open(weights_file) as _f:
                 champion = _WLP.from_cfg(_yaml.safe_load(_f) or {}, n_lidar_rays=n_lidar_rays)
             policy.initialize_from_champion(champion)
@@ -376,7 +376,7 @@ def _run_local(
     re_initialize: bool,
 ) -> list[tuple[str, Any]]:
     """Run all combos sequentially on this machine. Returns list of (name, ExperimentData)."""
-    from analytics import save_experiment_results
+    from games.tmnf.analytics import save_experiment_results
     from framework.training import train_rl
     from games.tmnf.obs_spec import TMNF_OBS_SPEC
     from games.tmnf.actions import DISCRETE_ACTIONS, PROBE_ACTIONS, WARMUP_ACTION
@@ -606,7 +606,7 @@ def main() -> None:
         logger.info("  %-50s  %+12.1f", exp_name, best)
 
     # Cross-experiment summary report
-    from analytics import save_grid_summary
+    from games.tmnf.analytics import save_grid_summary
 
     summary_dir = f"experiments/{track}/{base_name}__summary"
     save_grid_summary(all_runs, varied_keys, summary_dir, base_name)

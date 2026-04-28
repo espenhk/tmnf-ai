@@ -20,7 +20,7 @@ from games.tmnf.obs_spec import TMNF_OBS_SPEC
 from games.tmnf.actions import DISCRETE_ACTIONS, PROBE_ACTIONS, WARMUP_ACTION
 from games.tmnf.env import make_env
 from games.tmnf.policies import NeuralDQNPolicy, CMAESPolicy, REINFORCEPolicy, LSTMPolicy, LSTMEvolutionPolicy
-from analytics import save_experiment_results  # backward-compat shim
+from games.tmnf.analytics import save_experiment_results
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +112,7 @@ def main() -> None:
             n_lidar_rays    = n_lidar_rays,
         )
         if os.path.exists(weights_file) and not re_initialize:
-            from policies import WeightedLinearPolicy as _WLP
+            from games.tmnf.policies import WeightedLinearPolicy as _WLP
             champion = _WLP.from_cfg(
                 yaml.safe_load(open(weights_file)) or {}, n_lidar_rays=n_lidar_rays
             )

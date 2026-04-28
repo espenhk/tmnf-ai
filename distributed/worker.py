@@ -127,7 +127,7 @@ def run_worker(
     from games.tmnf.obs_spec import TMNF_OBS_SPEC
     from games.tmnf.actions import DISCRETE_ACTIONS, PROBE_ACTIONS, WARMUP_ACTION
     from games.tmnf.env import make_env
-    from analytics import save_experiment_results
+    from games.tmnf.analytics import save_experiment_results
 
     from grid_search import _build_policy_params, _build_tmnf_extras, _setup_experiment_dir
 
