@@ -620,7 +620,7 @@ def main() -> None:
 
     # Cross-experiment summary report
 
-    summary_dir = f"experiments/{track}/{base_name}__summary"
+    summary_dir = f"games/tmnf/experiments/{track}/{base_name}__summary" # TODO needs to be game adapted
     save_grid_summary(all_runs, varied_keys, summary_dir, base_name)
     logger.info("Summary report: %s/summary.md", summary_dir)
 
