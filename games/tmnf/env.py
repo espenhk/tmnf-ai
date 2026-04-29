@@ -49,7 +49,10 @@ import os
 import time
 import threading
 from pathlib import Path
-from typing import Any
+from typing import Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from games.tmnf.lidar import LidarSensor
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +65,6 @@ from framework.base_env import BaseGameEnv
 from games.tmnf.clients.rl_client import RLClient, StepState
 from games.tmnf.obs_spec import BASE_OBS_DIM
 from games.tmnf.reward import RewardConfig, RewardCalculator
-from games.tmnf.lidar import LidarSensor
 
 
 _DEFAULT_REWARD_CONFIG = os.path.join(os.path.dirname(__file__), "..", "..", "config", "reward_config.yaml")
@@ -105,6 +107,7 @@ class TMNFEnv(BaseGameEnv):
 
         # Optional LIDAR sensor (screenshot-based wall distances)
         if n_lidar_rays > 0:
+            from games.tmnf.lidar import LidarSensor
             self._lidar: LidarSensor | None = LidarSensor(n_lidar_rays)
         else:
             self._lidar = None
@@ -244,7 +247,7 @@ class TMNFEnv(BaseGameEnv):
         truncated = (step.done and not terminated) or time_over
 
         if finished or terminated or truncated:
-            logger.info(
+            logger.debug(
                 "[TMNFEnv] episode end: finished=%s crashed=%s time_over=%s "
                 "terminated=%s truncated=%s progress=%.4f elapsed=%.1fs",
                 finished, crashed, time_over, terminated, truncated,
@@ -308,7 +311,7 @@ class TMNFEnv(BaseGameEnv):
         """Print a per-episode skip-event summary."""
         skipped = self._ep_total_ticks - self._ep_rl_steps
         avg = self._ep_total_ticks / self._ep_rl_steps if self._ep_rl_steps else 0.0
-        logger.info(
+        logger.debug(
             "[skip] ep_step %d | rl_steps=%d  game_ticks=%d  skipped=%d  avg=%.2f  max=%d",
             self._total_rl_steps, self._ep_rl_steps, self._ep_total_ticks,
             skipped, avg, self._ep_max_skip

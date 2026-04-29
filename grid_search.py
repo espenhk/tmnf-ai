@@ -422,7 +422,7 @@ def _run_local(
             in_game_episode_s=t["in_game_episode_s"],
             weights_file=weights_file,
             reward_config_file=reward_cfg_file,
-            mutation_scale=t["mutation_scale"],
+            mutation_scale=t.get("mutation_scale", 0.05),
             mutation_share=t.get("mutation_share", 1.0),
             probe_actions=PROBE_ACTIONS,
             probe_in_game_s=t.get("probe_s", 0),
