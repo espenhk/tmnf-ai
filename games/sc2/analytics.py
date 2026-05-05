@@ -1,16 +1,27 @@
 """SC2-specific analytics entry point.
 
-SC2 minigames don't have throttle / steering / centerline concepts, so
-this module is intentionally thin — it delegates to the framework's
-generic reward-trajectory and probe/cold-start/greedy plots and writes
-a minimal Markdown summary.
+SC2 minigames don't have throttle / steering / centerline concepts, so this
+module skips those racing-specific plots entirely and instead produces:
 
-Entry point called by main.py:
+- Generic reward-trajectory / probe / cold-start / greedy plots (framework)
+- Reward-component breakdown (2b — framework helper, SC2 env populates components)
+- Action-frequency breakdown (2a — bar chart, aggregate bar, entropy)
+- Economy/state feature averages (2c — per-sim line chart)
+- Spatial target heatmap (2d — 8×8 imshow, log-scaled)
+- Episode outcome breakdown (2e — win/loss/finish/timeout stacked bars)
+
+Flags consumed by any caller that needs to know which plot families this
+game supports:
+    SUPPORTS_THROTTLE = False   — no accel/brake distribution plots
+    SUPPORTS_PATH     = False   — no pos_x / pos_z bird's-eye path traces
+
+Entry point called by main.py / grid_search.py:
     save_experiment_results(data: ExperimentData, results_dir: str) -> None
 """
 from __future__ import annotations
 
 import logging
+import math
 import os
 import sys
 
@@ -18,8 +29,20 @@ import matplotlib
 if 'matplotlib.pyplot' not in sys.modules:
     matplotlib.use('Agg')
 
+try:
+    import matplotlib.pyplot as plt
+    import matplotlib.patches as mpatches
+    import matplotlib.cm as cm
+    from matplotlib.figure import Figure
+    _HAS_MPL = True
+except ImportError:
+    _HAS_MPL = False
+
+import numpy as np
+
 from framework.analytics import (
     ExperimentData,
+    GreedySimResult,
     plot_probe_rewards,
     plot_cold_start_rewards,
     plot_greedy_rewards,
@@ -32,12 +55,290 @@ from framework.analytics import (
     _summary_md,
     save_grid_summary as _framework_save_grid_summary,
 )
+from games.sc2.actions import FUNCTION_IDS
 
 logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# Feature flags (Part 1)
+# ---------------------------------------------------------------------------
+SUPPORTS_THROTTLE: bool = False   # no accel/brake distribution plots for SC2
+SUPPORTS_PATH:     bool = False   # no pos_x / pos_z path-trace plots for SC2
+
+# ---------------------------------------------------------------------------
+# Action-label helpers
+# ---------------------------------------------------------------------------
+
+def _action_label(fn_idx: int) -> str:
+    """Short human-readable label for a FUNCTION_IDS fn_idx integer."""
+    return FUNCTION_IDS.get(fn_idx, f"fn{fn_idx}")
+
+
+# ---------------------------------------------------------------------------
+# 2a — Action-frequency breakdown
+# ---------------------------------------------------------------------------
+
+def plot_action_frequency(data: ExperimentData, results_dir: str) -> None:
+    """Bar chart of per-sim action-type counts + aggregate bar + entropy line.
+
+    Three panels written to ``action_frequency.png``:
+    - Top: stacked horizontal bars, one row per greedy sim, coloured by fn_idx.
+    - Middle: aggregate total-count bar chart across all sims.
+    - Bottom: action-entropy per sim H = -Σ pᵢ log₂ pᵢ over unique fn_idx values.
+    """
+    if not _HAS_MPL:
+        return
+    sims = [s for s in data.greedy_sims if s.action_counts]
+    if not sims:
+        return
+
+    # Collect all fn_idx keys that appear in any sim.
+    all_fn: list[int] = []
+    seen: set[int] = set()
+    for s in sims:
+        for k in s.action_counts:
+            if k not in seen:
+                all_fn.append(k)
+                seen.add(k)
+    all_fn.sort()
+
+    labels = [_action_label(k) for k in all_fn]
+    xs = [s.sim for s in sims]
+    n_fns = len(all_fn)
+    cmap_colors = [cm.tab10(i / max(n_fns - 1, 1)) for i in range(n_fns)]
+
+    # Build per-sim count matrix (n_sims × n_fns).
+    counts_mat = np.array([
+        [s.action_counts.get(k, 0) for k in all_fn]
+        for s in sims
+    ], dtype=float)
+
+    # Normalise rows to fractions.
+    row_totals = counts_mat.sum(axis=1, keepdims=True)
+    row_totals[row_totals == 0] = 1
+    fracs_mat = counts_mat / row_totals
+
+    # Entropy per sim.
+    eps = 1e-12
+    entropy = -np.sum(
+        fracs_mat * np.log2(fracs_mat + eps), axis=1
+    )
+
+    # Aggregate totals.
+    agg_counts = counts_mat.sum(axis=0)
+
+    fig, axes = plt.subplots(3, 1, figsize=(max(10, len(xs) * 0.25), 12),
+                              gridspec_kw={"height_ratios": [3, 1.5, 1.5]})
+
+    # --- Panel 1: stacked bar per sim ---
+    ax1 = axes[0]
+    left = np.zeros(len(sims))
+    for i, (fn, label, color) in enumerate(zip(all_fn, labels, cmap_colors)):
+        vals = fracs_mat[:, i]
+        ax1.bar(xs, vals, bottom=left, color=color, label=label,
+                width=0.8, edgecolor="none")
+        left += vals
+    ax1.set_xlim(min(xs) - 0.5, max(xs) + 0.5)
+    ax1.set_ylim(0, 1)
+    ax1.set_title(f"{data.experiment_name} — Action Distribution per Sim (fraction)")
+    ax1.set_xlabel("Simulation")
+    ax1.set_ylabel("Fraction")
+    ax1.legend(fontsize=8, loc="upper right", ncol=max(1, n_fns // 3))
+
+    # --- Panel 2: aggregate counts ---
+    ax2 = axes[1]
+    bar_colors = [cm.tab10(i / max(n_fns - 1, 1)) for i in range(n_fns)]
+    ax2.bar(labels, agg_counts, color=bar_colors, edgecolor="white")
+    ax2.set_title("Aggregate Action Counts (all sims)")
+    ax2.set_ylabel("Total steps")
+    ax2.tick_params(axis="x", rotation=20)
+    for j, v in enumerate(agg_counts):
+        ax2.text(j, v + max(agg_counts) * 0.01, f"{int(v)}", ha="center",
+                 va="bottom", fontsize=8)
+
+    # --- Panel 3: entropy over training ---
+    ax3 = axes[2]
+    ax3.plot(xs, entropy, color="#3498db", linewidth=1.6, marker="o",
+             markersize=3, label="action entropy (bits)")
+    ax3.set_title("Action Entropy per Sim")
+    ax3.set_xlabel("Simulation")
+    ax3.set_ylabel("H (bits)")
+    ax3.legend(fontsize=8)
+
+    fig.tight_layout()
+    _save(fig, os.path.join(results_dir, "action_frequency.png"))
+
+
+# ---------------------------------------------------------------------------
+# 2c — Economy / game-state feature averages
+# ---------------------------------------------------------------------------
+
+_OBS_FEATURE_LABELS: dict[str, str] = {
+    "army_count":         "Army count",
+    "food_used":          "Food used",
+    "food_cap":           "Food cap",
+    "minerals":           "Minerals",
+    "vespene":            "Vespene",
+    "screen_self_count":  "Screen self (px)",
+    "screen_enemy_count": "Screen enemy (px)",
+}
+
+
+def plot_obs_averages(data: ExperimentData, results_dir: str) -> None:
+    """Multi-panel line chart of per-sim episode-average game-state features.
+
+    One panel per feature that has at least one non-zero sim value.  Written
+    to ``obs_averages.png``.
+    """
+    if not _HAS_MPL:
+        return
+    sims = [s for s in data.greedy_sims if s.obs_averages]
+    if not sims:
+        return
+
+    # Determine which features to plot.
+    all_feats = list(_OBS_FEATURE_LABELS.keys())
+    active = [f for f in all_feats
+              if any(s.obs_averages.get(f, 0.0) != 0.0 for s in sims)]
+    if not active:
+        return
+
+    xs = [s.sim for s in sims]
+    n = len(active)
+    fig, axes = plt.subplots(n, 1, figsize=(max(10, len(xs) * 0.2), 3 * n),
+                              sharex=True)
+    if n == 1:
+        axes = [axes]
+
+    colors = cm.tab10(np.linspace(0, 1, n))
+    for ax, feat, color in zip(axes, active, colors):
+        ys = [s.obs_averages.get(feat, 0.0) for s in sims]
+        ax.plot(xs, ys, color=color, linewidth=1.4)
+        ax.set_ylabel(_OBS_FEATURE_LABELS.get(feat, feat), fontsize=9)
+        improvement_xs = [s.sim for s in sims if s.improved]
+        improvement_ys = [s.obs_averages.get(feat, 0.0)
+                          for s in sims if s.improved]
+        if improvement_xs:
+            ax.scatter(improvement_xs, improvement_ys, color="#27ae60",
+                       s=40, zorder=4, marker="^")
+
+    axes[-1].set_xlabel("Simulation")
+    fig.suptitle(f"{data.experiment_name} — Game-State Feature Averages", fontsize=11)
+    fig.tight_layout()
+    _save(fig, os.path.join(results_dir, "obs_averages.png"))
+
+
+# ---------------------------------------------------------------------------
+# 2d — Spatial target heatmap
+# ---------------------------------------------------------------------------
+
+def plot_spatial_heatmap(data: ExperimentData, results_dir: str) -> None:
+    """Aggregate 8×8 heatmap of (x, y) action targets across all greedy sims.
+
+    Written to ``spatial_heatmap.png``.  Log-scaled so infrequent cells are
+    still visible.  Shows whether the policy is stuck in one screen region.
+    """
+    if not _HAS_MPL:
+        return
+    sims_with_hist = [s for s in data.greedy_sims if s.xy_hist is not None]
+    if not sims_with_hist:
+        return
+
+    agg = np.zeros((8, 8), dtype=float)
+    for s in sims_with_hist:
+        agg += np.array(s.xy_hist, dtype=float)
+
+    if agg.sum() == 0:
+        return
+
+    fig, ax = plt.subplots(figsize=(6, 6))
+    # Log-scale: log1p so zero cells show as 0.
+    img = ax.imshow(np.log1p(agg), cmap="YlOrRd", origin="upper",
+                    extent=[0, 1, 1, 0], aspect="equal")
+    fig.colorbar(img, ax=ax, label="log1p(steps)")
+    ax.set_title(f"{data.experiment_name} — Action Target Heatmap (all greedy sims)")
+    ax.set_xlabel("Screen X (normalised)")
+    ax.set_ylabel("Screen Y (normalised)")
+    # Draw grid lines at cell boundaries.
+    for v in np.linspace(0, 1, 9):
+        ax.axhline(v, color="white", linewidth=0.4, alpha=0.5)
+        ax.axvline(v, color="white", linewidth=0.4, alpha=0.5)
+    fig.tight_layout()
+    _save(fig, os.path.join(results_dir, "spatial_heatmap.png"))
+
+
+# ---------------------------------------------------------------------------
+# 2e — Episode outcome breakdown
+# ---------------------------------------------------------------------------
+
+_OUTCOME_COLORS: dict[str, str] = {
+    "win":     "#27ae60",
+    "finish":  "#2ecc71",
+    "timeout": "#f39c12",
+    "loss":    "#c0392b",
+    "other":   "#95a5a6",
+}
+
+
+def plot_outcome_breakdown(data: ExperimentData, results_dir: str) -> None:
+    """Stacked-bar chart of win / finish / timeout / loss per greedy sim.
+
+    Only rendered when at least one sim has a non-None termination_reason.
+    Written to ``outcome_breakdown.png``.
+    """
+    if not _HAS_MPL:
+        return
+    sims = data.greedy_sims
+    if not sims:
+        return
+    reasons = [s.termination_reason or "other" for s in sims]
+    if all(r == "other" for r in reasons):
+        return
+
+    xs = [s.sim for s in sims]
+    categories = ["win", "finish", "timeout", "loss", "other"]
+    # Build per-sim one-hot for each category.
+    data_map: dict[str, list[int]] = {c: [] for c in categories}
+    for r in reasons:
+        r_key = r if r in categories else "other"
+        for c in categories:
+            data_map[c].append(1 if c == r_key else 0)
+
+    # Drop categories that never appear.
+    active_cats = [c for c in categories if any(data_map[c])]
+
+    fig, ax = plt.subplots(figsize=(max(8, len(xs) * 0.15), 4))
+    bottom = np.zeros(len(xs))
+    for cat in active_cats:
+        vals = np.array(data_map[cat], dtype=float)
+        ax.bar(xs, vals, bottom=bottom, color=_OUTCOME_COLORS[cat],
+               label=cat, width=1.0, edgecolor="none")
+        bottom += vals
+
+    ax.set_ylim(0, 1.05)
+    ax.set_title(f"{data.experiment_name} — Episode Outcome per Greedy Sim")
+    ax.set_xlabel("Simulation")
+    ax.set_ylabel("Outcome")
+    ax.legend(fontsize=9, loc="upper right")
+    fig.tight_layout()
+    _save(fig, os.path.join(results_dir, "outcome_breakdown.png"))
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+def _save(fig: "Figure", path: str) -> None:
+    fig.savefig(path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+
+# ---------------------------------------------------------------------------
+# Main entry point
+# ---------------------------------------------------------------------------
 
 def save_experiment_results(data: ExperimentData, results_dir: str) -> None:
-    """Generate generic plots and write a results.md report to *results_dir*."""
+    """Generate SC2-specific and generic plots; write results.md to *results_dir*."""
     os.makedirs(results_dir, exist_ok=True)
 
     sections = [
@@ -61,12 +362,32 @@ def save_experiment_results(data: ExperimentData, results_dir: str) -> None:
         sections.append(_greedy_table_md(data))
         sections.append("\n![Greedy rewards](greedy_rewards.png)\n\n")
 
-        # Reward-component breakdown (issue #128/2b).  Only adds a section if
-        # the env populated info["episode_reward_components"] AND at least one
+        # 2b — Reward-component breakdown.  Only adds a section if the env
+        # populated info["episode_reward_components"] AND at least one
         # component is non-zero.
         plot_reward_components(data, results_dir)
         if any(s.reward_components for s in data.greedy_sims):
             sections.append("\n![Reward components](reward_components.png)\n\n")
+
+        # 2a — Action-frequency breakdown.
+        plot_action_frequency(data, results_dir)
+        if any(s.action_counts for s in data.greedy_sims):
+            sections.append("\n![Action frequency](action_frequency.png)\n\n")
+
+        # 2c — Economy / game-state feature averages.
+        plot_obs_averages(data, results_dir)
+        if any(s.obs_averages for s in data.greedy_sims):
+            sections.append("\n![Game-state averages](obs_averages.png)\n\n")
+
+        # 2d — Spatial target heatmap.
+        plot_spatial_heatmap(data, results_dir)
+        if any(s.xy_hist is not None for s in data.greedy_sims):
+            sections.append("\n![Spatial target heatmap](spatial_heatmap.png)\n\n")
+
+        # 2e — Episode outcome breakdown.
+        plot_outcome_breakdown(data, results_dir)
+        if any(s.termination_reason for s in data.greedy_sims):
+            sections.append("\n![Outcome breakdown](outcome_breakdown.png)\n\n")
 
     plot_reward_trajectory(data, results_dir)
     sections.append("\n![Reward trajectory](reward_trajectory.png)\n\n")

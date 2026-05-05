@@ -177,6 +177,11 @@ class SC2Env(BaseGameEnv):
         self._episode_start_s: float = 0.0
         self._step_count: int = 0
         self._ep_reward_components: dict[str, float] = {}
+        # Per-episode action and observation tracking (analytics 2a/2c/2d).
+        self._ep_action_counts: dict[int, int] = {}
+        self._ep_obs_sums: dict[str, float] = {}
+        self._ep_obs_step_count: int = 0
+        self._ep_xy_hist: np.ndarray = np.zeros((8, 8), dtype=np.int64)
 
     # ------------------------------------------------------------------
     # Gymnasium interface
@@ -200,6 +205,10 @@ class SC2Env(BaseGameEnv):
         self._episode_start_s = time.monotonic()
         self._step_count = 0
         self._ep_reward_components = {}
+        self._ep_action_counts = {}
+        self._ep_obs_sums = {}
+        self._ep_obs_step_count = 0
+        self._ep_xy_hist = np.zeros((8, 8), dtype=np.int64)
         self._reward_calc.reset()
         self._prev_game_loop = float(info.get("game_loop", 0.0))
 
@@ -254,6 +263,29 @@ class SC2Env(BaseGameEnv):
                 self._ep_reward_components.get(k, 0.0) + float(v)
             )
         info["episode_reward_components"] = dict(self._ep_reward_components)
+
+        # Track per-episode action counts (analytics 2a).
+        _fn_idx = int(action[0]) if len(action) > 0 else 0
+        self._ep_action_counts[_fn_idx] = self._ep_action_counts.get(_fn_idx, 0) + 1
+        # Track 8×8 spatial-target histogram (analytics 2d).
+        if len(action) >= 3:
+            _xi = min(7, int(float(np.clip(action[1], 0.0, 1.0)) * 8))
+            _yi = min(7, int(float(np.clip(action[2], 0.0, 1.0)) * 8))
+            self._ep_xy_hist[_yi, _xi] += 1
+        # Track key game-state feature averages (analytics 2c).
+        for _feat in ("army_count", "food_used", "food_cap", "minerals", "vespene",
+                      "screen_self_count", "screen_enemy_count"):
+            _v = info.get(_feat)
+            if _v is not None:
+                self._ep_obs_sums[_feat] = self._ep_obs_sums.get(_feat, 0.0) + float(_v)
+        self._ep_obs_step_count += 1
+        info["episode_action_counts"] = dict(self._ep_action_counts)
+        info["episode_xy_hist"] = self._ep_xy_hist.tolist()
+        if self._ep_obs_step_count > 0:
+            info["episode_obs_averages"] = {
+                k: v / self._ep_obs_step_count
+                for k, v in self._ep_obs_sums.items()
+            }
 
         terminated = finished
         truncated = time_over and not terminated

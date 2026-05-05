@@ -98,6 +98,10 @@ class GreedySimResult:
     mean_abs_lateral_offset: float | None = None  # mean |lateral_offset| for episode
     # --- Option C: per-component reward totals ---
     reward_components: dict | None = None     # {component_name: total_contribution}
+    # --- SC2 / discrete-action game analytics ---
+    action_counts: dict | None = None         # {fn_idx: step_count} for the episode
+    obs_averages: dict | None = None          # {feature_name: mean_value} for the episode
+    xy_hist: list | None = None               # 2-D list[list[int]] — 8×8 action-target histogram
 
 
 @dataclass

@@ -355,7 +355,7 @@ Champion weights are saved in `SC2MultiHeadLinearPolicy` YAML format.
 
 ## Analytics output
 
-Every training run automatically calls `games/sc2/analytics.py::save_experiment_results` at the end of the experiment. SC2 reuses the framework's generic plot helpers — RTS-specific plots (action-frequency bars, spatial heatmap, outcome breakdown) are tracked under issue #128 and not yet wired up.
+Every training run automatically calls `games/sc2/analytics.py::save_experiment_results` at the end of the experiment. The module exposes `SUPPORTS_THROTTLE = False` and `SUPPORTS_PATH = False` flags confirming that racing-specific plots (throttle/brake timelines, bird's-eye path traces, weight heatmaps) are intentionally excluded for SC2.
 
 ### Files written per experiment
 
@@ -367,6 +367,10 @@ Output directory: `experiments/sc2_<map>/<name>/results/`.
 | `cold_start_best_rewards.png` | `data.cold_start_restarts` is non-empty | `plot_cold_start_rewards` |
 | `greedy_rewards.png` | `data.greedy_sims` is non-empty | `plot_greedy_rewards` |
 | `reward_components.png` | At least one greedy sim has non-zero `reward_components` (i.e. the reward calculator returned a per-term breakdown) | `plot_reward_components` |
+| `action_frequency.png` | At least one greedy sim has non-empty `action_counts` | `plot_action_frequency` |
+| `obs_averages.png` | At least one greedy sim has non-empty `obs_averages` AND at least one feature value is non-zero | `plot_obs_averages` |
+| `spatial_heatmap.png` | At least one greedy sim has a non-zero `xy_hist` | `plot_spatial_heatmap` |
+| `outcome_breakdown.png` | At least one greedy sim has a non-None `termination_reason` | `plot_outcome_breakdown` |
 | `reward_trajectory.png` | Always | `plot_reward_trajectory` |
 | `results.md` | Always | Markdown report stitching the plots above with summary tables |
 | `experiment_data.json` | Always (by `framework.analytics.save_experiment_data_json`) | JSON dump of `ExperimentData` for cross-experiment analysis |
@@ -387,6 +391,21 @@ Per-simulation reward over the greedy (or per-generation, for evolutionary polic
 #### `reward_components.png` — Per-term reward attribution (issue #128/2b)
 One line per active reward component (e.g. `score`, `economy`, `idle_penalty`, `idle_bonus`, `step_penalty`, `terminal`). Each line is the per-episode sum across the greedy sim. Components that are zero in *every* sim are omitted, so this plot is silently skipped on minigame runs where only `score` and `step_penalty` contribute. The horizontal `0` line is dashed for reference. Highest-value diagnostic: tells you whether the agent is winning by collecting score, by economy growth, by surviving longer, or by hitting the `idle_bonus` shaping reward.
 
+#### `action_frequency.png` — Action-type breakdown (issue #128/2a)
+Three-panel figure:
+1. **Top** — stacked bar per greedy sim showing the fraction of steps spent on each function ID (`no_op`, `select_army`, `Move_screen`, …). Reveals whether the policy is stuck preferring one action.
+2. **Middle** — aggregate total-step bar chart across all greedy sims. Quick read on how diverse the policy's repertoire is.
+3. **Bottom** — per-sim action entropy *H = −Σ pᵢ log₂ pᵢ*. Should increase early as the policy diversifies; collapse indicates the policy has converged to a single action.
+
+#### `obs_averages.png` — Game-state feature averages (issue #128/2c)
+Multi-panel line chart, one panel per tracked observation feature (`army_count`, `food_used`, `food_cap`, `minerals`, `vespene`, `screen_self_count`, `screen_enemy_count`). The x-axis is the greedy-sim index. Reveals things like "army was wiped out in sim 40 and never recovered" or "economy plateaued early". Improvement sims are marked with a triangle.
+
+#### `spatial_heatmap.png` — Action-target spatial distribution (issue #128/2d)
+Aggregate 8×8 heatmap of normalised `(x, y)` screen coordinates targeted by the policy across all greedy-sim steps. Displayed log-scaled (log1p) so infrequent cells remain visible. For `MoveToBeacon`, a good policy should spread coverage across the beacon area rather than targeting one fixed corner.
+
+#### `outcome_breakdown.png` — Episode termination reasons (issue #128/2e)
+Stacked-bar chart, one bar per greedy sim, showing the termination category: **win** (green), **finish** (light green), **timeout** (orange), **loss** (red), **other** (grey). Useful for ladder maps where win/loss outcomes are meaningful. On pure minigames all bars will be `finish` or `timeout`, confirming the plot is non-noisy in that setting.
+
 #### `reward_trajectory.png` — All phases on a single timeline
 Scatter plot of per-episode reward across **all** phases on one cumulative-simulation x-axis: probe (blue), cold-start (purple), greedy (orange), with vertical dotted boundaries between phases. A black step-line traces the running best-so-far. Useful for spotting how much of the gain came from each phase and whether the greedy phase plateaued early.
 
@@ -399,7 +418,7 @@ Scatter plot of per-episode reward across **all** phases on one cumulative-simul
 3. **Summary** — single paragraph with policy type, total sims, best reward, etc. (`_summary_md`)
 4. **Probe Phase** *(if probes were run)* — table of `(action, reward)` pairs + the probe-rewards plot
 5. **Cold-start Phase** *(if cold-start was run)* — table of `(restart, best_reward, beat_floor)` + the cold-start plot
-6. **Greedy Phase** *(if any greedy sims)* — table of `(sim, reward, improved, sigma, …)` + the greedy plot, and — when populated — the reward-components plot
+6. **Greedy Phase** *(if any greedy sims)* — table of `(sim, reward, improved, sigma, …)` + the greedy plot, and — when populated — the reward-components, action-frequency, obs-averages, spatial-heatmap and outcome-breakdown plots
 7. **Reward trajectory** — the best-episode trajectory plot
 
 ### Grid-search summary

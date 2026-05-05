@@ -1,6 +1,6 @@
 # Tests
 
-823 tests across 45 files. Runs in ~30 seconds via `python -m pytest tests/`.
+852 tests across 46 files. Runs in ~30 seconds via `python -m pytest tests/`.
 
 ## Coverage at a glance
 
@@ -287,10 +287,13 @@ from both parents, evolution, champion YAML round-trip, `from_cfg` defaulting
 missing features to zero); the masked DQN with action-availability masking,
 including a regression test that an illegal action is never bootstrapped from;
 the CNN encoder + CMA-ES variant with spatial obs; the `play_sc2.py` script's
-policy loading, episode loop, lifecycle hooks and outcome handling; and a
+policy loading, episode loop, lifecycle hooks and outcome handling; a
 Simple64-specific integration suite that runs every supported policy through one
 training-loop iteration against a mocked env, plus trainer-state save/load
-round-trips for cmaes and neural_dqn.
+round-trips for cmaes and neural_dqn; and the SC2-specific analytics module
+(`SUPPORTS_THROTTLE`/`SUPPORTS_PATH` flags, action-frequency breakdown, obs
+feature averages, spatial heatmap, outcome breakdown, and the full
+`save_experiment_results` integration including that no racing plots appear).
 
 **Not tested.** PySC2 against the actual Blizzard SC2 binary; real
 1v1 games against the built-in bot; minimap rendering; the deferred
@@ -371,6 +374,15 @@ handful of iterations only).
 - Training loops (mocked env): sc2_genetic / cmaes / neural_dqn / reinforce / lstm
 - Trainer state roundtrips: cmaes / neural_dqn
 
+### test_sc2_analytics.py (29) — SC2-specific analytics plots and flags
+- `SUPPORTS_THROTTLE=False` / `SUPPORTS_PATH=False` flags
+- `GreedySimResult` new fields: `action_counts` / `obs_averages` / `xy_hist` — default None; stored correctly
+- `plot_action_frequency`: renders to file / skips when no data / skips when no sims / single fn_idx
+- `plot_obs_averages`: renders to file / skips when no data / skips when all-zero / unknown feature key safe
+- `plot_spatial_heatmap`: renders to file / skips when no data / skips all-zero hist / partial None sims ignored
+- `plot_outcome_breakdown`: renders to file / skips when all None / skips when no sims / win+loss ladder
+- `save_experiment_results`: writes results.md / writes SC2 plots / mentions game / no crash empty sims / no racing plots written
+
 ## CLI / misc
 
 The entry point in `main.py` and the Assetto Corsa adapter, which is recent
@@ -408,4 +420,4 @@ These tests look heavy because of the names ("training loop", "env reset", "DQN 
 6. **Filesystem work uses `tmp_path`** (RAM-backed `/tmp`), and the only network is `test_distributed.py` binding `localhost` for HTTP coordinator tests — which is why that's the one file with `time.sleep` and is still milliseconds because it talks to itself.
 7. **Heavy collection work is amortised.** `pytest`'s ~half-second startup + 41 collection modules is a big share of the wall clock; once collected, 740 mostly-arithmetic asserts run in about 30 µs each.
 
-Roughly: 740 tests × ~25 ms average = ~18 s of work + ~7 s of import/collection — fits the 25 s budget exactly because nothing in the suite waits on a game tick, a network packet, or a GPU.
+Roughly: 852 tests × ~25 ms average = ~21 s of work + ~7 s of import/collection — fits the 30 s budget exactly because nothing in the suite waits on a game tick, a network packet, or a GPU.

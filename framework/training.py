@@ -515,6 +515,9 @@ def _greedy_loop(
                     finish_time_s=info.get("elapsed_s") if info.get("finished") else None,
                     mean_abs_lateral_offset=info.get("mean_abs_lateral_offset"),
                     reward_components=info.get("episode_reward_components"),
+                    action_counts=info.get("episode_action_counts"),
+                    obs_averages=info.get("episode_obs_averages"),
+                    xy_hist=info.get("episode_xy_hist"),
                 ))
                 no_improve_streak = 0 if improved else no_improve_streak + 1
                 if patience > 0 and no_improve_streak >= patience:
@@ -615,6 +618,9 @@ def _greedy_loop(
                 finish_time_s=best_info.get("elapsed_s") if best_info.get("finished") else None,
                 mean_abs_lateral_offset=best_info.get("mean_abs_lateral_offset"),
                 reward_components=best_info.get("episode_reward_components"),
+                action_counts=best_info.get("episode_action_counts"),
+                obs_averages=best_info.get("episode_obs_averages"),
+                xy_hist=best_info.get("episode_xy_hist"),
             ))
             no_improve_streak = 0 if improved else no_improve_streak + 1
             if patience > 0 and no_improve_streak >= patience:
@@ -724,6 +730,9 @@ def _greedy_loop_cmaes(
                 finish_time_s=info.get("elapsed_s") if info.get("finished") else None,
                 mean_abs_lateral_offset=info.get("mean_abs_lateral_offset"),
                 reward_components=info.get("episode_reward_components"),
+                action_counts=info.get("episode_action_counts"),
+                obs_averages=info.get("episode_obs_averages"),
+                xy_hist=info.get("episode_xy_hist"),
             ))
             no_improve_streak = 0 if improved else no_improve_streak + 1
             if patience > 0 and no_improve_streak >= patience:
@@ -795,6 +804,9 @@ def _greedy_loop_q_learning(
                 finish_time_s=info.get("elapsed_s") if info.get("finished") else None,
                 mean_abs_lateral_offset=info.get("mean_abs_lateral_offset"),
                 reward_components=info.get("episode_reward_components"),
+                action_counts=info.get("episode_action_counts"),
+                obs_averages=info.get("episode_obs_averages"),
+                xy_hist=info.get("episode_xy_hist"),
             ))
             no_improve_streak = 0 if improved else no_improve_streak + 1
             if patience > 0 and no_improve_streak >= patience:
@@ -888,6 +900,9 @@ def _greedy_loop_genetic(
                 finish_time_s=info.get("elapsed_s") if info.get("finished") else None,
                 mean_abs_lateral_offset=info.get("mean_abs_lateral_offset"),
                 reward_components=info.get("episode_reward_components"),
+                action_counts=info.get("episode_action_counts"),
+                obs_averages=info.get("episode_obs_averages"),
+                xy_hist=info.get("episode_xy_hist"),
             ))
             no_improve_streak = 0 if improved else no_improve_streak + 1
             if patience > 0 and no_improve_streak >= patience:
