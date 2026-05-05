@@ -29,7 +29,7 @@
 # 3^235–3^287 ≈ 10^112 possible states — no state is ever revisited.  Use
 # neural_dqn (gs_neural_dqn_template.yaml) for belief + Q-learning.
 
-base_name: "gs_sc2_eps_greedy_v1"
+base_name: "gs_sc2_eps_greedy_v2"
 game: sc2
 
 training_params:
