@@ -15,22 +15,20 @@
 # commitment to a single action (too high → noisy forever, too low → collapses
 # early).
 #
-# Belief system (enable_belief)
-# ------------------------------
-# With enable_belief=true the policy network input grows from 13 → 205 dims;
-# the extra 192 dims are (value, confidence, staleness) per 8×8 minimap region.
-# For REINFORCE this interacts with the return signal: the scout intrinsic
-# reward is embedded in each step's reward, so it propagates through the
-# discounted return and directly shapes the policy gradient.
+# obs_spec_preset / belief interaction
+# -------------------------------------
+# Input dims and their effect on REINFORCE:
+#   ladder + no belief:  43 dims  — economy + army state, no spatial memory
+#   rich   + no belief:  95 dims  — adds shields, energy, creep, upgrades
+#   ladder + belief:    235 dims  — adds 192-dim spatial belief grid + scout reward
+#   rich   + belief:    287 dims  — full combination
 #
-# Expected behaviour on MoveToBeacon: the scout bonus fires once when the agent
-# first scans the map, then drops to near-zero.  The net effect is a small
-# positive return offset in episode 1 only — likely noise rather than signal.
-# On larger maps (Simple64) the scout gradient would be sustained and useful.
-#
+# Scout reward (when belief=true) is embedded in each step's discounted return.
+# On MoveToBeacon it fires once then fades — likely noise; on Simple64 it
+# sustains an exploration gradient throughout the opening.
 # Entropy regularisation (entropy_coeff) already encourages exploration, so
-# on MoveToBeacon the scout reward may be redundant.  The comparison helps
-# quantify the overlap.
+# the scout reward may be redundant on small maps.  The sweep lets you
+# measure the overlap empirically.
 
 base_name: "gs_sc2_reinforce_v1"
 game: sc2
@@ -44,7 +42,8 @@ training_params:
   agent_race: random
   n_sims: 200                 # 200 episodes; REINFORCE needs more episodes than evolutionary methods
   policy_type: reinforce
-  enable_belief: [false, true]  # false: 13-dim obs; true: 205-dim obs + scout return component
+  obs_spec_preset: [ladder, rich]   # 43-dim ladder vs 95-dim rich
+  enable_belief: [false, true]      # false: obs only; true: obs+192 belief dims + scout return
   learning_rate: [0.001, 0.003, 0.005]
   entropy_coeff: [0.01, 0.05]
   policy_params:

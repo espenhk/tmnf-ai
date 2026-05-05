@@ -13,16 +13,19 @@
 # larger λ is more robust but costs more episodes.
 # Rule of thumb: λ ≈ 4 + floor(3 × ln(n)) ≈ 16 for n=52 params.
 #
-# Belief system (enable_belief)
-# ------------------------------
-# With enable_belief=true the obs grows from 13 → 205 dims (13 + 192) and
-# the CMA-ES search space grows accordingly: 205 × 4 heads = 820 parameters.
-# CMA-ES is well-suited to handle this: the covariance matrix adapts to the
-# belief-weight subspace automatically, deprioritising directions that don't
-# reduce loss.  However 820 dims is large — bump population_size to ≥20 and
-# use a smaller initial_sigma (0.05–0.1) to stay close to the origin while
-# covariance structure is being estimated.
-# Rule of thumb for 820 dims: λ ≈ 4 + floor(3 × ln(820)) ≈ 25.
+# obs_spec_preset / belief / population_size interaction
+# -------------------------------------------------------
+# SC2LinearPolicy has obs_dim × 4 parameters.  CMA-ES rule of thumb: λ ≈ 4+3·ln(n).
+#
+#   ladder + no belief:  43×4 = 172 params  → λ ≈ 20
+#   rich   + no belief:  95×4 = 380 params  → λ ≈ 22
+#   ladder + belief:    235×4 = 940 params  → λ ≈ 25
+#   rich   + belief:    287×4 = 1148 params → λ ≈ 25
+#
+# population_size: [15, 25] spans this range.  CMA-ES adapts the covariance
+# matrix automatically, so it handles the belief-weight subspace well; the
+# main risk is early divergence if initial_sigma is too large — [0.1, 0.3]
+# is the safe window for these parameter counts.
 
 base_name: "gs_sc2_cmaes_v1"
 game: sc2
@@ -36,7 +39,8 @@ training_params:
   agent_race: random
   n_sims: 50                  # 50 generations; total episodes = n_sims × population_size × eval_episodes
   policy_type: cmaes
-  enable_belief: [false, true]  # false: 52 params (λ≈16); true: 820 params (λ≈25, use larger population_size)
+  obs_spec_preset: [ladder, rich]   # 43-dim ladder vs 95-dim rich
+  enable_belief: [false, true]      # false: obs only; true: obs+192 belief dims + scout reward
   population_size: [15, 25]
   initial_sigma: [0.1, 0.3, 0.5]
   policy_params:
