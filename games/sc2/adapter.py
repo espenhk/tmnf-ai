@@ -56,7 +56,8 @@ class SC2Adapter:
         from games.sc2.analytics import save_experiment_results
 
         map_name = self._map_name(training_params, track_override)
-        obs_spec = get_spec(map_name)
+        obs_spec_preset = training_params.get("obs_spec_preset")
+        obs_spec = get_spec(map_name, preset=obs_spec_preset)
 
         policy_type = training_params.get("policy_type", "sc2_genetic")
         # Spatial obs (dict observation space) is only supported by sc2_cnn.
@@ -83,6 +84,7 @@ class SC2Adapter:
                 bot_difficulty=training_params.get("bot_difficulty", "very_easy"),
                 screen_layers=screen_layers,
                 minimap_layers=minimap_layers,
+                obs_spec_preset=obs_spec_preset,
             )
 
         return GameSpec(
@@ -110,7 +112,8 @@ class SC2Adapter:
         from games.sc2.sc2_policies import SC2GeneticPolicy
 
         map_name = training_params.get("map_name", "MoveToBeacon")
-        obs_spec = get_spec(map_name)
+        obs_spec_preset = training_params.get("obs_spec_preset")
+        obs_spec = get_spec(map_name, preset=obs_spec_preset)
         policy_params = training_params.get("policy_params") or {}
         trainer_state_file = os.path.join(
             os.path.dirname(weights_file), "trainer_state.npz",
@@ -166,6 +169,38 @@ class SC2Adapter:
                 gamma=policy_params.get("gamma", 0.99),
             )
 
+        def _make_sc2_neural_dqn():
+            from games.sc2.policies import SC2NeuralDQNPolicy
+            if os.path.exists(weights_file) and not re_initialize:
+                with open(weights_file) as _f:
+                    _cfg = yaml.safe_load(_f) or {}
+                if isinstance(_cfg, dict) and _cfg.get("policy_type") == "sc2_neural_dqn":
+                    policy = SC2NeuralDQNPolicy.from_cfg(_cfg, obs_spec)
+                    if os.path.exists(trainer_state_file):
+                        try:
+                            policy.load_trainer_state(trainer_state_file)
+                            logger.info("[SC2NeuralDQNPolicy] loaded trainer state from %s",
+                                        trainer_state_file)
+                        except (ValueError, KeyError) as exc:
+                            logger.warning(
+                                "[SC2NeuralDQNPolicy] could not load trainer state — %s; "
+                                "continuing with default state.", exc,
+                            )
+                    return policy
+            return SC2NeuralDQNPolicy(
+                obs_spec=obs_spec,
+                hidden_sizes=policy_params.get("hidden_sizes", [64, 64]),
+                replay_buffer_size=policy_params.get("replay_buffer_size", 50000),
+                batch_size=policy_params.get("batch_size", 64),
+                min_replay_size=policy_params.get("min_replay_size", 2000),
+                target_update_freq=policy_params.get("target_update_freq", 200),
+                learning_rate=policy_params.get("learning_rate", 0.001),
+                epsilon_start=policy_params.get("epsilon_start", 1.0),
+                epsilon_end=policy_params.get("epsilon_end", 0.05),
+                epsilon_decay_steps=policy_params.get("epsilon_decay_steps", 20000),
+                gamma=policy_params.get("gamma", 0.995),
+            )
+
         def _make_cmaes():
             from games.sc2.policies import (
                 CMAESPolicy as SC2CMAESPolicy,
@@ -199,12 +234,12 @@ class SC2Adapter:
             return policy
 
         def _make_reinforce():
-            from games.sc2.policies import REINFORCEPolicy as SC2REINFORCEPolicy
+            from games.sc2.policies import REINFORCEPolicy as _LegacyReinforce
             if os.path.exists(weights_file) and not re_initialize:
                 with open(weights_file) as _f:
                     _cfg = yaml.safe_load(_f) or {}
                 if isinstance(_cfg, dict) and _cfg.get("policy_type") == "reinforce":
-                    policy = SC2REINFORCEPolicy.from_cfg(_cfg, obs_spec)
+                    policy = _LegacyReinforce.from_cfg(_cfg, obs_spec)
                     if os.path.exists(trainer_state_file):
                         try:
                             policy.load_trainer_state(trainer_state_file)
@@ -216,12 +251,39 @@ class SC2Adapter:
                                 "continuing with default state.", exc,
                             )
                     return policy
-            return SC2REINFORCEPolicy(
+            return _LegacyReinforce(
                 obs_spec=obs_spec,
                 hidden_sizes=policy_params.get("hidden_sizes", [64, 64]),
                 learning_rate=policy_params.get("learning_rate", 0.001),
                 gamma=policy_params.get("gamma", 0.99),
                 entropy_coeff=policy_params.get("entropy_coeff", 0.01),
+                baseline=policy_params.get("baseline", "running_mean"),
+            )
+
+        def _make_sc2_reinforce():
+            from games.sc2.sc2_policies import SC2REINFORCEPolicy
+            if os.path.exists(weights_file) and not re_initialize:
+                with open(weights_file) as _f:
+                    _cfg = yaml.safe_load(_f) or {}
+                if isinstance(_cfg, dict) and _cfg.get("policy_type") == "sc2_reinforce":
+                    policy = SC2REINFORCEPolicy.from_cfg(_cfg, obs_spec)
+                    if os.path.exists(trainer_state_file):
+                        try:
+                            policy.load_trainer_state(trainer_state_file)
+                            logger.info("[SC2REINFORCEPolicy] loaded trainer state from %s",
+                                        trainer_state_file)
+                        except (ValueError, KeyError) as exc:
+                            logger.warning(
+                                "[SC2REINFORCEPolicy] could not load trainer state — %s; "
+                                "continuing with default state.", exc,
+                            )
+                    return policy
+            return SC2REINFORCEPolicy(
+                obs_spec=obs_spec,
+                hidden_sizes=policy_params.get("hidden_sizes", [128, 64]),
+                learning_rate=policy_params.get("learning_rate", 0.0003),
+                gamma=policy_params.get("gamma", 0.995),
+                entropy_coeff=policy_params.get("entropy_coeff", 0.05),
                 baseline=policy_params.get("baseline", "running_mean"),
             )
 
@@ -300,20 +362,22 @@ class SC2Adapter:
 
         return PolicyExtras(
             factories={
-                "sc2_genetic": _make_sc2_genetic,
-                "neural_dqn": _make_neural_dqn,
-                "cmaes": _make_cmaes,
-                "reinforce": _make_reinforce,
-                "lstm": _make_lstm,
-                "sc2_cnn": _make_sc2_cnn,
+                "sc2_genetic":   _make_sc2_genetic,
+                "neural_dqn":    _make_neural_dqn,
+                "cmaes":         _make_cmaes,
+                "reinforce":     _make_reinforce,
+                "sc2_reinforce": _make_sc2_reinforce,
+                "lstm":          _make_lstm,
+                "sc2_cnn":       _make_sc2_cnn,
             },
             loop_dispatch={
-                "sc2_genetic": "genetic",
-                "neural_dqn": "q_learning",
-                "cmaes": "cmaes",
-                "reinforce": "q_learning",
-                "lstm": "cmaes",
-                "sc2_cnn": "cmaes",
+                "sc2_genetic":   "genetic",
+                "neural_dqn":    "q_learning",
+                "cmaes":         "cmaes",
+                "reinforce":     "q_learning",
+                "sc2_reinforce": "q_learning",
+                "lstm":          "cmaes",
+                "sc2_cnn":       "cmaes",
             },
         )
 

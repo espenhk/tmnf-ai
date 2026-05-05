@@ -82,10 +82,10 @@ class _StubQPolicy:
     def __call__(self, obs: np.ndarray) -> np.ndarray:
         return np.array([0.0, 1.0, 0.0], dtype=np.float32)
 
-    def update(self, *_) -> None:
+    def update(self, *_, **__) -> None:
         pass
 
-    def on_episode_start(self) -> None:
+    def on_episode_start(self, **kwargs) -> None:
         pass
 
     def on_episode_end(self) -> None:

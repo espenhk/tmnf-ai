@@ -532,7 +532,7 @@ class NeuralDQNPolicy(BasePolicy):
         return _DISCRETE_ACTIONS[int(np.argmax(q))].copy()
 
     def update(self, obs: np.ndarray, action: np.ndarray | int, reward: float,
-               next_obs: np.ndarray, done: bool) -> None:
+               next_obs: np.ndarray, done: bool, **kwargs) -> None:
         action_idx = int(action) if np.isscalar(action) else _action_to_idx(action)
         self._replay.push(obs, action_idx, reward, next_obs, done)
         self._total_steps += 1
@@ -1033,7 +1033,7 @@ class REINFORCEPolicy(BasePolicy):
         return _DISCRETE_ACTIONS[action_idx].copy()
 
     def update(self, obs: np.ndarray, action: np.ndarray | int, reward: float,
-               next_obs: np.ndarray, done: bool) -> None:
+               next_obs: np.ndarray, done: bool, **kwargs) -> None:
         self._ep_rewards.append(float(reward))
 
     def on_episode_end(self) -> None:
@@ -1308,14 +1308,14 @@ class LSTMPolicy(BasePolicy):
         return np.array([steer, accel, brake], dtype=np.float32)
 
     def update(self, obs: np.ndarray, action: np.ndarray | int, reward: float,
-               next_obs: np.ndarray, done: bool) -> None:
+               next_obs: np.ndarray, done: bool, **kwargs) -> None:
         pass  # no online update; training via outer evolutionary optimiser
 
     def _reset_hidden_state(self) -> None:
         self._h = np.zeros(self._hidden_size, dtype=np.float32)
         self._c = np.zeros(self._hidden_size, dtype=np.float32)
 
-    def on_episode_start(self) -> None:
+    def on_episode_start(self, **kwargs) -> None:
         self._reset_hidden_state()
 
     def on_episode_end(self) -> None:
@@ -1521,9 +1521,9 @@ class LSTMEvolutionPolicy(BasePolicy):
             )
         return self._champion(obs)
 
-    def on_episode_start(self) -> None:
+    def on_episode_start(self, **kwargs) -> None:
         if self._champion is not None:
-            self._champion.on_episode_start()
+            self._champion.on_episode_start(**kwargs)
 
     def on_episode_end(self) -> None:
         if self._champion is not None:
