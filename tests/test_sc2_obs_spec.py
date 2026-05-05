@@ -20,14 +20,14 @@ from games.sc2.obs_spec import (
 class TestSC2ObsSpec(unittest.TestCase):
 
     def test_minigame_spec_dim(self):
-        self.assertEqual(BASE_OBS_DIM, 13)
-        self.assertEqual(SC2_MINIGAME_OBS_SPEC.dim, 13)
+        self.assertEqual(BASE_OBS_DIM, 15)
+        self.assertEqual(SC2_MINIGAME_OBS_SPEC.dim, 15)
 
     def test_ladder_spec_dim_grows_post_126(self):
         """Issue #126: ladder spec extended with economy / minimap-camera /
         score / HP / top-K-counts blocks (~40 dims, exact value asserted)."""
-        self.assertEqual(LADDER_OBS_DIM, 43)
-        self.assertEqual(SC2_LADDER_OBS_SPEC.dim, 43)
+        self.assertEqual(LADDER_OBS_DIM, 45)
+        self.assertEqual(SC2_LADDER_OBS_SPEC.dim, 45)
 
     def test_rich_spec_dim(self):
         self.assertEqual(RICH_OBS_DIM, SC2_RICH_OBS_SPEC.dim)
