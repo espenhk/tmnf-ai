@@ -85,9 +85,6 @@ class TestBeliefObsShape(unittest.TestCase):
 
     def test_reset_obs_has_extended_shape(self):
         env = _make_belief_env()
-        with patch("games.sc2.env.SC2Client", env._client.__class__):
-            pass
-        # Patch the client directly on the already-constructed env.
         obs, _ = env.reset()
         self.assertEqual(obs.shape, (BASE_OBS_DIM + _BELIEF_EXTRA_DIMS,))
 

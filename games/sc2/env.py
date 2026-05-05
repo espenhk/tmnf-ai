@@ -192,7 +192,6 @@ class SC2Env(BaseGameEnv):
         flat_obs, info = self._client.reset()
         obs = self._make_obs(flat_obs, info)
 
-        self._prev_obs = obs
         self._prev_minerals = info.get("minerals", 0.0)
         self._prev_vespene = info.get("vespene", 0.0)
         self._prev_score = info.get("score", 0.0)
@@ -214,6 +213,7 @@ class SC2Env(BaseGameEnv):
             else:
                 obs = np.concatenate([obs, _benc, _senc])
 
+        self._prev_obs = obs
         return obs, info
 
     def step(self, action: np.ndarray) -> tuple[np.ndarray | dict, float, bool, bool, dict]:
@@ -270,7 +270,6 @@ class SC2Env(BaseGameEnv):
         else:
             info["termination_reason"] = None
 
-        self._prev_obs = obs
         self._prev_minerals = info.get("minerals", 0.0)
         self._prev_vespene = info.get("vespene", 0.0)
         self._prev_score = info.get("score", 0.0)
@@ -292,13 +291,15 @@ class SC2Env(BaseGameEnv):
                 vis = np.asarray(vis_raw, dtype=np.float32)
                 if vis.ndim == 2:
                     h, w = vis.shape
-                    rs = max(h // n_rows, 1)
-                    cs = max(w // n_cols, 1)
-                    trimmed = vis[:n_rows * rs, :n_cols * cs]
-                    pooled = trimmed.reshape(n_rows, rs, n_cols, cs).max(axis=(1, 3))
-                    visible_slots = (pooled.flatten() >= 2.0)
-                    belief_obs = np.where(visible_slots,
-                                          pooled.flatten() / 2.0, np.nan)
+                    # Guard: minimap must be at least as large as the region grid.
+                    if h >= n_rows and w >= n_cols:
+                        rs = h // n_rows
+                        cs = w // n_cols
+                        trimmed = vis[:n_rows * rs, :n_cols * cs]
+                        pooled = trimmed.reshape(n_rows, rs, n_cols, cs).max(axis=(1, 3))
+                        visible_slots = (pooled.flatten() >= 2.0)
+                        belief_obs = np.where(visible_slots,
+                                              pooled.flatten() / 2.0, np.nan)
 
             self._belief.project(max(dt_s, 0.0))
             self._belief.update(belief_obs, {})
@@ -323,6 +324,7 @@ class SC2Env(BaseGameEnv):
             # Refresh the snapshot so episode_reward_components includes scout.
             info["episode_reward_components"] = dict(self._ep_reward_components)
 
+        self._prev_obs = obs
         return obs, reward, terminated, truncated, info
 
     def close(self) -> None:
