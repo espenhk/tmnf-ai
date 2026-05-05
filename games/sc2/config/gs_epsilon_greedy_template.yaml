@@ -15,12 +15,21 @@
 # alpha (learning rate) and epsilon_decay jointly control speed vs. stability:
 # high alpha + slow decay (→ 0.99) converges fast but can oscillate;
 # low alpha + fast decay (→ 0.995) is more stable but slower.
+#
+# Belief system: NOT compatible with tabular policies
+# ---------------------------------------------------
+# enable_belief is fixed to false here.  Tabular Q-learning discretises every
+# obs dimension into n_bins bins, then uses the resulting tuple as a dict key.
+# Adding 192 belief dims blows the state space to 3^205 ≈ 10^97 — the table
+# would never revisit any state.  If you want belief obs with Q-learning, use
+# neural_dqn (gs_neural_dqn_template.yaml) which approximates Q with an MLP.
 
 base_name: "gs_sc2_eps_greedy_v1"
 game: sc2
 
 training_params:
   map_name: MoveToBeacon
+  enable_belief: false         # tabular state-space explosion; see comment above
   in_game_episode_s: 120.0
   step_mul: 8
   screen_size: 64

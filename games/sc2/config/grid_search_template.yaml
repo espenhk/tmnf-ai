@@ -12,6 +12,26 @@
 # share gives sparse large steps; small scale + large share gives dense small
 # steps.  The sweet spot for the 52-param MoveToBeacon space is usually
 # mutation_scale ~0.1 with mutation_share ~0.3–0.5.
+#
+# Belief system (enable_belief)
+# ------------------------------
+# When true, SC2Env appends 192 extra dims to every observation:
+#   64 value slots + 64 confidence slots (EWMABelief over 8×8 minimap grid)
+#   + 64 staleness slots (RegionStalenessTracker)
+# A scout intrinsic reward is also added per step when previously-unseen
+# regions become visible.
+#
+# On MoveToBeacon the map is tiny and fully revealed quickly, so the scout
+# reward fires once and the staleness dims converge fast.  The comparison is
+# still informative: does giving the agent explicit "where have I been?"
+# signal help it learn the beacon-chase policy faster, or does it add noise?
+# For larger maps (Simple64) belief is much more impactful — see
+# gs_rich_obs_template.yaml.
+#
+# With belief: SC2LinearPolicy weight count grows by 192 × 4 heads = 768
+# extra parameters.  mutation_share=0.3 (sparse) is recommended to avoid
+# large random steps through the belief-weight subspace before the policy
+# has learned which belief dims are informative.
 
 base_name: "gs_sc2_genetic_v1"
 game: sc2
@@ -25,6 +45,7 @@ training_params:
   agent_race: random
   n_sims: 5
   policy_type: sc2_genetic
+  enable_belief: [false, true]   # false = 52-param baseline; true = 52+768 with scout reward
   policy_params:
     population_size: 5
     elite_k: 5

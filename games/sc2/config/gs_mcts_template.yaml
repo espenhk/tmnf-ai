@@ -15,12 +15,23 @@
 # c is the primary knob: larger values are better early when the Q-table is
 # sparse, but hurt once values converge.  alpha controls how fast Q-values
 # update — too high causes oscillation, too low leaves stale estimates.
+#
+# Belief system: NOT compatible with tabular policies
+# ---------------------------------------------------
+# enable_belief is fixed to false here.  The belief system appends 192 extra
+# dims to the observation, which are then discretised into n_bins bins per
+# dim before lookup.  The resulting state-space size is
+#   n_bins ^ (obs_dim + 192)  =  3 ^ (13 + 192)  =  3 ^ 205  ≈ 10^97
+# which is astronomically large — the Q-table would never receive a second
+# visit to any state in any practical episode budget.  Use neural_dqn or a
+# gradient-based policy if you want belief obs with learned value functions.
 
 base_name: "gs_sc2_mcts_v1"
 game: sc2
 
 training_params:
   map_name: MoveToBeacon
+  enable_belief: false         # tabular state-space explosion; see comment above
   in_game_episode_s: 120.0
   step_mul: 8
   screen_size: 64

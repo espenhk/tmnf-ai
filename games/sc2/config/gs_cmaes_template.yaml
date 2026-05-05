@@ -12,6 +12,17 @@
 # population_size (λ) controls how many offspring are evaluated per generation;
 # larger λ is more robust but costs more episodes.
 # Rule of thumb: λ ≈ 4 + floor(3 × ln(n)) ≈ 16 for n=52 params.
+#
+# Belief system (enable_belief)
+# ------------------------------
+# With enable_belief=true the obs grows from 13 → 205 dims (13 + 192) and
+# the CMA-ES search space grows accordingly: 205 × 4 heads = 820 parameters.
+# CMA-ES is well-suited to handle this: the covariance matrix adapts to the
+# belief-weight subspace automatically, deprioritising directions that don't
+# reduce loss.  However 820 dims is large — bump population_size to ≥20 and
+# use a smaller initial_sigma (0.05–0.1) to stay close to the origin while
+# covariance structure is being estimated.
+# Rule of thumb for 820 dims: λ ≈ 4 + floor(3 × ln(820)) ≈ 25.
 
 base_name: "gs_sc2_cmaes_v1"
 game: sc2
@@ -25,6 +36,7 @@ training_params:
   agent_race: random
   n_sims: 50                  # 50 generations; total episodes = n_sims × population_size × eval_episodes
   policy_type: cmaes
+  enable_belief: [false, true]  # false: 52 params (λ≈16); true: 820 params (λ≈25, use larger population_size)
   population_size: [15, 25]
   initial_sigma: [0.1, 0.3, 0.5]
   policy_params:

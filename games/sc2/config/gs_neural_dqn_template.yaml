@@ -14,6 +14,23 @@
 # learning_rate is the most sensitive knob; epsilon_decay_steps controls how
 # long the agent explores before committing — too short → premature convergence,
 # too long → slow learning.
+#
+# Belief system (enable_belief)
+# ------------------------------
+# With enable_belief=true the input layer grows from 13 → 205 dims.  DQN
+# handles this well: the MLP naturally learns which belief dims are predictive
+# of future Q-values.  Two secondary effects to be aware of:
+#
+#   1. The scout intrinsic reward is added to every step reward.  This can
+#      interact with epsilon_decay_steps: during early high-ε exploration the
+#      scout bonus will be large (many unseen regions), so the Q-table gets
+#      shaped by scouting before the task reward dominates.  Longer
+#      epsilon_decay_steps gives more time for the scout bonus to fade before
+#      exploitation.  Consider adding 5 000 to epsilon_decay_steps when
+#      enable_belief=true.
+#   2. replay_buffer_size should be large enough to hold transitions from
+#      the full 205-dim obs (each float32 costs 4 bytes; 15 000 × 205 × 4 ≈
+#      12 MB — well within reason).
 
 base_name: "gs_sc2_dqn_v1"
 game: sc2
@@ -27,6 +44,7 @@ training_params:
   agent_race: random
   n_sims: 200                 # 200 episodes; ~48 000 env steps total
   policy_type: neural_dqn
+  enable_belief: [false, true]  # false: 13-dim obs; true: 205-dim obs + scout reward
   learning_rate: [0.0005, 0.001, 0.003]
   epsilon_decay_steps: [3000, 8000]
   policy_params:

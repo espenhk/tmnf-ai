@@ -7,7 +7,7 @@
 # (1/5 success rule for σ adaptation).  n_sims = generations;
 # total episodes = n_sims × population_size.
 #
-# Flat parameter dimension:
+# Flat parameter dimension (belief=false):
 #   hidden_size=16: 4×(16×(16+13)+16) + 4×16 = 4×480+64 = 1984 params
 #   hidden_size=32: 4×(32×(32+13)+32) + 4×32 = 4×1472+128 = 6016 params
 # The larger the space, the smaller initial_sigma should be to avoid diverging.
@@ -15,6 +15,20 @@
 # Good first sweep: hidden_size × initial_sigma.
 # Larger hidden_size gives more expressive memory but much larger search space;
 # start with hidden_size=16 to validate the setup before scaling.
+#
+# Belief system (enable_belief)
+# ------------------------------
+# With enable_belief=true the LSTM input grows from 13 → 205 dims.  Flat
+# parameter counts grow accordingly:
+#   hidden_size=16: 4×(16×(16+205)+16) + 4×16 = 4×3552+64 = 14272 params
+#   hidden_size=32: 4×(32×(32+205)+32) + 4×32 = 4×7584+128 = 30464 params
+# The LSTM hidden state already provides a form of temporal memory, so there
+# is some conceptual overlap with the belief encoder (both track "what has
+# the agent seen recently?").  The comparison is informative: if LSTM+belief
+# outperforms LSTM alone, the explicit spatial grid in the belief obs provides
+# information the recurrent state does not learn to represent on its own.
+# Use smaller initial_sigma (≤0.03) with belief=true to avoid random jumps
+# through the 14k–30k dimensional weight space.
 
 base_name: "gs_sc2_lstm_v1"
 game: sc2
@@ -28,6 +42,7 @@ training_params:
   agent_race: random
   n_sims: 50                  # 50 generations; total episodes = n_sims × population_size
   policy_type: lstm
+  enable_belief: [false, true]  # false: 13-dim input; true: 205-dim input (14k–30k weight params)
   hidden_size: [16, 32]
   initial_sigma: [0.03, 0.05, 0.1]
   policy_params:
