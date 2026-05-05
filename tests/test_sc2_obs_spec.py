@@ -74,6 +74,15 @@ class TestSC2ObsSpec(unittest.TestCase):
         for spec in (SC2_MINIGAME_OBS_SPEC, SC2_LADDER_OBS_SPEC, SC2_RICH_OBS_SPEC):
             self.assertEqual(len(spec.names), len(set(spec.names)))
 
+    def test_minimap_beacon_dims_in_all_presets(self):
+        """minimap_enemy_cx/cy must appear in every preset (minigame, ladder,
+        rich) since they are part of _MINIGAME_DIMS which all presets inherit."""
+        for spec in (SC2_MINIGAME_OBS_SPEC, SC2_LADDER_OBS_SPEC, SC2_RICH_OBS_SPEC):
+            self.assertIn("minimap_enemy_cx", spec.names,
+                          f"{spec} missing minimap_enemy_cx")
+            self.assertIn("minimap_enemy_cy", spec.names,
+                          f"{spec} missing minimap_enemy_cy")
+
     def test_all_preset_scales_finite(self):
         for spec in (SC2_MINIGAME_OBS_SPEC, SC2_LADDER_OBS_SPEC, SC2_RICH_OBS_SPEC):
             self.assertTrue(np.all(np.isfinite(spec.scales)))

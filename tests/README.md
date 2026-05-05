@@ -1,6 +1,6 @@
 # Tests
 
-827 tests across 45 files. Runs in ~30 seconds via `python -m pytest tests/`.
+829 tests across 45 files. Runs in ~30 seconds via `python -m pytest tests/`.
 
 ## Coverage at a glance
 
@@ -302,8 +302,9 @@ fog-of-war belief machinery beyond the standalone `test_belief.py`
 encoder; long-horizon RL convergence on Simple64 (loops are run for a
 handful of iterations only).
 
-### test_sc2_obs_spec.py (8) — SC2 obs spec
+### test_sc2_obs_spec.py (9) — SC2 obs spec
 - minigame dim (15); ladder dim (45); ladder extends minigame; default = minigame; get_spec for minigame / ladder; minigame count; obs_names match dims
+- minimap_enemy_cx/cy present in all presets (minigame, ladder, rich)
 
 ### test_sc2_actions.py (10) — discrete action grid
 - shape / dtype / xy in unit square; centre = select_army; others = move_screen
@@ -313,11 +314,11 @@ handful of iterations only).
 - defaults; from_yaml; unknown raises; loads bundled config
 - score delta; step penalty only; step penalty n_ticks scaling; win bonus; loss penalty; no-outcome no bonus; economy weight; idle penalty when idle / not when busy
 
-### test_sc2_client.py (27) — PySC2 client wrapper
+### test_sc2_client.py (28) — PySC2 client wrapper
 - minigame flat obs shape; score-delta threading; player_relative centroid; terminal outcome recorded
 - ladder flat obs shape; visibility tracking; fogged ≠ visible; ladder terminal outcome; non-terminal = None
 - rich extractors (#135): enemy unit-type counts (owner filter, missing field, unknown type); shield/energy (self shield mean, no units, None screen); creep (half coverage, no creep, None minimap); economy pipeline (upgrade count, build queue, cargo, all missing); rich spec contains new names; ladder spec unchanged
-- minimap enemy centroid: minimap_enemy_cx/cy computed from player_relative==4 layer; included in minigame flat obs
+- minimap enemy centroid: minimap_enemy_cx/cy computed from player_relative==4 layer; correct when beacon present; zero when no beacon on minimap (edge case)
 - action fallback (#124, beacon-idling fix): blocked Move_screen → select_army once, then no_op on consecutive blocked steps; pending flag cleared when Move_screen available; no_op action passes through unchanged
 
 ### test_sc2_env.py (15) — SC2 env wrapper

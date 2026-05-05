@@ -375,6 +375,31 @@ class TestSC2ClientFeatureExtractors(unittest.TestCase):
         self.assertAlmostEqual(flat[cx_idx], 40.0, places=3)
         self.assertAlmostEqual(flat[cy_idx], 20.0, places=3)
 
+    def test_minimap_enemy_centroid_zero_when_no_beacon(self):
+        """When there are no enemy pixels on the minimap (e.g. during the brief
+        beacon-scored / pre-respawn transition) the centroid defaults to 0.0."""
+        from games.sc2.client import SC2Client
+        from games.sc2.obs_spec import SC2_MINIGAME_OBS_SPEC
+
+        c = SC2Client(map_name="MoveToBeacon")
+        # All-zero minimap: no enemies present.
+        ob = {
+            "player": _NamedArr({
+                "minerals": 0, "vespene": 0, "food_used": 1, "food_cap": 15,
+                "army_count": 1, "idle_worker_count": 0,
+                "warp_gate_count": 0, "larva_count": 0,
+            }),
+            "feature_screen":  np.zeros((17, 64, 64), dtype=np.int32),
+            "feature_minimap": np.zeros((11, 64, 64), dtype=np.int32),
+            "score_cumulative": np.array([0]),
+        }
+        flat, _ = c._timestep_to_obs_info(_FakeTimeStep(ob))
+
+        cx_idx = SC2_MINIGAME_OBS_SPEC.names.index("minimap_enemy_cx")
+        cy_idx = SC2_MINIGAME_OBS_SPEC.names.index("minimap_enemy_cy")
+        self.assertAlmostEqual(flat[cx_idx], 0.0, places=5)
+        self.assertAlmostEqual(flat[cy_idx], 0.0, places=5)
+
 
 # ---------------------------------------------------------------------------
 # Issue #124 / #121: Move_screen blocked by selection precondition should
