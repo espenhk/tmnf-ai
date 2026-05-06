@@ -40,6 +40,7 @@ from typing import Any
 
 from distributed.protocol import (
     ComboSpec,
+    DEFAULT_GAME,
     combo_to_dict,
     result_from_dict,
     experiment_from_dict,
@@ -211,7 +212,7 @@ class Coordinator:
                 skipped: list[Any] = []
                 while self._work_queue:
                     candidate = self._work_queue.popleft()
-                    if getattr(candidate, "game", "tmnf") == worker_game:
+                    if getattr(candidate, "game", DEFAULT_GAME) == worker_game:
                         spec = candidate
                         break
                     skipped.append(candidate)

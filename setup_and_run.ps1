@@ -395,7 +395,8 @@ function Install-SC2 {
                 # treat it as a soft warning rather than a hard failure.
                 Write-Host "[WARN]  Battle.net installer exited with code $($proc.ExitCode) - this may be normal." -ForegroundColor Yellow
             }
-            Write-Host "[WARN]  Battle.net is installed. To use SC2 you must:" -ForegroundColor Yellow
+            # Always remind the operator that SC2 itself needs a manual install step.
+            Write-Host "[WARN]  Battle.net installer finished. To use SC2 you must:" -ForegroundColor Yellow
             Write-Host "        1. Log in to Battle.net and install StarCraft II." -ForegroundColor Yellow
             Write-Host "        2. Then re-run this script or start training manually." -ForegroundColor Yellow
         }

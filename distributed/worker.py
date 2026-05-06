@@ -36,6 +36,7 @@ import urllib.request
 from distributed.protocol import (
     ComboSpec,
     ResultPayload,
+    DEFAULT_GAME,
     combo_from_dict,
     experiment_to_json,
     result_to_dict,
@@ -190,7 +191,7 @@ def run_worker(
         logger.info("Running experiment: %s (game=%s)", spec.name, spec.game)
 
         # --- game filter: skip jobs for games this worker doesn't support ---
-        job_game = getattr(spec, "game", "tmnf")
+        job_game = getattr(spec, "game", DEFAULT_GAME)
         if game_filter and job_game != game_filter:
             logger.info(
                 "Skipping %s (game=%s, worker accepts only %s) — returning to coordinator",
