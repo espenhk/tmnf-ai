@@ -63,7 +63,7 @@
   - [integration/test\_car\_racing.py (14) — CarRacing real-env end-to-end tests](#integrationtest_car_racingpy-14--caracing-real-env-end-to-end-tests)
 - [Why 895 tests run in ~50 s](#why-895-tests-run-in-50-s)
 
-895 tests across 54 files. Runs in ~50 seconds via `python -m pytest tests/ --ignore=tests/integration/` (excluding tests that require tminterface, pysc2 live env, gym_torcs, or the SC2 binary). The full suite including those files has 1030 tests.
+895 tests across 54 files (unit-test suite, excluding `tests/integration/`). Runs in ~50 seconds via `python -m pytest tests/ --ignore=tests/integration/` (also excluding tests that require tminterface, pysc2 live env, gym_torcs, or the SC2 binary). The full suite including those files has 1030 tests.
 
 Additionally, **14 integration tests** live in `tests/integration/`. These require `gymnasium[box2d]` and are run separately by the `integration-tests` workflow on every push to `main`.  To run them locally:
 
