@@ -21,17 +21,12 @@ Entry point called by main.py / grid_search.py:
 from __future__ import annotations
 
 import logging
-import math
 import os
-import sys
-
-import matplotlib
-if 'matplotlib.pyplot' not in sys.modules:
-    matplotlib.use('Agg')
 
 try:
+    import matplotlib
+    matplotlib.use('Agg', force=True)
     import matplotlib.pyplot as plt
-    import matplotlib.patches as mpatches
     import matplotlib.cm as cm
     from matplotlib.figure import Figure
     _HAS_MPL = True
@@ -42,7 +37,6 @@ import numpy as np
 
 from framework.analytics import (
     ExperimentData,
-    GreedySimResult,
     plot_probe_rewards,
     plot_cold_start_rewards,
     plot_greedy_rewards,
@@ -342,6 +336,12 @@ def save_experiment_results(data: ExperimentData, results_dir: str) -> None:
     """Generate SC2-specific and generic plots; write results.md to *results_dir*."""
     os.makedirs(results_dir, exist_ok=True)
 
+    def _img(filename: str, alt: str) -> str:
+        """Return a Markdown image tag only if the file was actually written."""
+        if os.path.exists(os.path.join(results_dir, filename)):
+            return f"\n![{alt}]({filename})\n\n"
+        return ""
+
     sections = [
         f"# Experiment: {data.experiment_name}\n\n**Game:** StarCraft 2\n\n",
         _timings_md(data),
@@ -351,47 +351,42 @@ def save_experiment_results(data: ExperimentData, results_dir: str) -> None:
     if data.probe_results:
         plot_probe_rewards(data, results_dir)
         sections.append(_probe_table_md(data))
-        sections.append("\n![Probe rewards](probe_rewards.png)\n\n")
+        sections.append(_img("probe_rewards.png", "Probe rewards"))
 
     if data.cold_start_restarts:
         plot_cold_start_rewards(data, results_dir)
         sections.append(_cold_start_table_md(data))
-        sections.append("\n![Cold-start best rewards](cold_start_best_rewards.png)\n\n")
+        sections.append(_img("cold_start_best_rewards.png", "Cold-start best rewards"))
 
     if data.greedy_sims:
         plot_greedy_rewards(data, results_dir)
         sections.append(_greedy_table_md(data))
-        sections.append("\n![Greedy rewards](greedy_rewards.png)\n\n")
+        sections.append(_img("greedy_rewards.png", "Greedy rewards"))
 
         # 2b — Reward-component breakdown.  Only adds a section if the env
         # populated info["episode_reward_components"] AND at least one
         # component is non-zero.
         plot_reward_components(data, results_dir)
-        if any(s.reward_components for s in data.greedy_sims):
-            sections.append("\n![Reward components](reward_components.png)\n\n")
+        sections.append(_img("reward_components.png", "Reward components"))
 
         # 2a — Action-frequency breakdown.
         plot_action_frequency(data, results_dir)
-        if any(s.action_counts for s in data.greedy_sims):
-            sections.append("\n![Action frequency](action_frequency.png)\n\n")
+        sections.append(_img("action_frequency.png", "Action frequency"))
 
         # 2c — Economy / game-state feature averages.
         plot_obs_averages(data, results_dir)
-        if any(s.obs_averages for s in data.greedy_sims):
-            sections.append("\n![Game-state averages](obs_averages.png)\n\n")
+        sections.append(_img("obs_averages.png", "Game-state averages"))
 
         # 2d — Spatial target heatmap.
         plot_spatial_heatmap(data, results_dir)
-        if any(s.xy_hist is not None for s in data.greedy_sims):
-            sections.append("\n![Spatial target heatmap](spatial_heatmap.png)\n\n")
+        sections.append(_img("spatial_heatmap.png", "Spatial target heatmap"))
 
         # 2e — Episode outcome breakdown.
         plot_outcome_breakdown(data, results_dir)
-        if any(s.termination_reason for s in data.greedy_sims):
-            sections.append("\n![Outcome breakdown](outcome_breakdown.png)\n\n")
+        sections.append(_img("outcome_breakdown.png", "Outcome breakdown"))
 
     plot_reward_trajectory(data, results_dir)
-    sections.append("\n![Reward trajectory](reward_trajectory.png)\n\n")
+    sections.append(_img("reward_trajectory.png", "Reward trajectory"))
 
     report_path = os.path.join(results_dir, "results.md")
     with open(report_path, "w", encoding="utf-8") as f:

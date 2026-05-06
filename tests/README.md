@@ -1,6 +1,6 @@
 # Tests
 
-852 tests across 46 files. Runs in ~30 seconds via `python -m pytest tests/`.
+854 tests across 46 files. Runs in ~30 seconds via `python -m pytest tests/`.
 
 ## Coverage at a glance
 
@@ -40,9 +40,10 @@ Terraform stack under `infrastructure/`; the Windows bootstrap script
 `setup_and_run.ps1`; long convergence behaviour of the actual `train_rl()`
 loop end-to-end on a real env.
 
-### test_analytics_no_matplotlib.py (2) — analytics importable when matplotlib missing
+### test_analytics_no_matplotlib.py (3) — analytics importable when matplotlib missing
 - framework analytics import works without matplotlib
 - TMNF analytics import works without matplotlib
+- SC2 analytics import works without matplotlib
 
 ### test_analytics_task_metrics.py (17) — `TaskMetrics` dataclass + summary table formatting
 - new fields default to `None`; finish_time / lateral_offset / reward_components stored
@@ -69,9 +70,9 @@ loop end-to-end on a real env.
 ### test_discretize_obs.py (6) — continuous→discrete obs binning
 - zero→middle bin; clipped high→max; clipped low→min; symmetry; tuple-of-int return; length matches obs_dim
 
-### test_distributed.py (20) — coordinator/worker protocol + HTTP server
+### test_distributed.py (21) — coordinator/worker protocol + HTTP server
 - ComboSpec round-trip + JSON serialisable; ResultPayload round-trip + valid JSON
-- payload preserves greedy_sims / throttle counts / trace / none-trace / metadata / task-metric fields
+- payload preserves greedy_sims / throttle counts / trace / none-trace / metadata / task-metric fields / SC2 analytics fields
 - numpy arrays serialised
 - HTTP: serves all combos / status endpoint / result accepted + done event
 - unknown combo rejected; duplicate result ignored; stale worker re-queued; heartbeat prevents requeue
@@ -420,4 +421,4 @@ These tests look heavy because of the names ("training loop", "env reset", "DQN 
 6. **Filesystem work uses `tmp_path`** (RAM-backed `/tmp`), and the only network is `test_distributed.py` binding `localhost` for HTTP coordinator tests — which is why that's the one file with `time.sleep` and is still milliseconds because it talks to itself.
 7. **Heavy collection work is amortised.** `pytest`'s ~half-second startup + 41 collection modules is a big share of the wall clock; once collected, 740 mostly-arithmetic asserts run in about 30 µs each.
 
-Roughly: 852 tests × ~25 ms average = ~21 s of work + ~7 s of import/collection — fits the 30 s budget exactly because nothing in the suite waits on a game tick, a network packet, or a GPU.
+Roughly: 854 tests × ~25 ms average = ~21 s of work + ~7 s of import/collection — fits the 30 s budget exactly because nothing in the suite waits on a game tick, a network packet, or a GPU.

@@ -106,6 +106,12 @@ def experiment_from_dict(d: dict[str, Any]) -> Any:
         )
 
     def _greedy_sim(s: dict) -> GreedySimResult:
+        # action_counts: JSON serialisation turns int dict keys into strings;
+        # convert them back to int for a lossless round-trip.
+        raw_ac = s.get("action_counts")
+        action_counts = (
+            {int(k): v for k, v in raw_ac.items()} if raw_ac is not None else None
+        )
         return GreedySimResult(
             sim=s["sim"],
             reward=s["reward"],
@@ -121,6 +127,9 @@ def experiment_from_dict(d: dict[str, Any]) -> Any:
             finish_time_s=s.get("finish_time_s"),
             mean_abs_lateral_offset=s.get("mean_abs_lateral_offset"),
             reward_components=s.get("reward_components"),
+            action_counts=action_counts,
+            obs_averages=s.get("obs_averages"),
+            xy_hist=s.get("xy_hist"),
         )
 
     return ExperimentData(
