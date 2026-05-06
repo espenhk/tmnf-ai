@@ -8,10 +8,10 @@ Covers:
 - plot_outcome_breakdown: renders without error; skips when no data
 - plot_supply_capped: renders without error; skips when no data
 - plot_resource_series: renders without error; skips when no data
-- plot_army_value: renders without error; skips when no data
+- plot_army_count: renders without error; skips when no data
 - plot_build_order: renders without error; skips when no data
 - GreedySimResult new optional fields: action_counts, obs_averages, xy_hist,
-  supply_capped_fraction, build_order, army_value_series, resource_series
+  supply_capped_fraction, build_order, army_count_series, resource_series
 - save_experiment_results: completes without error; writes results.md
 """
 from __future__ import annotations
@@ -25,7 +25,7 @@ from games.sc2.analytics import (
     SUPPORTS_PATH,
     SUPPORTS_THROTTLE,
     plot_action_frequency,
-    plot_army_value,
+    plot_army_count,
     plot_build_order,
     plot_obs_averages,
     plot_outcome_breakdown,
@@ -51,7 +51,7 @@ def _make_sim(
     reward_components: dict | None = None,
     supply_capped_fraction: float | None = None,
     build_order: list | None = None,
-    army_value_series: list | None = None,
+    army_count_series: list | None = None,
     resource_series: list | None = None,
 ) -> GreedySimResult:
     return GreedySimResult(
@@ -67,7 +67,7 @@ def _make_sim(
         reward_components=reward_components,
         supply_capped_fraction=supply_capped_fraction,
         build_order=build_order,
-        army_value_series=army_value_series,
+        army_count_series=army_count_series,
         resource_series=resource_series,
     )
 
@@ -334,7 +334,7 @@ class TestSaveExperimentResults(unittest.TestCase):
                       reward_components={"score": 5.0, "step_penalty": -0.5},
                       supply_capped_fraction=0.3,
                       resource_series=series_pts,
-                      army_value_series=army_pts,
+                      army_count_series=army_pts,
                       build_order=build_evt),
             _make_sim(2, reward=8.0, improved=True,
                       action_counts={0: 5, 1: 10, 2: 85},
@@ -344,7 +344,7 @@ class TestSaveExperimentResults(unittest.TestCase):
                       reward_components={"score": 8.5, "step_penalty": -0.5},
                       supply_capped_fraction=0.1,
                       resource_series=series_pts,
-                      army_value_series=army_pts,
+                      army_count_series=army_pts,
                       build_order=build_evt),
         ]
 
@@ -367,7 +367,7 @@ class TestSaveExperimentResults(unittest.TestCase):
             self.assertIn("outcome_breakdown.png", files)
             self.assertIn("supply_capped.png", files)
             self.assertIn("resource_series.png", files)
-            self.assertIn("army_value.png", files)
+            self.assertIn("army_count.png", files)
             self.assertIn("build_order.png", files)
 
     def test_results_md_mentions_game(self):
@@ -421,12 +421,12 @@ class TestGreedySimResultEndScreenFields(unittest.TestCase):
         )
         self.assertIsNone(s.build_order)
 
-    def test_army_value_series_default_none(self):
+    def test_army_count_series_default_none(self):
         s = GreedySimResult(
             sim=1, reward=5.0, improved=False,
             throttle_counts=[0, 0, 0], total_steps=1,
         )
-        self.assertIsNone(s.army_value_series)
+        self.assertIsNone(s.army_count_series)
 
     def test_resource_series_default_none(self):
         s = GreedySimResult(
@@ -442,12 +442,12 @@ class TestGreedySimResultEndScreenFields(unittest.TestCase):
         s = _make_sim(
             supply_capped_fraction=0.25,
             build_order=bo,
-            army_value_series=army,
+            army_count_series=army,
             resource_series=res,
         )
         self.assertAlmostEqual(s.supply_capped_fraction, 0.25)
         self.assertEqual(s.build_order, bo)
-        self.assertEqual(s.army_value_series, army)
+        self.assertEqual(s.army_count_series, army)
         self.assertEqual(s.resource_series, res)
 
 
@@ -546,29 +546,29 @@ class TestPlotResourceSeries(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# plot_army_value
+# plot_army_count
 # ---------------------------------------------------------------------------
 
-class TestPlotArmyValue(unittest.TestCase):
+class TestPlotArmyCount(unittest.TestCase):
 
     def test_renders_to_file(self):
-        sims = [_make_sim(1, army_value_series=_ARMY, improved=True)]
+        sims = [_make_sim(1, army_count_series=_ARMY, improved=True)]
         data = _make_experiment(sims)
         with tempfile.TemporaryDirectory() as d:
-            plot_army_value(data, d)
-            self.assertIn("army_value.png", os.listdir(d))
+            plot_army_count(data, d)
+            self.assertIn("army_count.png", os.listdir(d))
 
     def test_skips_when_no_series(self):
         sims = [_make_sim(i) for i in range(1, 4)]
         data = _make_experiment(sims)
         with tempfile.TemporaryDirectory() as d:
-            plot_army_value(data, d)
-            self.assertNotIn("army_value.png", os.listdir(d))
+            plot_army_count(data, d)
+            self.assertNotIn("army_count.png", os.listdir(d))
 
     def test_skips_when_no_sims(self):
         data = _make_experiment([])
         with tempfile.TemporaryDirectory() as d:
-            plot_army_value(data, d)
+            plot_army_count(data, d)
             self.assertEqual(os.listdir(d), [])
 
 

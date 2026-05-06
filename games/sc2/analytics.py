@@ -412,22 +412,22 @@ def plot_resource_series(data: ExperimentData, results_dir: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# 2h — Army value over time (best run)
+# 2h — Army count over time (best run)
 # ---------------------------------------------------------------------------
 
-def plot_army_value(data: ExperimentData, results_dir: str) -> None:
+def plot_army_count(data: ExperimentData, results_dir: str) -> None:
     """Line chart of army count over game time for the best greedy sim.
 
-    Written to ``army_value.png``.  Only rendered when the best sim has a
-    non-empty ``army_value_series`` list.
+    Written to ``army_count.png``.  Only rendered when the best sim has a
+    non-empty ``army_count_series`` list.
     """
     if not _HAS_MPL:
         return
     best = _best_sim(data)
-    if best is None or not best.army_value_series:
+    if best is None or not best.army_count_series:
         return
 
-    series = best.army_value_series
+    series = best.army_count_series
     xs = [pt[0] for pt in series]
     ys = [pt[1] for pt in series]
 
@@ -442,7 +442,7 @@ def plot_army_value(data: ExperimentData, results_dir: str) -> None:
     ax.set_xlabel("Game time (s)")
     ax.set_ylabel("Army count (units)")
     fig.tight_layout()
-    _save(fig, os.path.join(results_dir, "army_value.png"))
+    _save(fig, os.path.join(results_dir, "army_count.png"))
 
 
 # ---------------------------------------------------------------------------
@@ -581,9 +581,9 @@ def save_experiment_results(data: ExperimentData, results_dir: str) -> None:
         plot_resource_series(data, results_dir)
         sections.append(_img("resource_series.png", "Resources available over time"))
 
-        # 2h — Army value over time (best run).
-        plot_army_value(data, results_dir)
-        sections.append(_img("army_value.png", "Army count over time"))
+        # 2h — Army count over time (best run).
+        plot_army_count(data, results_dir)
+        sections.append(_img("army_count.png", "Army count over time"))
 
         # 2i — Build order (best run).
         plot_build_order(data, results_dir)

@@ -105,7 +105,7 @@ class GreedySimResult:
     # --- SC2 end-screen analytics (issue: build-order plots) ---
     supply_capped_fraction: float | None = None  # fraction of steps where food_used >= food_cap
     build_order: list | None = None           # [[game_time_s, unit_name], ...] — unit-build events
-    army_value_series: list | None = None     # [[game_time_s, army_count], ...] — sampled per step
+    army_count_series: list | None = None     # [[game_time_s, army_count], ...] — sampled per step
     resource_series: list | None = None       # [[game_time_s, minerals+vespene], ...] — sampled per step
 
     def __post_init__(self):
@@ -146,7 +146,7 @@ class GreedySimResult:
             xy_hist=data.get("xy_hist"),
             supply_capped_fraction=data.get("supply_capped_fraction"),
             build_order=data.get("build_order"),
-            army_value_series=data.get("army_value_series"),
+            army_count_series=data.get("army_count_series"),
             resource_series=data.get("resource_series"),
         )
 

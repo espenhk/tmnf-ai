@@ -373,7 +373,7 @@ Output directory: `experiments/sc2_<map>/<name>/results/`.
 | `outcome_breakdown.png` | At least one greedy sim has a non-None `termination_reason` | `plot_outcome_breakdown` |
 | `supply_capped.png` | At least one greedy sim has a non-None `supply_capped_fraction` | `plot_supply_capped` |
 | `resource_series.png` | The best greedy sim has a non-empty `resource_series` | `plot_resource_series` |
-| `army_value.png` | The best greedy sim has a non-empty `army_value_series` | `plot_army_value` |
+| `army_count.png` | The best greedy sim has a non-empty `army_count_series` | `plot_army_count` |
 | `build_order.png` | The best greedy sim has a non-empty `build_order` | `plot_build_order` |
 | `reward_trajectory.png` | Always | `plot_reward_trajectory` |
 | `results.md` | Always | Markdown report stitching the plots above with summary tables |
@@ -416,11 +416,11 @@ Bar chart showing the fraction of each greedy sim's steps where `food_used >= fo
 #### `resource_series.png` — Resources available over time (2g)
 Line chart of `minerals + vespene` over game time (seconds) for the **best** greedy sim (last improved, or last sim if none improved). A shaded region fills under the curve; a red dashed line marks the episode average. High average resources indicate the agent is collecting but not spending — an economy bottleneck rather than a production bottleneck.
 
-#### `army_value.png` — Army count over time (2h)
+#### `army_count.png` — Army count over time (2h)
 Line chart of `army_count` (total friendly army units) over game time for the **best** greedy sim. A shaded region fills under the curve. Reveals when army grows (training units) or collapses (combat losses). Flat at zero indicates the agent never builds an army.
 
 #### `build_order.png` — Unit-build timeline (2i)
-Horizontal scatter plot showing when each unit type was first detected built, for the **best** greedy sim. Each row on the y-axis is a distinct unit type (e.g. Marine, SCV, Zergling); dots on the x-axis mark build events in game-time seconds. A secondary x-axis above the chart shows `mm:ss` wall-clock labels. The build order is inferred from increases in `unit_count_*` observation features — it requires at least one game step where the count for a tracked unit type increases. Only unit types recognised by the rich observation preset (`Marine`, `SCV`, `Zergling`, `Drone`, `Probe`, `Stalker`, `Roach`, `Mutalisk`) appear in the plot.
+Horizontal scatter plot of unit-count increase events for the **best** greedy sim. Each row on the y-axis is a distinct unit type (e.g. Marine, SCV, Zergling); each dot marks a game-time moment when that unit type's count increased above its previous observed value (i.e. a unit of that type was built or spawned). Multiple dots per unit type are possible if several units are built over the episode. Starting units present at episode reset are excluded from the baseline so they are not recorded as "built" events. A secondary x-axis above the chart shows `mm:ss` wall-clock labels. Only unit types recognised by the rich observation preset (`Marine`, `SCV`, `Zergling`, `Drone`, `Probe`, `Stalker`, `Roach`, `Mutalisk`) appear in the plot.
 
 #### `reward_trajectory.png` — All phases on a single timeline
 Scatter plot of per-episode reward across **all** phases on one cumulative-simulation x-axis: probe (blue), cold-start (purple), greedy (orange), with vertical dotted boundaries between phases. A black step-line traces the running best-so-far. Useful for spotting how much of the gain came from each phase and whether the greedy phase plateaued early.
@@ -434,7 +434,7 @@ Scatter plot of per-episode reward across **all** phases on one cumulative-simul
 3. **Summary** — single paragraph with policy type, total sims, best reward, etc. (`_summary_md`)
 4. **Probe Phase** *(if probes were run)* — table of `(action, reward)` pairs + the probe-rewards plot
 5. **Cold-start Phase** *(if cold-start was run)* — table of `(restart, best_reward, beat_floor)` + the cold-start plot
-6. **Greedy Phase** *(if any greedy sims)* — table of `(sim, reward, improved, sigma, …)` + the greedy plot, and — when populated — the reward-components, action-frequency, obs-averages, spatial-heatmap, outcome-breakdown, supply-capped, resource-series, army-value, and build-order plots
+6. **Greedy Phase** *(if any greedy sims)* — table of `(sim, reward, improved, sigma, …)` + the greedy plot, and — when populated — the reward-components, action-frequency, obs-averages, spatial-heatmap, outcome-breakdown, supply-capped, resource-series, army-count, and build-order plots
 7. **Reward trajectory** — the best-episode trajectory plot
 
 ### Grid-search summary

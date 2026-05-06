@@ -219,7 +219,10 @@ class SC2Env(BaseGameEnv):
         self._ep_army_series = []
         self._ep_resource_series = []
         self._ep_build_order = []
-        self._ep_prev_unit_counts = {}
+        # Seed from the reset observation so units already present at episode
+        # start (e.g. starting SCVs) are not recorded as "built" build-order
+        # events on the first step.
+        self._ep_prev_unit_counts = dict(info.get("unit_counts") or {})
         self._reward_calc.reset()
         self._prev_game_loop = float(info.get("game_loop", 0.0))
 
@@ -317,15 +320,20 @@ class SC2Env(BaseGameEnv):
             if _ucount > _prev:
                 self._ep_build_order.append([_game_time_s, _uname])
             self._ep_prev_unit_counts[_uname] = _ucount
-        info["episode_supply_capped_fraction"] = (
-            self._ep_supply_capped_steps / self._ep_obs_step_count
-        )
-        info["episode_army_series"]     = self._ep_army_series
-        info["episode_resource_series"] = self._ep_resource_series
-        info["episode_build_order"]     = self._ep_build_order
 
         terminated = finished
         truncated = time_over and not terminated
+
+        # Only emit the large per-episode series into info at end of episode so
+        # mid-episode policy.update() calls are not burdened with copying/
+        # serialising O(n) lists on every step.
+        if terminated or truncated:
+            info["episode_supply_capped_fraction"] = (
+                self._ep_supply_capped_steps / self._ep_obs_step_count
+            )
+            info["episode_army_series"]     = self._ep_army_series
+            info["episode_resource_series"] = self._ep_resource_series
+            info["episode_build_order"]     = self._ep_build_order
 
         if finished:
             outcome = info.get("player_outcome")
