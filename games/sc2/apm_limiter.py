@@ -90,9 +90,10 @@ class ApmLimiter:
         now :
             Current wall-clock time (seconds).
         fn_idx :
-            Internal function index of the intended action.  Pass ``0`` (or
-            leave at the default ``-1`` to let the caller handle no-op
-            detection separately) for no-op.
+            Internal function index of the intended action.  Pass ``0`` for
+            no-op (always allowed, no token consumed).  Any other value —
+            including the default ``-1`` — is treated as a real action and
+            will consume a token when the budget allows.
 
         Returns
         -------

@@ -38,7 +38,7 @@ from gymnasium import spaces
 from framework.base_env import BaseGameEnv
 from framework.belief import EWMABelief
 from framework.info_gain import RegionStalenessTracker
-from games.sc2.actions import FUNCTION_IDS
+from games.sc2.actions import DISCRETE_ACTIONS, FUNCTION_IDS
 from games.sc2.apm_limiter import ApmLimiter
 from games.sc2.client import SC2Client
 from games.sc2.obs_spec import MINIGAME_NAMES, get_spec
@@ -270,7 +270,7 @@ class SC2Env(BaseGameEnv):
         _now = time.monotonic()
         _fn_idx_requested = int(action[0]) if len(action) > 0 else 0
         if self._apm_limiter is not None and not self._apm_limiter.allow(_now, _fn_idx_requested):
-            action = np.array([0.0, 0.5, 0.5, 0.0], dtype=np.float32)
+            action = DISCRETE_ACTIONS[0].copy()
             _apm_throttled = True
             self._ep_apm_throttled_steps += 1
         else:
@@ -280,7 +280,7 @@ class SC2Env(BaseGameEnv):
         obs = self._make_obs(flat_obs, info)
 
         self._step_count += 1
-        self._elapsed_s = _now - self._episode_start_s
+        self._elapsed_s = time.monotonic() - self._episode_start_s
 
         # Override the prev-* entries the client cannot know about.
         info["prev_minerals"] = self._prev_minerals
