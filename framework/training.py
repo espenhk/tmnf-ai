@@ -296,9 +296,7 @@ def _log_new_best_details(info: dict, prev_best_info: dict | None) -> None:
             if abs(v) > 0.001:
                 pv = prev_rc.get(k)
                 cmp_s = f" (prev {pv:+.1f})" if pv is not None else ""
-                parts.append(f"{k}={v:+.1f}{cmp_s}")
-        if parts:
-            logger.info("    components: %s", "  ".join(parts))
+                logger.info(f"{k}={v:+.1f}{cmp_s}")
 
     # 2. Action-frequency breakdown (SC2Env only) ----------------------------
     ac = info.get("episode_action_counts")
@@ -324,9 +322,7 @@ def _log_new_best_details(info: dict, prev_best_info: dict | None) -> None:
                     cmp_s = f" (prev {ppct:.1f}%)"
                 else:
                     cmp_s = ""
-                parts.append(f"{name}={pct:.1f}%{cmp_s}")
-            if parts:
-                logger.info("    actions: %s", "\n".join(parts))
+                logger.info(f"{name}={pct:.1f}%{cmp_s}")
 
     # 3. TMNF task metrics ---------------------------------------------------
     progress = info.get("track_progress")
@@ -368,9 +364,7 @@ def _log_new_best_details(info: dict, prev_best_info: dict | None) -> None:
             if v is not None and abs(v) > 0.001:
                 pv = prev_avgs.get(k)
                 cmp_s = f" (prev {pv:.1f})" if pv is not None else ""
-                parts.append(f"{k}={v:.1f}{cmp_s}")
-        if parts:
-            logger.info("    game_state: %s", "  ".join(parts))
+                logger.info(f"{k}={v:.1f}{cmp_s}")
 
 
 def _print_action_stats(throttle_counts: list[int], turning_steps: int,
