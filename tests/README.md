@@ -1,6 +1,6 @@
 # Tests
 
-873 tests across 47 files. Runs in ~30 seconds via `python -m pytest tests/`.
+1112 tests across 58 files. Runs in ~30 seconds via `python -m pytest tests/`.
 
 ## Coverage at a glance
 
