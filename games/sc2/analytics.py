@@ -118,11 +118,12 @@ def plot_action_frequency(data: ExperimentData, results_dir: str) -> None:
     row_totals[row_totals == 0] = 1
     fracs_mat = counts_mat / row_totals
 
-    # Entropy per sim.
-    eps = 1e-12
-    entropy = -np.sum(
-        fracs_mat * np.log2(fracs_mat + eps), axis=1
-    )
+    # Entropy per sim. Compute log2 only where p > 0 so zero-probability
+    # terms contribute exactly 0 without biasing nonzero probabilities.
+    log_fracs = np.zeros_like(fracs_mat)
+    positive = fracs_mat > 0
+    log_fracs[positive] = np.log2(fracs_mat[positive])
+    entropy = -np.sum(fracs_mat * log_fracs, axis=1)
 
     # Aggregate totals.
     agg_counts = counts_mat.sum(axis=0)
