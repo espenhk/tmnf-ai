@@ -65,10 +65,10 @@ loop end-to-end on a real env.
 - experiment-data round-trip / load missing raises / valid JSON
 - creates results dir; produces summary; infers summary dir; skips missing; detects varied keys
 
-### test_redo_analytics.py (19) — `redo_analytics.py` re-generation script
+### test_redo_analytics.py (20) — `redo_analytics.py` re-generation script
 - game detection: SC2 inferred from `map_name` / `agent_race`; TMNF default; empty params → TMNF
 - analytics loader: tmnf returns callables; unknown game falls back gracefully
-- single experiment: regenerates results.md / greedy_rewards.png; no summary without `--summary-name`; summary produced when `--summary-name` given; missing dir skipped without crash
+- single experiment: regenerates results.md / greedy_rewards.png; no summary without `--summary-name`; summary produced when `--summary-name` given; missing dir skipped without crash; `--no-individual` without summary raises ValueError
 - multiple experiments: summary.md written; contains experiment names; individual results regenerated; `--no-individual` skips results.md but writes summary; summary dir inferred from common parent; default summary name is 'combined'; missing experiment skipped; SC2 auto-detected and run without crash
 
 ### test_curiosity.py (12) — ICM/RND curiosity bonuses

@@ -22,6 +22,8 @@ def _make_data(
     track: str = "a03_centerline",
     reward: float = 100.0,
     training_params: dict | None = None,
+    weights_file: str | None = None,
+    reward_config_file: str | None = None,
 ) -> ExperimentData:
     params = training_params or {"speed": 10.0, "n_sims": 5, "mutation_scale": 0.05}
     return ExperimentData(
@@ -39,8 +41,8 @@ def _make_data(
             ),
         ],
         probe_floor=None,
-        weights_file=f"experiments/{track}/{name}/policy_weights.yaml",
-        reward_config_file=f"experiments/{track}/{name}/reward_config.yaml",
+        weights_file=weights_file or f"experiments/{track}/{name}/policy_weights.yaml",
+        reward_config_file=reward_config_file or f"experiments/{track}/{name}/reward_config.yaml",
         training_params=params,
         timings={"start": "2026-01-01 00:00:00", "end": "2026-01-01 01:00:00",
                  "total_s": 3600.0, "greedy_s": 3600.0},
@@ -50,10 +52,25 @@ def _make_data(
 
 def _write_experiment(base_dir: str, name: str, **kwargs) -> str:
     """Write experiment_data.json to base_dir/name/results/ and return the experiment dir."""
-    data = _make_data(name, **kwargs)
     experiment_dir = os.path.join(base_dir, name)
     results_dir = os.path.join(experiment_dir, "results")
     os.makedirs(results_dir)
+
+    # Write minimal YAML files inside the experiment dir so analytics can run
+    # without FileNotFoundError (e.g. plot_weight_heatmap opens weights_file).
+    weights_file = os.path.join(experiment_dir, "policy_weights.yaml")
+    reward_config_file = os.path.join(experiment_dir, "reward_config.yaml")
+    with open(weights_file, "w") as f:
+        f.write("{}\n")  # no steer_weights key → heatmap skips gracefully
+    with open(reward_config_file, "w") as f:
+        f.write("progress_weight: 10000.0\n")
+
+    data = _make_data(
+        name,
+        weights_file=weights_file,
+        reward_config_file=reward_config_file,
+        **kwargs,
+    )
     save_experiment_data_json(data, results_dir)
     return experiment_dir
 
@@ -148,6 +165,14 @@ class TestRedoAnalyticsSingle(unittest.TestCase):
             os.makedirs(bad_dir)  # dir exists but has no results/
             # Should not raise; just log error and return.
             redo_analytics([bad_dir], game="tmnf")
+
+    def test_no_individual_without_summary_name_raises(self):
+        from redo_analytics import redo_analytics
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            d = _write_experiment(tmpdir, "exp1")
+            with self.assertRaises(ValueError):
+                redo_analytics([d], game="tmnf", no_individual=True)
 
 
 # ---------------------------------------------------------------------------

@@ -132,6 +132,20 @@ def redo_analytics(
             effective_game = _detect_game(data.training_params)
             logger.info("Auto-detected game: %s", effective_game)
 
+        # Normalize path fields: if the stored path doesn't exist (e.g. because
+        # the experiment was moved or generated on another machine), fall back to
+        # a same-named file inside the experiment directory itself.
+        for attr, filename in (
+            ("weights_file", "policy_weights.yaml"),
+            ("reward_config_file", "reward_config.yaml"),
+        ):
+            stored = getattr(data, attr)
+            if stored and not os.path.exists(stored):
+                candidate = os.path.join(d, filename)
+                if os.path.exists(candidate):
+                    setattr(data, attr, candidate)
+                    logger.debug("Remapped %s → %s", attr, candidate)
+
         loaded.append((d, data))
         best = max((s.reward for s in data.greedy_sims), default=float("-inf"))
         logger.info("  Loaded %-50s  best_reward=%+.1f", data.experiment_name, best)
@@ -153,6 +167,11 @@ def redo_analytics(
     # Combined summary when requested or when multiple experiments are present.
     do_summary = len(loaded) > 1 or summary_name is not None
     if not do_summary:
+        if no_individual:
+            raise ValueError(
+                "--no-individual was set but no summary will be written: "
+                "pass --summary-name or provide multiple experiments."
+            )
         return
 
     name = summary_name or "combined"
