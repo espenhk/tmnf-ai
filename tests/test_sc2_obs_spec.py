@@ -99,8 +99,9 @@ class TestSC2ObsSpec(unittest.TestCase):
                                    f"{d.name} has no description")
 
     def test_rich_spec_contains_new_feature_names(self):
-        """Issue #: selected-extra, screen-visibility, antiair, weapon-cooldown
-        dims must appear in the rich spec and must NOT appear in the ladder spec."""
+        """New rich-only dims (selected-extras, screen-visibility, antiair,
+        weapon-cooldown) must be present in the rich spec and absent from the
+        ladder spec."""
         new_rich_only = (
             "selected_avg_shields",
             "selected_avg_energy",
