@@ -62,3 +62,8 @@ def test_framework_analytics_importable_without_matplotlib():
 def test_tmnf_analytics_importable_without_matplotlib():
     """games.tmnf.analytics must not raise ImportError when matplotlib is absent."""
     _import_without_matplotlib("games.tmnf.analytics")
+
+
+def test_sc2_analytics_importable_without_matplotlib():
+    """games.sc2.analytics must not raise ImportError when matplotlib is absent."""
+    _import_without_matplotlib("games.sc2.analytics")
