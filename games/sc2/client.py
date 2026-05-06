@@ -68,10 +68,13 @@ _player_field_names_cache: tuple[str, ...] | None = None
 def _get_score_field_names() -> tuple[str, ...]:
     """Return ``score_cumulative`` field names, sourced from PySC2 if available.
 
-    The PySC2 ``ScoreCumulative`` namedtuple has 13 fields.  We rename ``score``
-    to ``score_total`` to avoid confusion with the reward signal.  When pysc2 is
-    not installed (e.g. in unit tests) we fall back to our hardcoded list, which
-    is kept in sync with the PySC2 ordering.
+    The PySC2 ``ScoreCumulative`` namedtuple defines these fields; we rename
+    ``score`` to ``score_total`` to avoid confusion with the reward signal.
+    When pysc2 is not installed (e.g. in unit tests) we fall back to our
+    hardcoded list, which is kept in sync with the PySC2 ordering.
+    If a future PySC2 version adds or renames fields, the live path picks up
+    the change automatically; the fallback path would then need a manual
+    update to stay in sync.
     """
     global _score_field_names_cache
     if _score_field_names_cache is None:
@@ -97,8 +100,10 @@ def _get_player_field_names() -> tuple[str, ...]:
     """Return ``player`` vector field names, sourced from PySC2 if available.
 
     Excludes ``player_id`` (fixed per game; only meaningful in multi-agent
-    settings).  The remaining 10 fields are used by both the ladder and rich
-    presets.
+    settings).  When pysc2 is not installed we fall back to a hardcoded list
+    matching the current PySC2 ``Player`` namedtuple minus ``player_id``.
+    If a future PySC2 version adds new player fields, the live path picks them
+    up; the fallback list would need a manual update in that case.
     """
     global _player_field_names_cache
     if _player_field_names_cache is None:
@@ -894,10 +899,12 @@ class SC2Client:
     def _alerts_features(self, ob: Any) -> dict[str, float]:
         """Number of active PySC2 alerts this step.
 
-        ``obs.observation["alerts"]`` is a variable-size tensor (usually empty,
-        occasionally 1–2 entries) emitted when the player is under major attack.
-        We collapse it to a single count scalar so the policy receives a direct
-        "under attack" signal without needing to handle variable-size arrays.
+        ``obs.observation["alerts"]`` is a variable-size tensor emitted when
+        the player is under major attack (see PySC2 docs: "Actions and
+        Observations → Structured → Alerts").  The array is usually empty and
+        at most 2 entries long.  We collapse it to a single count scalar so the
+        policy receives a direct "under attack" signal without needing to handle
+        variable-size arrays.
         """
         alerts = self._safe_array(ob, "alerts")
         return {"alert_count": float(alerts.size) if alerts is not None else 0.0}
