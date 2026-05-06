@@ -173,6 +173,45 @@ class TestExperimentDataSerialization:
         assert s1.mean_abs_lateral_offset is None
         assert s1.reward_components is None
 
+    def test_round_trip_sc2_analytics_fields(self):
+        """action_counts, obs_averages, xy_hist survive round-trip.
+
+        JSON serialises int dict keys as strings; the loader must restore them
+        to int so callers continue to index by fn_idx integer.
+        """
+        from framework.analytics import ExperimentData, GreedySimResult
+        hist = [[i + j for j in range(8)] for i in range(8)]
+        data = ExperimentData(
+            experiment_name="sc2_fields_test",
+            probe_results=[], cold_start_restarts=[],
+            greedy_sims=[
+                GreedySimResult(
+                    sim=1, reward=5.0, improved=True,
+                    throttle_counts=[0, 0, 0], total_steps=50,
+                    action_counts={0: 10, 1: 5, 2: 85},
+                    obs_averages={"army_count": 3.0, "minerals": 150.0},
+                    xy_hist=hist,
+                ),
+                GreedySimResult(
+                    sim=2, reward=3.0, improved=False,
+                    throttle_counts=[0, 0, 0], total_steps=50,
+                ),
+            ],
+            probe_floor=None, weights_file="", reward_config_file="",
+            training_params={}, timings={},
+        )
+        recovered = experiment_from_dict(json.loads(experiment_to_json(data)))
+        s0 = recovered.greedy_sims[0]
+        # action_counts keys must come back as int, not str.
+        assert s0.action_counts == {0: 10, 1: 5, 2: 85}
+        assert all(isinstance(k, int) for k in s0.action_counts)
+        assert s0.obs_averages == {"army_count": 3.0, "minerals": 150.0}
+        assert s0.xy_hist == hist
+        s1 = recovered.greedy_sims[1]
+        assert s1.action_counts is None
+        assert s1.obs_averages is None
+        assert s1.xy_hist is None
+
     def test_numpy_arrays_serialised(self):
         """Numpy arrays in RunTrace should be serialised to lists without error."""
         try:

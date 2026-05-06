@@ -40,9 +40,10 @@ Terraform stack under `infrastructure/`; the Windows bootstrap script
 `setup_and_run.ps1`; long convergence behaviour of the actual `train_rl()`
 loop end-to-end on a real env.
 
-### test_analytics_no_matplotlib.py (2) — analytics importable when matplotlib missing
+### test_analytics_no_matplotlib.py (3) — analytics importable when matplotlib missing
 - framework analytics import works without matplotlib
 - TMNF analytics import works without matplotlib
+- SC2 analytics import works without matplotlib
 
 ### test_analytics_task_metrics.py (17) — `TaskMetrics` dataclass + summary table formatting
 - new fields default to `None`; finish_time / lateral_offset / reward_components stored
@@ -69,9 +70,9 @@ loop end-to-end on a real env.
 ### test_discretize_obs.py (6) — continuous→discrete obs binning
 - zero→middle bin; clipped high→max; clipped low→min; symmetry; tuple-of-int return; length matches obs_dim
 
-### test_distributed.py (20) — coordinator/worker protocol + HTTP server
+### test_distributed.py (21) — coordinator/worker protocol + HTTP server
 - ComboSpec round-trip + JSON serialisable; ResultPayload round-trip + valid JSON
-- payload preserves greedy_sims / throttle counts / trace / none-trace / metadata / task-metric fields
+- payload preserves greedy_sims / throttle counts / trace / none-trace / metadata / task-metric fields / SC2 analytics fields
 - numpy arrays serialised
 - HTTP: serves all combos / status endpoint / result accepted + done event
 - unknown combo rejected; duplicate result ignored; stale worker re-queued; heartbeat prevents requeue
@@ -84,7 +85,7 @@ loop end-to-end on a real env.
 ### test_env_termination.py (7) — `_classify_termination()`
 - finish / crash / hard-crash / timeout / still-running; finish > crash priority; reason key always present
 
-### test_game_adapter.py (26) — TMNF/TORCS/SC2/BeamNG adapter abstractions
+### test_game_adapter.py (30) — TMNF/TORCS/SC2/BeamNG adapter abstractions
 - registry: all games registered; adapter instantiable
 - TMNF: experiment_dir includes track / track override / track_label default+override / build_probe / build_warmup / build_extras / decorate_reward_cfg
 - TORCS: experiment_dir root / dir / track_label default+override / build_probe/warmup/extras = None
@@ -272,8 +273,12 @@ section (≈250 tests) because both the minigame and Simple64 ladder paths,
 plus six policy variants and three obs encodings (flat / dict / spatial),
 have to be covered.
 
-**Tested.** All three observation specs (13-dim minigame, 43-dim ladder,
-95-dim rich) and the get-spec dispatch; the 9-cell discrete action grid
+**Tested.** All three observation specs (15-dim minigame, 45-dim ladder,
+97-dim rich) and the get-spec dispatch; the minimap enemy centroid
+(`minimap_enemy_cx/cy`) that enables the policy to locate the beacon even
+when it is off the current camera view (beacon-idling fix); the `_action_to_call`
+no-spam fix (blocked Move_screen issues select_army once, then no_op on
+consecutive blocked steps); the 9-cell discrete action grid
 (centre = `select_army`, others = `Move_screen`); the SC2 reward calculator
 (score delta, win bonus, loss penalty, economy weight, idle penalty, step
 penalty); the SC2 client wrapper (flat-obs construction, score-delta
@@ -287,10 +292,13 @@ from both parents, evolution, champion YAML round-trip, `from_cfg` defaulting
 missing features to zero); the masked DQN with action-availability masking,
 including a regression test that an illegal action is never bootstrapped from;
 the CNN encoder + CMA-ES variant with spatial obs; the `play_sc2.py` script's
-policy loading, episode loop, lifecycle hooks and outcome handling; and a
+policy loading, episode loop, lifecycle hooks and outcome handling; a
 Simple64-specific integration suite that runs every supported policy through one
 training-loop iteration against a mocked env, plus trainer-state save/load
-round-trips for cmaes and neural_dqn.
+round-trips for cmaes and neural_dqn; and the SC2-specific analytics module
+(`SUPPORTS_THROTTLE`/`SUPPORTS_PATH` flags, action-frequency breakdown, obs
+feature averages, spatial heatmap, outcome breakdown, and the full
+`save_experiment_results` integration including that no racing plots appear).
 
 **Not tested.** PySC2 against the actual Blizzard SC2 binary; real
 1v1 games against the built-in bot; minimap rendering; the deferred
@@ -298,23 +306,26 @@ fog-of-war belief machinery beyond the standalone `test_belief.py`
 encoder; long-horizon RL convergence on Simple64 (loops are run for a
 handful of iterations only).
 
-### test_sc2_obs_spec.py (8) — SC2 obs spec
-- minigame dim; ladder dim; ladder extends minigame; default = minigame; get_spec for minigame / ladder; minigame count; obs_names match dims
+### test_sc2_obs_spec.py (16) — SC2 obs spec
+- minigame dim (15); ladder dim (45); ladder extends minigame; default = minigame; get_spec for minigame / ladder; minigame count; obs_names match dims
+- minimap_enemy_cx/cy present in all presets (minigame, ladder, rich)
 
-### test_sc2_actions.py (10) — discrete action grid
+### test_sc2_actions.py (14) — discrete action grid
 - shape / dtype / xy in unit square; centre = select_army; others = move_screen
 - probe actions count / shape; warmup shape / select_army; function_ids table complete
 
-### test_sc2_reward.py (13) — SC2 reward calc
+### test_sc2_reward.py (23) — SC2 reward calc
 - defaults; from_yaml; unknown raises; loads bundled config
 - score delta; step penalty only; step penalty n_ticks scaling; win bonus; loss penalty; no-outcome no bonus; economy weight; idle penalty when idle / not when busy
 
-### test_sc2_client.py (24) — PySC2 client wrapper
+### test_sc2_client.py (46) — PySC2 client wrapper
 - minigame flat obs shape; score-delta threading; player_relative centroid; terminal outcome recorded
 - ladder flat obs shape; visibility tracking; fogged ≠ visible; ladder terminal outcome; non-terminal = None
 - rich extractors (#135): enemy unit-type counts (owner filter, missing field, unknown type); shield/energy (self shield mean, no units, None screen); creep (half coverage, no creep, None minimap); economy pipeline (upgrade count, build queue, cargo, all missing); rich spec contains new names; ladder spec unchanged
+- minimap enemy centroid: minimap_enemy_cx/cy computed from player_relative==4 layer; correct when beacon present; zero when no beacon on minimap (edge case)
+- action fallback (#124, beacon-idling fix): blocked Move_screen → select_army once, then no_op on consecutive blocked steps; pending flag cleared when Move_screen available; no_op action passes through unchanged
 
-### test_sc2_env.py (15) — SC2 env wrapper
+### test_sc2_env.py (18) — SC2 env wrapper
 - minigame obs space; action space shape+bounds; ladder obs space; episode time-limit get/set
 - reset returns obs+info; step 5-tuple; score-delta reward; done terminates; loss outcome
 - close calls client.close; info keys; prev_score threaded; custom reward config
@@ -356,7 +367,7 @@ handful of iterations only).
 - Save: yaml / champion lossless / cfg policy_type=sc2_genetic / from_cfg roundtrip / restores champion / no champion key OK
 - Call: 4-vec after init / raises before init
 
-### test_sc2_neural_dqn_policy.py (37) — masked DQN for SC2
+### test_sc2_neural_dqn_policy.py (17) — masked DQN for SC2
 - fn_idx_for_cell: centre=select_army / others=move_screen / consistent / int
 - Available mask: None=all true / empty=all false / select_army only / move_screen only / both / dtype bool
 - Masked replay buffer: push+len / default mask all true / 6-tuple sample / mask shape / preserves mask / circular eviction
@@ -370,6 +381,13 @@ handful of iterations only).
 - CNN: flat_dim formula / varies w/ channels / forward shapes / callable returns 4-vec / with_flat roundtrip / wrong size raises / non-dict obs raises / flat-concat dim
 - CMA-ES: pop size / sample correct count / individuals callable / update returns bool / champion improves / champion callable / wrong rewards raises / no sample raises / σ adapts / trainer-state roundtrip / save+load champion
 - Spatial obs: flat space when no layers / dict space when layers / spatial shape matches channels / reset dict obs / fills zeros when none / step dict obs / spatial in info / normalised / no spatial when no layers
+
+### test_sc2_reinforce_policy.py (39) — REINFORCE policy for SC2
+- Action: 4-vec shape / fn_idx in range / x+y in unit square / queue=0
+- Buffers: episode buffer fills / clears on end / empty end no-op
+- Gradient: weights change after update / direction improves expected action
+- Available-actions masking: illegal fn_idx masked out / mask updates from info kwarg
+- Serialisation: cfg keys / policy_type / from_cfg roundtrip / save+reload / wrong obs dim raises
 
 ### test_sc2_play.py (21) — `play_sc2.py` script
 - Missing weights raises; loads sc2_multi_head for sc2_genetic / correct weights / neural_dqn / reinforce / lstm; cmaes no policy_type → SC2Linear; unknown → SC2Linear
@@ -386,6 +404,15 @@ handful of iterations only).
 - Per-policy on Simple64: epsilon_greedy / mcts / neural_dqn shape+update / cmaes sample+update / reinforce shape+episode / lstm shape / lstm-evolution sample+update
 - Training loops (mocked env): sc2_genetic / cmaes / neural_dqn / reinforce / lstm
 - Trainer state roundtrips: cmaes / neural_dqn
+
+### test_sc2_analytics.py (29) — SC2-specific analytics plots and flags
+- `SUPPORTS_THROTTLE=False` / `SUPPORTS_PATH=False` flags
+- `GreedySimResult` new fields: `action_counts` / `obs_averages` / `xy_hist` — default None; stored correctly
+- `plot_action_frequency`: renders to file / skips when no data / skips when no sims / single fn_idx
+- `plot_obs_averages`: renders to file / skips when no data / skips when all-zero / unknown feature key safe
+- `plot_spatial_heatmap`: renders to file / skips when no data / skips all-zero hist / partial None sims ignored
+- `plot_outcome_breakdown`: renders to file / skips when all None / skips when no sims / win+loss ladder
+- `save_experiment_results`: writes results.md / writes SC2 plots / mentions game / no crash empty sims / no racing plots written
 
 ## CLI / misc
 
@@ -424,4 +451,4 @@ These tests look heavy because of the names ("training loop", "env reset", "DQN 
 6. **Filesystem work uses `tmp_path`** (RAM-backed `/tmp`), and the only network is `test_distributed.py` binding `localhost` for HTTP coordinator tests — which is why that's the one file with `time.sleep` and is still milliseconds because it talks to itself.
 7. **Heavy collection work is amortised.** `pytest`'s ~half-second startup + 41 collection modules is a big share of the wall clock; once collected, 740 mostly-arithmetic asserts run in about 30 µs each.
 
-Roughly: 740 tests × ~25 ms average = ~18 s of work + ~7 s of import/collection — fits the 25 s budget exactly because nothing in the suite waits on a game tick, a network packet, or a GPU.
+Roughly: 854 tests × ~25 ms average = ~21 s of work + ~7 s of import/collection — fits the 30 s budget exactly because nothing in the suite waits on a game tick, a network packet, or a GPU.
