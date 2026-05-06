@@ -983,7 +983,7 @@ class SC2CMAESPolicy:
 
     def sample_population(self) -> list[SC2MultiHeadLinearPolicy]:
         n = self._n
-        if self._gen - self._eigengen >= max(1, self._lam // max(1, 10 * n)):
+        if self._gen - self._eigengen >= max(1, int(self._lam / (10 * n))):
             self._update_eigen()
 
         self._pop_xs = []
@@ -1227,6 +1227,8 @@ class SC2LSTMPolicy:
         self._h = np.zeros(h, dtype=np.float32)
         self._c = np.zeros(h, dtype=np.float32)
 
+        self._rng = np.random.default_rng(seed)
+
         # Available fn_ids cache (set by on_episode_start / update callers).
         self._available_fn_ids: set[int] | None = None
 
@@ -1266,6 +1268,7 @@ class SC2LSTMPolicy:
         obj._obs_dim          = self._obs_dim
         obj._scales           = self._scales
         obj._reset_on_episode = self._reset_on_episode
+        obj._rng              = np.random.default_rng()
         obj._available_fn_ids = None
 
         h    = self._hidden_size
@@ -1322,10 +1325,11 @@ class SC2LSTMPolicy:
         x  = (obs / self._scales).astype(np.float32)
         hx = np.concatenate([self._h, x])
 
-        f = _sigmoid(self._W_f @ hx + self._b_f)
-        i = _sigmoid(self._W_i @ hx + self._b_i)
+        _vsigmoid = lambda z: 1.0 / (1.0 + np.exp(-np.clip(z, -20.0, 20.0)))
+        f = _vsigmoid(self._W_f @ hx + self._b_f)
+        i = _vsigmoid(self._W_i @ hx + self._b_i)
         g = np.tanh(self._W_g  @ hx + self._b_g)
-        o = _sigmoid(self._W_o @ hx + self._b_o)
+        o = _vsigmoid(self._W_o @ hx + self._b_o)
 
         self._c = f * self._c + i * g
         self._h = o * np.tanh(self._c)
@@ -1343,8 +1347,8 @@ class SC2LSTMPolicy:
             fn_logits[0] = 0.0  # fallback to no_op
 
         fn_probs  = self._softmax(fn_logits)
-        fn_idx    = int(np.random.choice(N_FUNCTION_IDS, p=fn_probs))
-        cell_idx  = int(np.random.choice(N_LSTM_SPATIAL_CELLS,
+        fn_idx    = int(self._rng.choice(N_FUNCTION_IDS, p=fn_probs))
+        cell_idx  = int(self._rng.choice(N_LSTM_SPATIAL_CELLS,
                                          p=self._softmax(sp_logits)))
         x_out, y_out = float(_SPATIAL_GRID[cell_idx, 0]), float(_SPATIAL_GRID[cell_idx, 1])
         return np.array([fn_idx, x_out, y_out, 0.0], dtype=np.float32)
@@ -1364,7 +1368,7 @@ class SC2LSTMPolicy:
             self._available_fn_ids = set(available)
 
     # ------------------------------------------------------------------
-    # Serialisation — .npz compatible with LSTMEvolutionPolicy format
+    # Serialisation — YAML (to_cfg / from_cfg / save / load)
     # ------------------------------------------------------------------
 
     def to_cfg(self) -> dict:
@@ -1406,6 +1410,7 @@ class SC2LSTMPolicy:
         h          = obj._hidden_size
         obj._h     = np.zeros(h, dtype=np.float32)
         obj._c     = np.zeros(h, dtype=np.float32)
+        obj._rng   = np.random.default_rng()
         return obj
 
 

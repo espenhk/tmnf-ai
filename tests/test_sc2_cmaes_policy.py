@@ -141,9 +141,9 @@ class TestSC2CMAESPolicyMechanics(unittest.TestCase):
 class TestSC2CMAESPolicyMasking(unittest.TestCase):
 
     def test_masking_never_selects_unavailable_fn(self):
-        p = _make_policy(pop=4, seed=0) if False else SC2CMAESPolicy(
+        p = SC2CMAESPolicy(
             obs_spec=SC2_MINIGAME_OBS_SPEC, population_size=4,
-            initial_sigma=0.5, seed=0
+            initial_sigma=0.5, seed=0,
         )
         _run_one_generation(p)
         rng = np.random.default_rng(1)
