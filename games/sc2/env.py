@@ -265,7 +265,9 @@ class SC2Env(BaseGameEnv):
         info["episode_reward_components"] = dict(self._ep_reward_components)
 
         # Track per-episode action counts (analytics 2a).
-        _fn_idx = int(action[0]) if len(action) > 0 else 0
+        # Use the same sentinel as info["action_fn_idx"] when the action is empty
+        # so analytics and debug/reward-shaping metadata stay consistent.
+        _fn_idx = int(action[0]) if len(action) > 0 else -1
         self._ep_action_counts[_fn_idx] = self._ep_action_counts.get(_fn_idx, 0) + 1
         # Track 8×8 spatial-target histogram (analytics 2d).
         if len(action) >= 3:
