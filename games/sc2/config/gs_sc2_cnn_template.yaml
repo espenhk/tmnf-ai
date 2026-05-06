@@ -96,21 +96,21 @@ training_params:
   screen_size: 64
   minimap_size: 64
   agent_race: terran
-  n_sims: 40                  # 40 generations; total = n_sims × population_size × eval_episodes
+  n_sims: 100                  # 100 generations; total = n_sims × population_size × eval_episodes
   policy_type: sc2_cnn
-  obs_spec_preset: minigame   # 13-dim flat obs; CNN trunk handles spatial information
+  obs_spec_preset: rich
   screen_layers:
     - player_relative         # friend/foe/neutral (values 0–4)
     - unit_hit_points         # per-cell HP; allows health-aware spatial decisions
   minimap_layers: []          # no minimap channels in this sweep
+  population_size: [10, 20]
+  initial_sigma: [0.005, 0.01]
   policy_params:
-    population_size: [10, 20]
-    initial_sigma: [0.005, 0.01]
-    eval_episodes: 1
+    eval_episodes: 5
 
 reward_params:
   score_weight: 1.0
   step_penalty: -0.001
   win_bonus: 0.0
   loss_penalty: 0.0
-  idle_bonus: [0.0, 0.5]     # encourage no_op when enemies are in combat range
+  idle_bonus: 0.5     # encourage no_op when enemies are in combat range
