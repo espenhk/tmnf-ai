@@ -18,6 +18,7 @@
   - [test\_obs\_memory.py (7) — frame-stacking observation wrapper](#test_obs_memorypy-7--frame-stacking-observation-wrapper)
   - [test\_reward.py (44) — TMNF reward calculator + curiosity glue](#test_rewardpy-44--tmnf-reward-calculator--curiosity-glue)
   - [test\_train\_rl\_signature.py (4) — public `train_rl()` API](#test_train_rl_signaturepy-4--public-train_rl-api)
+  - [test\_new\_best\_logging.py (24) — `_log_new_best_details` + `_print_episode_summary`](#test_new_best_loggingpy-24--_log_new_best_details--_print_episode_summary)
   - [test\_utils.py (13) — math/state-extraction utils](#test_utilspy-13--mathstate-extraction-utils)
   - [test\_track.py (11) — centreline geometry helpers](#test_trackpy-11--centreline-geometry-helpers)
 - [TMNF policies](#tmnf-policies)
@@ -90,11 +91,13 @@ and the `tracks/registry.json` builder; grid-search Cartesian expansion +
 naming + nested `policy_params` promotion; the early-stop streak logic in
 both greedy and Q loops; the distributed coordinator/worker JSON protocol and
 the in-process HTTP server (work queue, heartbeat re-queue, auth);
-`train_rl()`'s public signature; that `framework.analytics` imports cleanly
-on a machine with no matplotlib; and the `redo_analytics.py` script
-(game auto-detection, single-experiment regeneration, multi-experiment
-summaries, `--no-individual`, inferred summary dir, graceful skip of missing
-experiments).
+`train_rl()`'s public signature; the new-best log helpers
+(`_log_new_best_details` per-component / action-frequency / TMNF / SC2 kill
+groups, `_print_episode_summary` compact format); that `framework.analytics`
+imports cleanly on a machine with no matplotlib; and the `redo_analytics.py`
+script (game auto-detection, single-experiment regeneration,
+multi-experiment summaries, `--no-individual`, inferred summary dir,
+graceful skip of missing experiments).
 
 **Not tested.** Real distributed training across multiple machines (only the
 in-process HTTP loopback is exercised); actual matplotlib rendering or PNG
@@ -188,6 +191,16 @@ loop end-to-end on a real env.
 
 ### test_train_rl_signature.py (4) — public `train_rl()` API
 - accepts game+config params; accepts optional specs; accepts control flags; no legacy flat params
+
+### test_new_best_logging.py (24) — `_log_new_best_details` + `_print_episode_summary`
+- `_print_episode_summary`: terminated/finished/truncated one-liner; `r=` and `steps=` present; laps and progress omitted
+- `_log_new_best_details` — empty info emits nothing
+- reward components: one log line per non-zero component; zero values omitted; prev comparison shown; no-prev no comparison
+- action frequency: one log line per action with SC2 function names; prev comparison shown
+- TMNF metrics: progress; lateral offset; finish time only when `finished=True`; prev comparison for progress + offset (all on one combined line)
+- SC2 kills: units + structures on one line; prev comparison; absent when key not in info; suppressed when both values zero
+- SC2 game-state averages: one log line per non-zero metric; zero values omitted; prev comparison
+- all five groups together emit seven lines (2 components + 2 actions + 1 progress + 1 kills + 1 game-state)
 
 ### test_utils.py (13) — math/state-extraction utils
 - vector magnitude: zero / unit / 3D / compute_speed alias
