@@ -102,7 +102,7 @@ class SC2Adapter:
                 minimap_layers=minimap_layers,
                 obs_spec_preset=obs_spec_preset,
                 enable_belief=enable_belief,
-                max_apm=training_params.get("max_apm"),
+                max_apm=training_params.get("max_apm", None),
                 apm_burst_s=training_params.get("apm_burst_s", 2.0),
             )
 
