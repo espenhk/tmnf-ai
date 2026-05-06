@@ -358,5 +358,8 @@ Best reward: **+27.8**
 ![Reward components](reward_components.png)
 
 
+![Outcome breakdown](outcome_breakdown.png)
+
+
 ![Reward trajectory](reward_trajectory.png)
 
