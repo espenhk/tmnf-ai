@@ -667,28 +667,40 @@ class SC2Client:
             raw = getattr(ob, "score_cumulative", None)
         if raw is None:
             return {n: 0.0 for n in names}
+        # Precompute the positional-fallback array once, outside the per-field
+        # loop.  For plain ndarray inputs every named-access attempt raises an
+        # exception; detecting that here avoids 13 × 2 exception catches per
+        # call and keeps the hot path clean.
+        pos_arr: np.ndarray | None
+        try:
+            pos_arr = raw if isinstance(raw, np.ndarray) else np.asarray(raw)
+            if pos_arr.ndim < 1:
+                pos_arr = None
+        except (TypeError, ValueError):
+            pos_arr = None
+
         out: dict[str, float] = {}
         for i, n in enumerate(names):
             # Prefer field-name access for robustness against PySC2 schema
             # changes.  The rename score → score_total means we also try the
-            # original PySC2 name ("score") for that entry.
+            # original PySC2 name ("score") for that entry.  Deduplicate when
+            # the two names are identical (every field except score_total).
             pysc2_name = "score" if n == "score_total" else n
+            attrs = (pysc2_name,) if pysc2_name == n else (pysc2_name, n)
             v = None
-            for attr in (pysc2_name, n):
+            for attr in attrs:
                 try:
                     v = float(raw[attr])
                     break
                 except (KeyError, IndexError, TypeError, ValueError):
                     pass
-            # Fall back to positional index when named access is unavailable
-            # (plain numpy arrays, older PySC2 versions, or unit-test stubs).
-            if v is None:
+            # Fall back to positional index when named access is unavailable.
+            if v is None and pos_arr is not None and i < pos_arr.size:
                 try:
-                    arr = np.asarray(raw)
-                    v = float(arr[i]) if arr.ndim >= 1 and i < arr.size else 0.0
+                    v = float(pos_arr[i])
                 except (IndexError, TypeError, ValueError):
-                    v = 0.0
-            out[n] = v
+                    pass
+            out[n] = v if v is not None else 0.0
         return out
 
     def _screen_hp_features(self, feat_screen: np.ndarray | None) -> dict[str, float]:
