@@ -161,25 +161,28 @@ class TestSC2Adapter:
         ("neural_net",    "sc2_neural_dqn"),
     ])
     def test_build_extras_rejects_incompatible_policy_type(self, bad_type, expected_hint):
-        """Incompatible policy types must raise ValueError with migration hint."""
+        """Incompatible policy types must raise ValueError naming the bad type and migration hint."""
         import os
         import tempfile
 
         a = self._adapter()
         with tempfile.TemporaryDirectory() as tmpdir:
             wf = os.path.join(tmpdir, "policy_weights.yaml")
-            with pytest.raises(ValueError, match=bad_type):
+            with pytest.raises(ValueError) as exc_info:
                 a.build_extras(wf, {"policy_type": bad_type}, False)
+            msg = str(exc_info.value)
+            assert bad_type in msg
+            assert expected_hint in msg
 
-    def test_build_extras_incompatible_type_error_contains_hint(self):
-        """ValueError for incompatible type includes a migration hint."""
+    def test_build_extras_incompatible_type_error_contains_docs_reference(self):
+        """ValueError for incompatible type includes a reference to the docs."""
         import os
         import tempfile
 
         a = self._adapter()
         with tempfile.TemporaryDirectory() as tmpdir:
             wf = os.path.join(tmpdir, "policy_weights.yaml")
-            with pytest.raises(ValueError, match="sc2_genetic"):
+            with pytest.raises(ValueError, match="CLAUDE.md"):
                 a.build_extras(wf, {"policy_type": "hill_climbing"}, False)
 
     # ------------------------------------------------------------------

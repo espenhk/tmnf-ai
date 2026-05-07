@@ -33,8 +33,10 @@ _SC2_MIGRATION_HINT: dict[str, str] = {
 }
 
 # Valid policy_params keys for each SC2-registered policy type.
-# Types absent from this map (epsilon_greedy, mcts) are framework policies
-# whose params are validated by the framework itself.
+# All types handled either here or in the factories dict are listed so that
+# unknown keys are caught early.  Note: epsilon_greedy and mcts also use
+# .get() for each param and silently ignore unknown keys — they are included
+# here to provide the same fail-fast guarantee as SC2-native types.
 _SC2_VALID_POLICY_PARAMS: dict[str, frozenset[str]] = {
     "sc2_genetic":    frozenset({
         "population_size", "elite_k", "mutation_scale", "mutation_share", "eval_episodes",
@@ -62,6 +64,10 @@ _SC2_VALID_POLICY_PARAMS: dict[str, frozenset[str]] = {
     "sc2_lstm":       frozenset({
         "hidden_size", "population_size", "initial_sigma", "reset_on_episode",
     }),
+    "epsilon_greedy": frozenset({
+        "epsilon", "n_bins", "epsilon_decay", "epsilon_min", "alpha", "gamma",
+    }),
+    "mcts":           frozenset({"c", "alpha", "gamma", "n_bins"}),
 }
 
 
@@ -82,7 +88,7 @@ def _validate_sc2_policy_config(policy_type: str, policy_params: dict) -> None:
             f"The framework {policy_type!r} policy clips fn_idx to [-1, 1] "
             f"and thresholds x/y to binary, which is incorrect for SC2 "
             f"(fn_idx ∈ [0, 5], x/y ∈ [0, 1] continuous).  "
-            f"Use {hint!r} instead — see CLAUDE.md §'SC2 > Supported policies'."
+            f"Use {hint!r} instead — see CLAUDE.md 'Supported policies' under 'StarCraft 2'."
         )
 
     if policy_type in _SC2_VALID_POLICY_PARAMS and policy_params:
@@ -543,6 +549,7 @@ class SC2Adapter:
             factories={
                 "sc2_genetic":   _make_sc2_genetic,
                 "neural_dqn":    _make_neural_dqn,
+                "sc2_neural_dqn": _make_sc2_neural_dqn,
                 "cmaes":         _make_cmaes,
                 "reinforce":     _make_reinforce,
                 "sc2_reinforce": _make_sc2_reinforce,
@@ -554,6 +561,7 @@ class SC2Adapter:
             loop_dispatch={
                 "sc2_genetic":   "genetic",
                 "neural_dqn":    "q_learning",
+                "sc2_neural_dqn": "q_learning",
                 "cmaes":         "cmaes",
                 "reinforce":     "q_learning",
                 "sc2_reinforce": "q_learning",
