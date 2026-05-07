@@ -579,8 +579,16 @@ def _normalise_rewards_for_summary(data: ExperimentData) -> ExperimentData:
         return data
     reward_cfg: dict[str, float] = {}
     if data.reward_config_file and os.path.exists(data.reward_config_file):
-        with open(data.reward_config_file) as f:
-            reward_cfg = yaml.safe_load(f) or {}
+        try:
+            with open(data.reward_config_file) as f:
+                reward_cfg = yaml.safe_load(f) or {}
+        except yaml.YAMLError as exc:
+            logger.warning(
+                "SC2 reward normalisation: failed to parse reward config %s (%s); "
+                "falling back to neutral scales.",
+                data.reward_config_file,
+                exc,
+            )
     sims = [
         dataclasses.replace(sim, reward=_normalised_reward_for_sim(sim, reward_cfg))
         for sim in data.greedy_sims

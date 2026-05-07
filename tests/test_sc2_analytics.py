@@ -438,6 +438,44 @@ class TestSaveGridSummary(unittest.TestCase):
             forwarded_sim = forwarded_runs[0][1].greedy_sims[0]
             self.assertAlmostEqual(forwarded_sim.reward, 12.5, places=6)
 
+    def test_normalises_multiple_sims_independently(self):
+        with tempfile.TemporaryDirectory() as d:
+            reward_cfg_path = os.path.join(d, "reward_config.yaml")
+            with open(reward_cfg_path, "w", encoding="utf-8") as f:
+                f.write("score_weight: 10.0\nstep_penalty: -2.0\n")
+
+            sims = [
+                _make_sim(sim=1, reward=20.0, reward_components={"score": 20.0}),
+                _make_sim(sim=2, reward=-6.0, reward_components={"step_penalty": -6.0}),
+            ]
+            data = _make_experiment(sims, name="exp_c")
+            data.reward_config_file = reward_cfg_path
+
+            with mock.patch("games.sc2.analytics._framework_save_grid_summary") as m:
+                save_grid_summary([("exp_c", data)], [], d, "gs_test")
+
+            forwarded_runs = m.call_args.args[0]
+            forwarded_sims = forwarded_runs[0][1].greedy_sims
+            self.assertAlmostEqual(forwarded_sims[0].reward, 2.0, places=6)
+            self.assertAlmostEqual(forwarded_sims[1].reward, -3.0, places=6)
+
+    def test_malformed_reward_config_yaml_does_not_crash(self):
+        with tempfile.TemporaryDirectory() as d:
+            reward_cfg_path = os.path.join(d, "reward_config.yaml")
+            with open(reward_cfg_path, "w", encoding="utf-8") as f:
+                f.write("score_weight: [1.0\n")
+
+            sim = _make_sim(sim=1, reward=5.0, reward_components={"score": 5.0})
+            data = _make_experiment([sim], name="exp_d")
+            data.reward_config_file = reward_cfg_path
+
+            with mock.patch("games.sc2.analytics._framework_save_grid_summary") as m:
+                save_grid_summary([("exp_d", data)], [], d, "gs_test")
+
+            forwarded_runs = m.call_args.args[0]
+            forwarded_sim = forwarded_runs[0][1].greedy_sims[0]
+            self.assertAlmostEqual(forwarded_sim.reward, 5.0, places=6)
+
 
 # ---------------------------------------------------------------------------
 # GreedySimResult new fields (supply_capped_fraction, build_order, series)
