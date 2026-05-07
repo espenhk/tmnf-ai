@@ -311,11 +311,15 @@ class SC2RewardCalculator(RewardCalculatorBase):
         click_attack_bonus = 0.0
         if info.get("action_fn_idx") == 3:
             screen_size = float(info.get("screen_size", 64))
+            # Use (screen_size - 1) to match the client's pixel conversion:
+            # x_screen = int(clip(norm, 0, 1) * (screen_size - 1))
+            # Centroids from _centroid() are raw pixel indices in [0, screen_size-1].
+            scale = max(1.0, screen_size - 1.0)
             enemy_count = info.get("screen_enemy_count", 0.0)
             tx_norm = float(info.get("action_target_x", 0.5))
             ty_norm = float(info.get("action_target_y", 0.5))
-            tx_px = tx_norm * screen_size
-            ty_px = ty_norm * screen_size
+            tx_px = tx_norm * scale
+            ty_px = ty_norm * scale
             ecx = float(info.get("screen_enemy_cx", 0.0))
             ecy = float(info.get("screen_enemy_cy", 0.0))
             click_radius_px = self._CLICK_ATTACK_RADIUS_FRAC * screen_size
@@ -361,12 +365,14 @@ class SC2RewardCalculator(RewardCalculatorBase):
             self_count = float(info.get("screen_self_count", 0.0))
             if self_count > 0:
                 screen_size = max(1.0, float(info.get("screen_size", 64)))
+                # Use (screen_size - 1) to match client pixel conversion.
+                scale = max(1.0, screen_size - 1.0)
                 scx = float(info.get("screen_self_cx", 0.0))
                 scy = float(info.get("screen_self_cy", 0.0))
                 tx_norm = float(info.get("action_target_x", 0.5))
                 ty_norm = float(info.get("action_target_y", 0.5))
-                tx_px = tx_norm * screen_size
-                ty_px = ty_norm * screen_size
+                tx_px = tx_norm * scale
+                ty_px = ty_norm * scale
                 dx = tx_px - scx
                 dy = ty_px - scy
                 dist = (dx * dx + dy * dy) ** 0.5
