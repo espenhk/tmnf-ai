@@ -328,6 +328,51 @@ class TestSC2MoveShaping(unittest.TestCase):
         )
         self.assertAlmostEqual(r, -2.0)
 
+    def test_stutter_step_below_threshold_gets_no_exploration_bonus(self):
+        """A tiny move (well below _MOVE_MIN_MEANINGFUL_FRAC) earns no bonus."""
+        calc = self._make_calc(move_repeat_penalty=0.0, move_self_penalty=0.0)
+        # dist = 2/64 ≈ 0.03125 — well below the 6/64 meaningful threshold
+        r = calc.compute(
+            prev_state=None, curr_state=None, finished=False,
+            elapsed_s=1.0,
+            info=self._move_info(x=0.5 + 2.0 / 64.0, y=0.5, prev_x=0.5, prev_y=0.5),
+        )
+        self.assertAlmostEqual(r, 0.0)
+
+    def test_stutter_step_below_threshold_gets_repeat_penalty(self):
+        """A tiny non-zero move (below threshold) triggers the repeat penalty."""
+        calc = self._make_calc(move_exploration_bonus=0.0, move_self_penalty=0.0)
+        # dist = 2/64 ≈ 0.03125 — below threshold, so repeat penalty must fire
+        r = calc.compute(
+            prev_state=None, curr_state=None, finished=False,
+            elapsed_s=1.0,
+            info=self._move_info(x=0.5 + 2.0 / 64.0, y=0.5, prev_x=0.5, prev_y=0.5),
+        )
+        self.assertAlmostEqual(r, -2.0)
+
+    def test_meaningful_move_at_threshold_gets_exploration_bonus(self):
+        """A move exactly at the meaningful threshold earns the exploration bonus."""
+        calc = self._make_calc(move_repeat_penalty=0.0, move_self_penalty=0.0)
+        # dist = 6/64 = _MOVE_MIN_MEANINGFUL_FRAC (exactly on the boundary)
+        threshold = 6.0 / 64.0
+        r = calc.compute(
+            prev_state=None, curr_state=None, finished=False,
+            elapsed_s=1.0,
+            info=self._move_info(x=0.5 + threshold, y=0.5, prev_x=0.5, prev_y=0.5),
+        )
+        self.assertGreater(r, 0.0)
+
+    def test_meaningful_move_at_threshold_no_repeat_penalty(self):
+        """A move at or above the threshold must NOT trigger the repeat penalty."""
+        calc = self._make_calc(move_exploration_bonus=0.0, move_self_penalty=0.0)
+        threshold = 6.0 / 64.0
+        r = calc.compute(
+            prev_state=None, curr_state=None, finished=False,
+            elapsed_s=1.0,
+            info=self._move_info(x=0.5 + threshold, y=0.5, prev_x=0.5, prev_y=0.5),
+        )
+        self.assertAlmostEqual(r, 0.0)
+
     def test_move_self_penalty_when_targeting_friendly_centroid(self):
         calc = self._make_calc(move_exploration_bonus=0.0, move_repeat_penalty=0.0)
         r = calc.compute(
@@ -365,7 +410,7 @@ class TestSC2RewardComponents(unittest.TestCase):
         for key in ("score", "economy", "idle_penalty", "idle_bonus",
                     "move_exploration", "move_repeat_penalty", "move_self_penalty",
                     "attack_move_bonus", "click_attack_bonus",
-                    "step_penalty", "terminal"):
+                    "attack_friendly_penalty", "step_penalty", "terminal"):
             self.assertIn(key, comp)
 
     def test_components_sum_equals_total(self):
@@ -600,6 +645,117 @@ class TestSC2AttackMoveBonusAndClickAttackBonus(unittest.TestCase):
                             target_x_norm=0.0625, target_y_norm=0.0625),
         )
         self.assertAlmostEqual(r, 1.0)
+
+    # --- attack_friendly_penalty ---
+
+    def _info_with_self(
+        self,
+        fn_idx: int,
+        self_count: float = 1.0,
+        self_cx: float = 32.0,
+        self_cy: float = 32.0,
+        enemy_count: float = 0.0,
+        enemy_cx: float = 0.0,
+        enemy_cy: float = 0.0,
+        target_x_norm: float = 0.5,
+        target_y_norm: float = 0.5,
+    ) -> dict:
+        return {
+            "prev_score": 0.0, "score": 0.0,
+            "action_fn_idx": fn_idx,
+            "screen_self_count": self_count,
+            "screen_self_cx": self_cx,
+            "screen_self_cy": self_cy,
+            "screen_enemy_count": enemy_count,
+            "screen_enemy_cx": enemy_cx,
+            "screen_enemy_cy": enemy_cy,
+            "action_target_x": target_x_norm,
+            "action_target_y": target_y_norm,
+            "screen_size": self._SS,
+        }
+
+    def test_attack_friendly_penalty_default_is_negative(self):
+        cfg = SC2RewardConfig()
+        self.assertAlmostEqual(cfg.attack_friendly_penalty, -5.0)
+
+    def test_attack_friendly_penalty_fires_when_target_on_friendly(self):
+        """Attack_screen aimed at friendly centroid → penalty fires."""
+        calc = self._make_calc(attack_friendly_penalty=-5.0)
+        # friendly centroid at (32,32), target at norm (0.5,0.5) = pixel (32,32)
+        r = calc.compute(
+            prev_state=None, curr_state=None, finished=False, elapsed_s=1.0,
+            info=self._info_with_self(fn_idx=3, self_count=1.0,
+                                      self_cx=32.0, self_cy=32.0,
+                                      target_x_norm=0.5, target_y_norm=0.5),
+        )
+        self.assertAlmostEqual(r, -5.0)
+
+    def test_attack_friendly_penalty_skipped_when_target_far_from_friendly(self):
+        """Attack_screen aimed at empty ground far from friendlies → no penalty."""
+        calc = self._make_calc(attack_friendly_penalty=-5.0)
+        # friendly at (32,32), target at (0,0) — far away
+        r = calc.compute(
+            prev_state=None, curr_state=None, finished=False, elapsed_s=1.0,
+            info=self._info_with_self(fn_idx=3, self_count=1.0,
+                                      self_cx=32.0, self_cy=32.0,
+                                      target_x_norm=0.0, target_y_norm=0.0),
+        )
+        self.assertAlmostEqual(r, 0.0)
+
+    def test_attack_friendly_penalty_skipped_when_no_friendly_on_screen(self):
+        """No friendly units visible → no penalty even if target is at centroid."""
+        calc = self._make_calc(attack_friendly_penalty=-5.0)
+        r = calc.compute(
+            prev_state=None, curr_state=None, finished=False, elapsed_s=1.0,
+            info=self._info_with_self(fn_idx=3, self_count=0.0,
+                                      target_x_norm=0.5, target_y_norm=0.5),
+        )
+        self.assertAlmostEqual(r, 0.0)
+
+    def test_attack_friendly_penalty_skipped_for_move_screen(self):
+        """Move_screen (fn_idx 2) does not trigger the friendly-fire penalty."""
+        calc = self._make_calc(attack_friendly_penalty=-5.0, move_self_penalty=0.0,
+                               move_exploration_bonus=0.0, move_repeat_penalty=0.0)
+        r = calc.compute(
+            prev_state=None, curr_state=None, finished=False, elapsed_s=1.0,
+            info=self._info_with_self(fn_idx=2, self_count=1.0,
+                                      self_cx=32.0, self_cy=32.0,
+                                      target_x_norm=0.5, target_y_norm=0.5),
+        )
+        self.assertAlmostEqual(r, 0.0)
+
+    def test_attack_friendly_penalty_disabled_when_zero(self):
+        """Setting attack_friendly_penalty=0.0 disables the check entirely."""
+        calc = self._make_calc(attack_friendly_penalty=0.0)
+        r = calc.compute(
+            prev_state=None, curr_state=None, finished=False, elapsed_s=1.0,
+            info=self._info_with_self(fn_idx=3, self_count=1.0,
+                                      self_cx=32.0, self_cy=32.0,
+                                      target_x_norm=0.5, target_y_norm=0.5),
+        )
+        self.assertAlmostEqual(r, 0.0)
+
+    def test_attack_friendly_penalty_scales_with_n_ticks(self):
+        calc = self._make_calc(attack_friendly_penalty=-5.0)
+        r = calc.compute(
+            prev_state=None, curr_state=None, finished=False, elapsed_s=1.0,
+            info=self._info_with_self(fn_idx=3, self_count=1.0,
+                                      self_cx=32.0, self_cy=32.0,
+                                      target_x_norm=0.5, target_y_norm=0.5),
+            n_ticks=3,
+        )
+        self.assertAlmostEqual(r, -15.0)
+
+    def test_attack_friendly_penalty_in_components(self):
+        """attack_friendly_penalty appears as a separate component."""
+        calc = self._make_calc(attack_friendly_penalty=-5.0)
+        _, comp = calc.compute_with_components(
+            prev_state=None, curr_state=None, finished=False, elapsed_s=1.0,
+            info=self._info_with_self(fn_idx=3, self_count=1.0,
+                                      self_cx=32.0, self_cy=32.0,
+                                      target_x_norm=0.5, target_y_norm=0.5),
+        )
+        self.assertAlmostEqual(comp["attack_friendly_penalty"], -5.0)
 
     def test_both_bonuses_exclusive(self):
         """Ground target → attack_move_bonus; on-enemy target → click_attack_bonus."""

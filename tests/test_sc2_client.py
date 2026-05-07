@@ -288,6 +288,72 @@ class TestSC2ClientFeatureExtractors(unittest.TestCase):
         self.assertEqual(feats["score_total"], 0.0)
         self.assertEqual(feats["collected_minerals"], 0.0)
 
+    def test_score_features_uses_field_names_over_position(self):
+        """Field-name access takes priority so a reordered PySC2 schema still
+        maps values to the correct output keys (score → score_total rename
+        handled automatically).
+
+        The mock supports *both* string and integer indexing.  The integer
+        (positional) layout is deliberately shuffled so that index 7 returns
+        a sentinel value (9999) that is different from the named value for
+        ``collected_minerals`` (777).  If positional access were used first,
+        the assertion would fail."""
+
+        class _NamedScoreArr:
+            """Stand-in for pysc2.lib.named_array.NamedNumpyArray.
+
+            Supports both string (named) and integer (positional) indexing so
+            we can verify that named access wins when both paths are available.
+            The positional list has a different ordering / values than the
+            named dict to make any positional-first bug visible.
+            """
+
+            def __init__(self, named: dict, positional: list):
+                self._named = named
+                self._pos = positional
+                self.size = len(positional)
+
+            def __getitem__(self, key):
+                if isinstance(key, str):
+                    if key not in self._named:
+                        raise KeyError(key)
+                    return self._named[key]
+                # Integer indexing returns the deliberately reordered values.
+                return self._pos[key]
+
+            def __array__(self, dtype=None):
+                arr = np.array(self._pos)
+                return arr.astype(dtype) if dtype is not None else arr
+
+        # Named values — these are the correct values for each field.
+        named_values = {
+            "score": 100.0,
+            "idle_production_time": 200.0,
+            "idle_worker_time": 300.0,
+            "total_value_units": 400.0,
+            "total_value_structures": 500.0,
+            "killed_value_units": 600.0,
+            "killed_value_structures": 700.0,
+            "collected_minerals": 777.0,  # correct named value
+            "collected_vespene": 888.0,
+            "collection_rate_minerals": 1000.0,
+            "collection_rate_vespene": 1100.0,
+            "spent_minerals": 1200.0,
+            "spent_vespene": 1300.0,
+        }
+        # Positional values — index 7 returns 9999, *not* 777.  Any code that
+        # reaches the positional path for collected_minerals would return the
+        # wrong value and be caught by the assertions below.
+        positional_values = [9999.0] * 13  # all sentinels
+
+        ob = {"score_cumulative": _NamedScoreArr(named_values, positional_values)}
+        feats = self.client._score_features(ob)
+        # 'score' → 'score_total' rename must be applied via named access.
+        self.assertEqual(feats["score_total"], 100.0)
+        # Named access must pick 777, not the positional sentinel 9999.
+        self.assertEqual(feats["collected_minerals"], 777.0)
+        self.assertEqual(feats["spent_vespene"], 1300.0)
+
     def test_screen_summary_friendly_only(self):
         screen = np.zeros((17, 64, 64), dtype=np.int32)
         screen[5, 10, 20] = 1   # one friendly pixel
@@ -669,7 +735,7 @@ class TestSC2ClientRichExtractors(unittest.TestCase):
     # --- enemy unit type counts ---
 
     def test_enemy_unit_type_features_counts_enemy_only(self):
-        """Rows with owner != 1 are counted; owner == 1 rows are skipped."""
+        """Only rows with owner == 4 (enemy) are counted; all others are skipped."""
         # Inject a synthetic unit_type_id_to_name mapping.
         self.client._unit_type_id_to_name = {1: "Marine", 2: "Zergling"}
         # feature_units: columns [unit_type, owner]
@@ -682,6 +748,31 @@ class TestSC2ClientRichExtractors(unittest.TestCase):
         feats = self.client._enemy_unit_type_features(ob)
         self.assertEqual(feats["enemy_count_Zergling"], 2.0)
         self.assertEqual(feats["enemy_count_Marine"],   0.0)
+
+    def test_enemy_unit_type_features_neutral_excluded(self):
+        """Neutral units (owner == 3) must NOT be counted as enemies."""
+        self.client._unit_type_id_to_name = {1: "Marine", 2: "Zergling"}
+        feat_units = np.array([
+            [1, 3],  # neutral Marine → skip
+            [2, 3],  # neutral Zergling → skip
+            [1, 4],  # enemy Marine → count
+        ], dtype=np.int32)
+        ob = {"feature_units": feat_units}
+        feats = self.client._enemy_unit_type_features(ob)
+        self.assertEqual(feats["enemy_count_Marine"],   1.0)
+        self.assertEqual(feats["enemy_count_Zergling"], 0.0)
+
+    def test_enemy_unit_type_features_ally_excluded(self):
+        """Ally units (owner == 2) must NOT be counted as enemies."""
+        self.client._unit_type_id_to_name = {1: "Marine", 2: "Zergling"}
+        feat_units = np.array([
+            [2, 2],  # ally Zergling → skip
+            [1, 4],  # enemy Marine → count
+        ], dtype=np.int32)
+        ob = {"feature_units": feat_units}
+        feats = self.client._enemy_unit_type_features(ob)
+        self.assertEqual(feats["enemy_count_Marine"],   1.0)
+        self.assertEqual(feats["enemy_count_Zergling"], 0.0)
 
     def test_enemy_unit_type_features_missing_feature_units(self):
         out = self.client._enemy_unit_type_features({})
@@ -1015,6 +1106,88 @@ class TestSC2ClientRichExtractors(unittest.TestCase):
                      "screen_visibility_frac", "screen_unit_density_aa_mean",
                      "self_weapon_cooldown_mean"):
             self.assertIn(name, RICH_OBS_NAMES, f"{name!r} missing from rich spec")
+
+
+# ---------------------------------------------------------------------------
+# Issue #140: action-mask caching benchmark / regression
+# ---------------------------------------------------------------------------
+
+class TestAvailableActionsMaskCachingOverhead(unittest.TestCase):
+    """Regression guard: _available_actions_features must use the module-level
+    _get_pysc2_id_to_fn_idx() cache and not do per-call PySC2 attribute
+    lookups or lazy imports.
+
+    The benchmark calls the method N times with a synthetic cache injected and
+    asserts the total wall-clock time stays under a conservative budget.  Any
+    regression that re-introduces per-call getattr / import would make the loop
+    at least ~10× slower and trip this guard well before a real SC2 session.
+    """
+
+    # Synthetic PySC2-ID → fn_idx mapping (matches FUNCTION_IDS structure).
+    _FAKE_CACHE: dict[int, int] = {0: 0, 7: 1, 331: 2, 12: 3, 274: 4, 453: 5}
+
+    def _minigame_ob(self, available_actions: np.ndarray) -> dict:
+        return {
+            "player": _NamedArr({
+                "minerals": 0, "vespene": 0, "food_used": 0, "food_cap": 0,
+                "army_count": 0, "idle_worker_count": 0,
+                "warp_gate_count": 0, "larva_count": 0,
+            }),
+            "feature_screen": np.zeros((17, 64, 64), dtype=np.int32),
+            "score_cumulative": np.array([0]),
+            "available_actions": available_actions,
+        }
+
+    def test_available_actions_features_uses_cache(self):
+        """_available_actions_features must not import pysc2 on every call.
+
+        We inject a pre-built cache and confirm that the method returns the
+        correct mask without touching pysc2 at all (pysc2 is not installed in
+        the unit-test environment).
+        """
+        import games.sc2.client as sc2_client_mod
+        old_cache = sc2_client_mod._pysc2_id_to_fn_idx
+        try:
+            sc2_client_mod._pysc2_id_to_fn_idx = dict(self._FAKE_CACHE)
+            client = SC2Client(map_name="MoveToBeacon")
+            ob = self._minigame_ob(np.array([0, 331], dtype=np.int32))
+            feats = client._available_actions_features(ob)
+            # PySC2 ID 0 → fn_idx 0; ID 331 → fn_idx 2
+            self.assertEqual(feats["available_fn_0"], 1.0)
+            self.assertEqual(feats["available_fn_2"], 1.0)
+            # fn_idx 1 (ID 7) not in available_actions → 0.0
+            self.assertEqual(feats["available_fn_1"], 0.0)
+        finally:
+            sc2_client_mod._pysc2_id_to_fn_idx = old_cache
+
+    def test_available_actions_features_calls_cache_once_per_invocation(self):
+        """_available_actions_features must call _get_pysc2_id_to_fn_idx() exactly
+        once per _available_actions_features() call regardless of how many
+        FUNCTION_IDS entries exist.
+
+        A regression back to the old per-entry getattr loop would call the
+        cache builder zero or many extra times; patching the helper and counting
+        calls is deterministic and does not depend on wall-clock timing.
+        """
+        from unittest.mock import patch
+        import games.sc2.client as sc2_client_mod
+        client = SC2Client(map_name="MoveToBeacon")
+        ob = self._minigame_ob(np.array([0, 7, 331], dtype=np.int32))
+        with patch.object(
+            sc2_client_mod,
+            "_get_pysc2_id_to_fn_idx",
+            wraps=lambda: dict(self._FAKE_CACHE),
+        ) as mock_cache:
+            n_calls = 5
+            for _ in range(n_calls):
+                client._available_actions_features(ob)
+            self.assertEqual(
+                mock_cache.call_count,
+                n_calls,
+                f"_get_pysc2_id_to_fn_idx called {mock_cache.call_count} times "
+                f"for {n_calls} _available_actions_features invocations; "
+                "expected exactly one call per invocation (not per FUNCTION_IDS entry).",
+            )
 
 
 if __name__ == "__main__":

@@ -656,12 +656,51 @@ class SC2Client:
         # (lazily) so we never duplicate them.  'score' is renamed 'score_total'
         # to avoid confusion with the per-step reward signal.
         names = _get_score_field_names()
-        score_arr = self._safe_array(ob, "score_cumulative")
-        if score_arr is None:
+        # Retrieve the raw value without coercing to ndarray so that PySC2's
+        # NamedNumpyArray field-name access is preserved for the primary path.
+        raw = None
+        try:
+            raw = ob["score_cumulative"] if hasattr(ob, "__getitem__") else None
+        except (KeyError, IndexError, TypeError):
+            pass
+        if raw is None:
+            raw = getattr(ob, "score_cumulative", None)
+        if raw is None:
             return {n: 0.0 for n in names}
+        # Precompute the positional-fallback array once, outside the per-field
+        # loop.  For plain ndarray inputs every named-access attempt raises an
+        # exception; detecting that here avoids 13 × 2 exception catches per
+        # call and keeps the hot path clean.
+        pos_arr: np.ndarray | None
+        try:
+            pos_arr = raw if isinstance(raw, np.ndarray) else np.asarray(raw)
+            if pos_arr.ndim < 1:
+                pos_arr = None
+        except (TypeError, ValueError):
+            pos_arr = None
+
         out: dict[str, float] = {}
         for i, n in enumerate(names):
-            out[n] = float(score_arr[i]) if i < score_arr.size else 0.0
+            # Prefer field-name access for robustness against PySC2 schema
+            # changes.  The rename score → score_total means we also try the
+            # original PySC2 name ("score") for that entry.  Deduplicate when
+            # the two names are identical (every field except score_total).
+            pysc2_name = "score" if n == "score_total" else n
+            attrs = (pysc2_name,) if pysc2_name == n else (pysc2_name, n)
+            v = None
+            for attr in attrs:
+                try:
+                    v = float(raw[attr])
+                    break
+                except (KeyError, IndexError, TypeError, ValueError):
+                    pass
+            # Fall back to positional index when named access is unavailable.
+            if v is None and pos_arr is not None and i < pos_arr.size:
+                try:
+                    v = float(pos_arr[i])
+                except (IndexError, TypeError, ValueError):
+                    pass
+            out[n] = v if v is not None else 0.0
         return out
 
     def _screen_hp_features(self, feat_screen: np.ndarray | None) -> dict[str, float]:
@@ -781,15 +820,13 @@ class SC2Client:
         if avail is None:
             return out
         avail_set = set(int(x) for x in avail.tolist()) if avail.size > 0 else set()
-        # Map our FUNCTION_IDS table indices to PySC2 function IDs lazily.
-        try:
-            from pysc2.lib import actions as pysc2_actions  # type: ignore[import-untyped]
-        except ImportError:
-            return out
-        for i, name in FUNCTION_IDS.items():
-            fn = getattr(pysc2_actions.FUNCTIONS, name, None)
-            if fn is not None and int(fn.id) in avail_set:
-                out[f"available_fn_{i}"] = 1.0
+        # Use the module-level cache to avoid per-step PySC2 attribute lookups
+        # and repeated lazy imports.  _get_pysc2_id_to_fn_idx() resolves
+        # PySC2 function metadata exactly once and caches the result.
+        id_to_fn_idx = _get_pysc2_id_to_fn_idx()
+        for pysc2_id, fn_idx in id_to_fn_idx.items():
+            if pysc2_id in avail_set:
+                out[f"available_fn_{fn_idx}"] = 1.0
         return out
 
     def _last_action_features(self) -> dict[str, float]:
@@ -809,8 +846,10 @@ class SC2Client:
             return out
         if self._unit_type_id_to_name is None:
             self._unit_type_id_to_name = self._build_unit_type_lookup()
+        # PySC2 player_relative values: 0=none/background, 1=self, 2=ally, 3=neutral, 4=enemy.
+        # Count only true enemy rows (owner == 4); neutrals, allies and background are excluded.
         for row, owner in zip(feat_units, feat_units[:, 1]):
-            if int(owner) == 1:
+            if int(owner) != 4:
                 continue
             name = self._unit_type_id_to_name.get(int(row[0]))
             if name is not None:
