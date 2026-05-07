@@ -52,6 +52,7 @@ from framework.analytics import (
     save_grid_summary as _framework_save_grid_summary,
 )
 from games.sc2.actions import FUNCTION_IDS
+from games.sc2.reward import SC2RewardConfig
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +74,7 @@ _REWARD_COMPONENT_TO_CFG_KEY: dict[str, str] = {
     "click_attack_bonus": "click_attack_bonus",
     "step_penalty": "step_penalty",
 }
+_DEFAULT_REWARD_CFG: dict[str, float | int] = dataclasses.asdict(SC2RewardConfig())
 
 # ---------------------------------------------------------------------------
 # Action-label helpers
@@ -537,7 +539,7 @@ def _safe_scale(weight: float | int | None) -> float:
     return scale if scale > 1e-12 else 1.0
 
 
-def _normalised_reward_for_sim(sim, reward_cfg: dict[str, float]) -> float:
+def _normalised_reward_for_sim(sim, reward_cfg: dict[str, float | int]) -> float:
     """Return config-normalized reward for one greedy sim.
 
     Falls back to the stored reward when reward-components are unavailable.
@@ -551,16 +553,16 @@ def _normalised_reward_for_sim(sim, reward_cfg: dict[str, float]) -> float:
         v = float(value)
         if key == "terminal":
             if v > 0.0:
-                scale = _safe_scale(reward_cfg.get("win_bonus", 1.0))
+                scale = _safe_scale(reward_cfg["win_bonus"])
             elif v < 0.0:
                 # Divide by abs(loss_penalty): exact configured loss maps to -1.0.
-                scale = _safe_scale(reward_cfg.get("loss_penalty", -1.0))
+                scale = _safe_scale(reward_cfg["loss_penalty"])
             else:
                 scale = 1.0
         else:
             cfg_key = _REWARD_COMPONENT_TO_CFG_KEY.get(key)
             if cfg_key:
-                scale = _safe_scale(reward_cfg.get(cfg_key, 1.0))
+                scale = _safe_scale(reward_cfg[cfg_key])
             else:
                 scale = 1.0
                 unknown_keys.add(key)
@@ -577,11 +579,11 @@ def _normalise_rewards_for_summary(data: ExperimentData) -> ExperimentData:
     """Return a copy of *data* with greedy rewards normalized for comparisons."""
     if not data.greedy_sims:
         return data
-    reward_cfg: dict[str, float] = {}
+    reward_cfg: dict[str, float | int] = dict(_DEFAULT_REWARD_CFG)
     if data.reward_config_file and os.path.exists(data.reward_config_file):
         try:
             with open(data.reward_config_file) as f:
-                reward_cfg = yaml.safe_load(f) or {}
+                reward_cfg.update(yaml.safe_load(f) or {})
         except yaml.YAMLError as exc:
             logger.warning(
                 "SC2 reward normalisation: failed to parse reward config %s (%s); "
