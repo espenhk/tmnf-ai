@@ -65,6 +65,7 @@ No manual game startup is required. `SC2Env` launches and stops the StarCraft II
 |---|---|
 | `games/sc2/config/training_params.yaml` | Map name, episode settings, policy type, hyperparams |
 | `games/sc2/config/reward_config.yaml` | Reward weights |
+| `games/sc2/config/belief_config.yaml` | Fog-of-war belief and scouting-drive parameters (`enable_belief: true` only) |
 
 Key config parameters:
 
@@ -76,6 +77,15 @@ Key config parameters:
 | `step_mul` | `8` | Game steps per agent action |
 | `screen_size` | `64` | Screen resolution in pixels |
 | `minimap_size` | `64` | Minimap resolution in pixels |
+| `in_game_episode_s` | `120.0` | Wall-clock seconds before truncation (use `600.0` for ladder maps) |
+| `obs_spec_preset` | *(map-based)* | Override observation preset: `"minigame"` (15 dims), `"ladder"` (46 dims), `"rich"` (103 dims). Unset = map-name default. |
+| `screen_layers` | `[]` | Spatial feature-layer names for `sc2_cnn` (e.g. `[player_relative, unit_hit_points]`). Ignored by all other policies. |
+| `minimap_layers` | `[]` | Minimap channels for `sc2_cnn`. Concatenated with screen channels; requires `screen_size == minimap_size`. |
+| `adaptive_mutation` | `true` | Apply the 1/5 success rule to adapt mutation scale during the greedy phase. |
+| `patience` | `0` | Stop early if no improvement for this many consecutive sims (`0` = run all). |
+| `max_apm` | *(null)* | Actions-per-minute cap via rolling token-bucket. Unset = no limit. |
+| `apm_burst_s` | `2.0` | Token-bucket burst window in seconds (default allows ~2 s of burst). |
+| `enable_belief` | `false` | Activate fog-of-war belief + info-gain observation extension. Adds ~192 dims for default 8×8 grid. |
 
 ---
 
@@ -258,6 +268,42 @@ Full superset for research / ablation / CNN-conditioning experiments.
 
 ---
 
+## APM limiting
+
+Set `max_apm` in `training_params.yaml` to constrain the agent to at most that many real actions per minute, using a rolling token-bucket:
+
+```yaml
+max_apm: 300      # e.g. 300 APM ≈ human intermediate level
+apm_burst_s: 2.0  # allow bursts up to 2 seconds of budget
+```
+
+`no_op` actions (fn_idx 0) are always free and never consume a token — they are not counted in real SC2 APM either. When the budget is exhausted, the intended action is replaced by `no_op`. Leave `max_apm` unset (null) for no limit.
+
+---
+
+## Fog-of-war belief system
+
+Set `enable_belief: true` in `training_params.yaml` to activate the belief + info-gain observation extension:
+
+```yaml
+enable_belief: true
+```
+
+This adds **~192 extra dims** to the chosen preset (value + confidence per 8×8 minimap cell + staleness per cell, by default). The belief module tracks last-known enemy supply per region and decays confidence exponentially over time. A small intrinsic scouting reward (`scout_drive_weight` in `belief_config.yaml`) incentivises the agent to visit stale regions.
+
+Belief parameters live in `games/sc2/config/belief_config.yaml`:
+
+| Key | Default | Description |
+|---|---|---|
+| `region_grid` | `[8, 8]` | Minimap partition (rows × cols); determines belief vector length |
+| `decay_tau` | `30.0` | Confidence half-life in seconds |
+| `scout_drive_weight` | `0.1` | Coefficient on intrinsic per-step scouting reward |
+| `scout_horizon_s` | `60.0` | Seconds until a region reaches full staleness |
+| `stale_threshold` | `0.5` | Confidence below which re-discovery is rewarded |
+| `never_seen_bonus` | `2.0` | Multiplier for first-time region discovery |
+
+---
+
 ## Action space
 
 Continuous: `Box([0, 0, 0, 0], [5, 1, 1, 1], shape=(4,))`
@@ -296,6 +342,9 @@ Configured in `games/sc2/config/reward_config.yaml`:
 | `move_exploration_bonus` | 0.01 | Bonus for `Move_screen` targets that differ from the previous move target (encourages exploration) |
 | `move_repeat_penalty` | −0.02 | Penalty for repeatedly issuing `Move_screen` to (nearly) the same point |
 | `move_self_penalty` | −0.01 | Penalty for issuing `Move_screen` to the friendly-unit centroid (discourages "move where we already are") |
+| `attack_move_bonus` | 0.0 | Per-step bonus when the agent issues `Attack_screen` with the target on empty ground while enemies are visible (A-move). Opt-in. |
+| `click_attack_bonus` | 0.0 | Per-step bonus when the agent issues `Attack_screen` directly on a visible enemy unit. Subject to `click_attack_cooldown_steps`. Opt-in. |
+| `click_attack_cooldown_steps` | 8 | Minimum env steps between rewarded target switches for `click_attack_bonus`. |
 | `economy_weight` | 0.0 | Coefficient on (minerals + vespene) delta — recommended `0.001` for ladder maps |
 
 For ladder maps (`Simple64` etc.) the recommended preset is:
@@ -325,7 +374,15 @@ python main.py my_sc2_run --game sc2
 
 To use a different map, edit `map_name` in `games/sc2/config/training_params.yaml` before running.
 
-Results are saved to `experiments/sc2/my_sc2_run/results/`.
+Results are saved to `experiments/sc2_<map>/my_sc2_run/results/`.
+
+### Interactive play (human vs. trained agent)
+
+```bash
+python main.py my_sc2_run --game sc2 --play
+```
+
+Loads the champion policy from a completed experiment and launches a two-player PySC2 session. You control one side via the normal SC2 UI; the trained agent drives the other. No weight updates occur. An episode summary (score, game loop, outcome) is printed at game end.
 
 ### Grid search
 
@@ -339,18 +396,21 @@ python grid_search.py my_sc2_grid.yaml --game sc2
 
 ## Supported policies
 
-SC2-compatible policies are listed below. The framework's generic `hill_climbing`, `neural_net`, and base `genetic` policies are **not** compatible with SC2: their output encoding clips `fn_idx` to `[−1, 1]` and thresholds `x`/`y` to binary, which is unsuitable for the SC2 action space — use `sc2_genetic` or `cmaes` instead.
+SC2-compatible policies are listed below. The framework's generic `hill_climbing`, `neural_net`, and base `genetic` policies are **not** compatible with SC2: their output encoding clips `fn_idx` to `[−1, 1]` and thresholds `x`/`y` to binary, which is unsuitable for the SC2 action space — use `sc2_genetic` or `sc2_cmaes` instead.
 
 | `policy_type` | Algorithm | Notes |
 |---|---|---|
-| `epsilon_greedy` | Tabular Q-learning, ε-greedy | Classical RL baseline |
+| `sc2_genetic` | Population of `SC2MultiHeadLinearPolicy`, evolutionary crossover+mutation | **Recommended default.** SC2-native multi-head individuals; separate fn_idx (6×obs_dim) and sigmoid spatial (2×obs_dim) heads |
+| `sc2_reinforce` | Two-head REINFORCE MLP (softmax fn + sigmoid spatial) | Gradient-trained; recommended over legacy `reinforce` for SC2 |
+| `sc2_cmaes` | (μ/μ_w, λ)-CMA-ES over `SC2MultiHeadLinearPolicy` flat weights | Recommended over legacy `cmaes` for SC2 |
+| `sc2_lstm` | LSTM with SC2-native action encoding, trained by isotropic ES | Recommended over legacy `lstm` for SC2 |
+| `sc2_cnn` | CNN (two conv layers + FC) + isotropic ES | **Requires `screen_layers` to be non-empty**; processes raw feature-layer pixels; fundamentally different observation pipeline from every other policy |
+| `epsilon_greedy` | Tabular Q-learning, ε-greedy | Classical RL baseline; selects from `DISCRETE_ACTIONS` |
 | `mcts` | UCT-style Q-learning (UCB1 exploration) | More systematic exploration than ε-greedy |
-| `sc2_genetic` | Population of SC2MultiHeadLinearPolicy, evolutionary crossover+mutation | SC2-native multi-head individuals; separate fn_idx and spatial heads |
-| `cmaes` | (μ/μ_w, λ)-CMA-ES over flat weight vector | Best general-purpose choice for linear policies |
-| `neural_dqn` | Deep Q-network, experience replay, target network | Gradient-based neural training |
-| `reinforce` | Monte Carlo policy gradient | Stochastic policy, simpler than DQN |
-| `lstm` | LSTM + isotropic Gaussian ES | Useful when temporal memory matters |
-| `sc2_cnn` | CNN (two conv layers + FC) + isotropic Gaussian ES | **Requires `screen_layers` to be non-empty**; processes raw feature-layer pixels; fundamentally different observation pipeline from every other policy |
+| `cmaes` | (μ/μ_w, λ)-CMA-ES over `SC2LinearPolicy` weights *(legacy)* | Prefer `sc2_cmaes` |
+| `neural_dqn` | Deep Q-network, experience replay *(legacy)* | Selects from `DISCRETE_ACTIONS`; prefer `sc2_reinforce` |
+| `reinforce` | Monte Carlo policy gradient *(legacy)* | Selects from `DISCRETE_ACTIONS`; prefer `sc2_reinforce` |
+| `lstm` | LSTM + isotropic ES *(legacy)* | Prefer `sc2_lstm` |
 
 Policy-specific hyperparameters go under `policy_params:` in `training_params.yaml`. See the root `README.md` or `games/tmnf/README.md` for full param reference.
 
@@ -376,6 +436,62 @@ policy_params:
 With `population_size: 30` and `eval_episodes: 2`, total episodes per generation = `population_size × eval_episodes = 60`. At `n_sims: 50` generations that is 3,000 episodes.
 
 Champion weights are saved in `SC2MultiHeadLinearPolicy` YAML format.
+
+---
+
+### `sc2_reinforce` — SC2REINFORCEPolicy
+
+Two-head REINFORCE (Monte Carlo policy gradient) for SC2. A **shared MLP trunk** (default `[128, 64]`) feeds two independent output heads:
+
+- **fn_head** — 6 logits, softmax → `fn_idx ∈ {0…5}`; unavailable function IDs are masked to `−∞` before sampling.
+- **spatial_head** — 2 logits, sigmoid → continuous `(x, y) ∈ [0, 1]²` screen coordinates.
+
+Both heads are trained jointly by REINFORCE with discounted returns and an optional running-mean baseline.
+
+```yaml
+policy_type: sc2_reinforce
+policy_params:
+  hidden_sizes: [128, 64]   # shared trunk widths
+  learning_rate: 0.0003
+  gamma: 0.995
+  entropy_coeff: 0.05       # entropy regularisation for both heads
+  baseline: running_mean    # "running_mean" or "none"
+```
+
+Trainer state (network weights + Adam moments) is saved to `trainer_state.npz` and reloaded on restart.
+
+---
+
+### `sc2_cmaes` — SC2CMAESPolicy
+
+(μ/μ_w, λ)-CMA-ES over the concatenated flat weight vector of `SC2MultiHeadLinearPolicy` — recommended over the legacy `cmaes` type for SC2.
+
+```yaml
+policy_type: sc2_cmaes
+policy_params:
+  population_size: 30   # λ
+  initial_sigma: 0.5    # starting step size (adapts automatically)
+  eval_episodes: 2
+```
+
+The distribution parameters (mean, σ, covariance) are saved to `trainer_state.npz`.
+
+---
+
+### `sc2_lstm` — SC2LSTMEvolutionPolicy
+
+LSTM recurrent policy with SC2-native action encoding, trained by isotropic Gaussian ES (1/5 success rule). The LSTM hidden state is optionally reset between episodes (`reset_on_episode: true`, default).
+
+```yaml
+policy_type: sc2_lstm
+policy_params:
+  hidden_size: 64        # LSTM hidden / cell state dim
+  population_size: 20    # λ
+  initial_sigma: 0.03    # smaller than CMAESPolicy because the LSTM weight space is larger
+  reset_on_episode: true
+```
+
+Saved champion weights are incompatible across different `hidden_size` or obs_spec values — use `--re-initialize` when changing either.
 
 ---
 
