@@ -431,7 +431,7 @@ handful of iterations only).
 ### test_sc2_client.py — PySC2 client wrapper
 - minigame flat obs shape; score-delta threading; player_relative centroid; terminal outcome recorded
 - ladder flat obs shape; visibility tracking; fogged ≠ visible; ladder terminal outcome; non-terminal = None
-- rich extractors (#135): enemy unit-type counts (owner filter, missing field, unknown type); shield/energy (self shield mean, no units, None screen); creep (half coverage, no creep, None minimap); economy pipeline (upgrade count, build queue, cargo, all missing); rich spec contains new names; ladder spec unchanged
+- rich extractors (#135): enemy unit-type counts (owner==4 only; neutral owner==3 excluded; ally owner==2 excluded; missing field; unknown type); shield/energy (self shield mean, no units, None screen); creep (half coverage, no creep, None minimap); economy pipeline (upgrade count, build queue, cargo, all missing); rich spec contains new names; ladder spec unchanged
 - selected-unit extras: shields + energy from cols 3/4 of single/multi_select; empty selection → zeros; short rows don't crash
 - screen_visibility_frac: all visible → 1.0; half visible → 0.25; fogged not counted; None screen / missing layer → 0
 - screen_unit_density_aa_mean: mean of unit_density_aa layer; zero layer; None screen / missing layer → 0
