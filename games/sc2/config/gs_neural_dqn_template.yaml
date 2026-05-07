@@ -34,7 +34,7 @@ base_name: "gs_sc2_dqn_v1"
 game: sc2
 
 training_params:
-  map_name: MoveToBeacon
+  map_name: DefeatRoaches
   in_game_episode_s: 120.0
   step_mul: 8
   screen_size: 64
@@ -42,12 +42,13 @@ training_params:
   agent_race: random
   n_sims: 200                 # 200 episodes; ~48 000 env steps total
   policy_type: neural_dqn
-  obs_spec_preset: [ladder, rich]   # 43-dim ladder vs 95-dim rich
+  obs_spec_preset: ladder   # 43-dim ladder vs 95-dim rich
   enable_belief: [false, true]      # false: obs only; true: obs+192 belief dims + scout reward
   learning_rate: [0.0005, 0.001, 0.003]
   epsilon_decay_steps: [3000, 8000]
+  max_apm: [50, 300]
+  hidden_sizes: [64, 64]
   policy_params:
-    hidden_sizes: [64, 64]
     replay_buffer_size: 15000
     batch_size: 64
     min_replay_size: 500
@@ -59,5 +60,6 @@ training_params:
 reward_params:
   score_weight: 1.0
   step_penalty: -0.001
-  win_bonus: 0.0
+  win_bonus: 20.0
   loss_penalty: 0.0
+  idle_bonus: 1.0

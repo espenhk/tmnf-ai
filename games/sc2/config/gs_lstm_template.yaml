@@ -31,7 +31,7 @@ base_name: "gs_sc2_lstm_v1"
 game: sc2
 
 training_params:
-  map_name: MoveToBeacon
+  map_name: DefeatRoaches
   in_game_episode_s: 120.0
   step_mul: 8
   screen_size: 64
@@ -39,15 +39,17 @@ training_params:
   agent_race: random
   n_sims: 50                  # 50 generations; total episodes = n_sims × population_size
   policy_type: lstm
-  obs_spec_preset: [ladder, rich]   # 43-dim ladder vs 95-dim rich
+  obs_spec_preset: rich
   enable_belief: [false, true]      # false: obs only; true: obs+192 belief dims (up to 48k params)
   hidden_size: [16, 32]
   initial_sigma: [0.03, 0.05, 0.1]
+  max_apm: [50, 300]
   policy_params:
     population_size: 20
 
 reward_params:
   score_weight: 1.0
   step_penalty: -0.001
-  win_bonus: 0.0
+  win_bonus: 20.0
   loss_penalty: 0.0
+  idle_bonus: 1.0
