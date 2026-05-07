@@ -656,12 +656,39 @@ class SC2Client:
         # (lazily) so we never duplicate them.  'score' is renamed 'score_total'
         # to avoid confusion with the per-step reward signal.
         names = _get_score_field_names()
-        score_arr = self._safe_array(ob, "score_cumulative")
-        if score_arr is None:
+        # Retrieve the raw value without coercing to ndarray so that PySC2's
+        # NamedNumpyArray field-name access is preserved for the primary path.
+        raw = None
+        try:
+            raw = ob["score_cumulative"] if hasattr(ob, "__getitem__") else None
+        except (KeyError, IndexError, TypeError):
+            pass
+        if raw is None:
+            raw = getattr(ob, "score_cumulative", None)
+        if raw is None:
             return {n: 0.0 for n in names}
         out: dict[str, float] = {}
         for i, n in enumerate(names):
-            out[n] = float(score_arr[i]) if i < score_arr.size else 0.0
+            # Prefer field-name access for robustness against PySC2 schema
+            # changes.  The rename score → score_total means we also try the
+            # original PySC2 name ("score") for that entry.
+            pysc2_name = "score" if n == "score_total" else n
+            v = None
+            for attr in (pysc2_name, n):
+                try:
+                    v = float(raw[attr])
+                    break
+                except (KeyError, IndexError, TypeError, ValueError):
+                    pass
+            # Fall back to positional index when named access is unavailable
+            # (plain numpy arrays, older PySC2 versions, or unit-test stubs).
+            if v is None:
+                try:
+                    arr = np.asarray(raw)
+                    v = float(arr[i]) if arr.ndim >= 1 and i < arr.size else 0.0
+                except (IndexError, TypeError, ValueError):
+                    v = 0.0
+            out[n] = v
         return out
 
     def _screen_hp_features(self, feat_screen: np.ndarray | None) -> dict[str, float]:

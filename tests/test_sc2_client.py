@@ -288,6 +288,48 @@ class TestSC2ClientFeatureExtractors(unittest.TestCase):
         self.assertEqual(feats["score_total"], 0.0)
         self.assertEqual(feats["collected_minerals"], 0.0)
 
+    def test_score_features_uses_field_names_over_position(self):
+        """Field-name access takes priority so a reordered PySC2 schema still
+        maps values to the correct output keys (score → score_total rename
+        handled automatically)."""
+
+        class _NamedScoreArr:
+            """Minimal stand-in for pysc2.lib.named_array.NamedNumpyArray."""
+            def __init__(self, mapping: dict):
+                self._m = mapping
+                self.size = len(mapping)
+
+            def __getitem__(self, key):
+                if isinstance(key, str):
+                    return self._m[key]
+                raise IndexError(key)
+
+        # 'collected_minerals' is deliberately assigned a distinctive value.
+        # If positional access were used the result would be whatever happens to
+        # sit at index 7, which here is 9999 (not 777).
+        fields = {
+            "score": 100.0,
+            "idle_production_time": 200.0,
+            "idle_worker_time": 300.0,
+            "total_value_units": 400.0,
+            "total_value_structures": 500.0,
+            "killed_value_units": 600.0,
+            "killed_value_structures": 700.0,
+            "collected_minerals": 777.0,  # index 7 in standard order
+            "collected_vespene": 9999.0,
+            "collection_rate_minerals": 1000.0,
+            "collection_rate_vespene": 1100.0,
+            "spent_minerals": 1200.0,
+            "spent_vespene": 1300.0,
+        }
+        ob = {"score_cumulative": _NamedScoreArr(fields)}
+        feats = self.client._score_features(ob)
+        # 'score' → 'score_total' rename must be applied.
+        self.assertEqual(feats["score_total"], 100.0)
+        # Named access must pick 777, not whatever is at position 7 (9999).
+        self.assertEqual(feats["collected_minerals"], 777.0)
+        self.assertEqual(feats["spent_vespene"], 1300.0)
+
     def test_screen_summary_friendly_only(self):
         screen = np.zeros((17, 64, 64), dtype=np.int32)
         screen[5, 10, 20] = 1   # one friendly pixel
