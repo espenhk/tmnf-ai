@@ -632,4 +632,4 @@ These tests look heavy because of the names ("training loop", "env reset", "DQN 
 
 Roughly: 895 tests × ~55 ms average = ~49 s of work + ~1 s of import/collection ≈ 50 s total — nothing in the suite waits on a game tick, a network packet, or a GPU.
 
-The 28 integration tests in `tests/integration/` are excluded from this count.  CarRacing tests run real Box2D physics and take ~2 s; SC2 tests launch the Blizzard headless binary and take ~2–5 minutes depending on episode length and the runner's download speed for the ~2 GB SC2 binary.
+The 28 integration tests in `tests/integration/` are excluded from this count.  CarRacing tests run real Box2D physics and take ~2 s; SC2 tests launch the Blizzard headless binary and take ~1–3 minutes for test execution (the CI workflow additionally downloads the ~2 GB binary once during the setup step).

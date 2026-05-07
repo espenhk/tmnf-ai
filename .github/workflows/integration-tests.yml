@@ -84,4 +84,4 @@ jobs:
       - name: Run SC2 integration tests
         env:
           PYTHONPATH: .
-        run: python -m pytest tests/integration/test_sc2.py -m integration -v --timeout=300
+        run: python -m pytest tests/integration/test_sc2.py -m integration -v
