@@ -191,7 +191,7 @@ class TestSC2Adapter:
         ("cmaes",        "mutation_scale"),
         ("sc2_cmaes",    "learning_rate"),
         ("sc2_lstm",     "mutation_scale"),
-        ("sc2_reinforce","population_size"),
+        ("sc2_reinforce", "population_size"),
     ])
     def test_build_extras_rejects_invalid_policy_params(self, policy_type, bad_param):
         """Unknown policy_params key must raise ValueError naming the bad key."""
