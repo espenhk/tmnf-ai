@@ -313,7 +313,8 @@ class SC2RewardCalculator(RewardCalculatorBase):
             screen_size = float(info.get("screen_size", 64))
             # Use (screen_size - 1) to match the client's pixel conversion:
             # x_screen = int(clip(norm, 0, 1) * (screen_size - 1))
-            # Centroids from _centroid() are raw pixel indices in [0, screen_size-1].
+            # Centroids from games.sc2.client.SC2Client._centroid() are raw
+            # pixel indices in [0, screen_size-1].
             scale = max(1.0, screen_size - 1.0)
             enemy_count = info.get("screen_enemy_count", 0.0)
             tx_norm = float(info.get("action_target_x", 0.5))
