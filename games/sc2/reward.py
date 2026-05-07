@@ -50,6 +50,17 @@ class SC2RewardConfig:
     economy_weight :
         Coefficient on (minerals + vespene) delta.  Useful for economy
         minigames.  Set to 0 for pure-combat minigames.
+    move_exploration_bonus :
+        Per-step bonus for issuing ``Move_screen`` commands to spatial targets
+        that differ from the previous move target.  Encourages exploration
+        instead of spamming one point repeatedly.
+    move_repeat_penalty :
+        Per-step penalty when a ``Move_screen`` command targets almost the same
+        point as the previous ``Move_screen`` command.
+    move_self_penalty :
+        Per-step penalty when a ``Move_screen`` command targets the centroid of
+        currently-visible friendly units (a common "keep moving to where we
+        already are" failure mode).
     """
 
     score_weight:    float = 1.0
@@ -59,6 +70,9 @@ class SC2RewardConfig:
     idle_penalty:    float = 0.0
     idle_bonus:      float = 0.0
     economy_weight:  float = 0.0
+    move_exploration_bonus: float = 0.01
+    move_repeat_penalty: float = -0.02
+    move_self_penalty: float = -0.01
 
     @classmethod
     def from_yaml(cls, path: str) -> SC2RewardConfig:
@@ -88,6 +102,10 @@ class SC2RewardCalculator(RewardCalculatorBase):
         ``army_count``, ``food_used``, ``food_cap``
         ``player_outcome`` — None / +1 / -1 (only set on the final step)
         ``action_fn_idx`` — fn_idx of the action issued this step (for ``idle_bonus``)
+        ``action_target_x`` / ``action_target_y`` — action target in [0, 1]
+            (for movement exploration shaping)
+        ``prev_move_target_x`` / ``prev_move_target_y`` — previous move target
+            in [0, 1], or None if no previous move target is known
         ``screen_self_count`` / ``screen_enemy_count`` — friendly / enemy
             pixel counts on screen (for ``idle_bonus`` combat-range check)
         ``screen_self_cx`` / ``screen_self_cy`` / ``screen_enemy_cx`` /
@@ -100,6 +118,13 @@ class SC2RewardCalculator(RewardCalculatorBase):
     # scales with non-default screen_size values (~Marine range at the
     # 64-pixel default ≈ 25 px).
     _COMBAT_RANGE_FRAC: float = 25.0 / 64.0
+    # Radius (as a screen fraction) considered "same target" for repeated
+    # move commands.
+    _MOVE_REPEAT_RADIUS_FRAC: float = 2.0 / 64.0
+    # Radius (as a screen fraction) considered "targeting where my units are".
+    _MOVE_SELF_RADIUS_FRAC: float = 6.0 / 64.0
+    # Distance normaliser for movement exploration bonus.
+    _MOVE_EXPLORATION_NORM: float = 0.5
 
     def __init__(self, config: SC2RewardConfig) -> None:
         self.config = config
@@ -130,7 +155,8 @@ class SC2RewardCalculator(RewardCalculatorBase):
 
         ``components`` exposes a per-term breakdown so analytics can
         attribute reward to ``score``, ``economy``, ``idle_penalty``,
-        ``idle_bonus``, ``step_penalty`` and ``terminal`` separately.
+        ``idle_bonus``, ``move_exploration``, ``move_repeat_penalty``,
+        ``move_self_penalty``, ``step_penalty`` and ``terminal`` separately.
         """
         cfg = self.config
         components: dict[str, float] = {}
@@ -178,6 +204,42 @@ class SC2RewardCalculator(RewardCalculatorBase):
                 if dist <= self._COMBAT_RANGE_FRAC * screen_size:
                     idle_bonus = cfg.idle_bonus * n_ticks
         components["idle_bonus"] = float(idle_bonus)
+
+        # Move shaping: encourage varied move targets and
+        # discourage repeatedly targeting where units already are.
+        move_exploration = 0.0
+        move_repeat_penalty = 0.0
+        move_self_penalty = 0.0
+        if info.get("action_fn_idx") == 2:
+            x = float(info.get("action_target_x", 0.5))
+            y = float(info.get("action_target_y", 0.5))
+
+            prev_x = info.get("prev_move_target_x")
+            prev_y = info.get("prev_move_target_y")
+            if prev_x is not None and prev_y is not None:
+                dx_prev = x - float(prev_x)
+                dy_prev = y - float(prev_y)
+                dist_prev = (dx_prev * dx_prev + dy_prev * dy_prev) ** 0.5
+                if cfg.move_exploration_bonus != 0.0:
+                    novelty = min(1.0, dist_prev / self._MOVE_EXPLORATION_NORM)
+                    move_exploration = cfg.move_exploration_bonus * novelty * n_ticks
+                if cfg.move_repeat_penalty != 0.0 and dist_prev <= self._MOVE_REPEAT_RADIUS_FRAC:
+                    move_repeat_penalty = cfg.move_repeat_penalty * n_ticks
+
+            if cfg.move_self_penalty != 0.0:
+                self_count = float(info.get("screen_self_count", 0.0))
+                if self_count > 0:
+                    screen_size = max(1.0, float(info.get("screen_size", 64)))
+                    self_x = float(info.get("screen_self_cx", 0.0)) / screen_size
+                    self_y = float(info.get("screen_self_cy", 0.0)) / screen_size
+                    dx_self = x - self_x
+                    dy_self = y - self_y
+                    dist_self = (dx_self * dx_self + dy_self * dy_self) ** 0.5
+                    if dist_self <= self._MOVE_SELF_RADIUS_FRAC:
+                        move_self_penalty = cfg.move_self_penalty * n_ticks
+        components["move_exploration"] = float(move_exploration)
+        components["move_repeat_penalty"] = float(move_repeat_penalty)
+        components["move_self_penalty"] = float(move_self_penalty)
 
         # Time cost.
         components["step_penalty"] = float(cfg.step_penalty * n_ticks)

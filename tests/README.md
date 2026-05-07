@@ -42,7 +42,7 @@
 - [SC2](#sc2)
   - [test\_sc2\_obs\_spec.py (17) — SC2 obs spec](#test_sc2_obs_specpy-17--sc2-obs-spec)
   - [test\_sc2\_actions.py (14) — discrete action grid](#test_sc2_actionspy-14--discrete-action-grid)
-  - [test\_sc2\_reward.py (23) — SC2 reward calc](#test_sc2_rewardpy-23--sc2-reward-calc)
+  - [test\_sc2\_reward.py (27) — SC2 reward calc](#test_sc2_rewardpy-27--sc2-reward-calc)
   - [test\_sc2\_client.py (64) — PySC2 client wrapper](#test_sc2_clientpy-64--pysc2-client-wrapper)
   - [test\_sc2\_env.py (27) — SC2 env wrapper](#test_sc2_envpy-27--sc2-env-wrapper)
   - [test\_sc2\_apm\_limiter.py (29) — token-bucket APM limiter + SC2Env integration](#test_sc2_apm_limiterpy-29--token-bucket-apm-limiter--sc2env-integration)
@@ -59,9 +59,9 @@
 - [CLI / misc](#cli--misc)
   - [cli/test\_game\_flag.py (14) — `--game` CLI flag in `main.py`](#clitest_game_flagpy-14----game-cli-flag-in-mainpy)
   - [assetto\_corsa/test\_smoke.py (8) — Assetto Corsa smoke tests (against fake client)](#assetto_corsatest_smokepy-8--assetto-corsa-smoke-tests-against-fake-client)
-- [Why 868 tests run in ~50 s](#why-868-tests-run-in-50-s)
+- [Why 899 tests run in ~50 s](#why-899-tests-run-in-50-s)
 
-895 tests across 54 files. Runs in ~50 seconds via `python -m pytest tests/` (excluding tests that require tminterface, pysc2 live env, gym_torcs, or the SC2 binary). The full suite including those files has 1030 tests.
+899 tests across 54 files. Runs in ~50 seconds via `python -m pytest tests/` (excluding tests that require tminterface, pysc2 live env, gym_torcs, or the SC2 binary). The full suite including those files has 1034 tests.
 
 ## Coverage at a glance
 
@@ -403,9 +403,10 @@ handful of iterations only).
 - shape / dtype / xy in unit square; centre = select_army; others = move_screen
 - probe actions count / shape; warmup shape / select_army; function_ids table complete
 
-### test_sc2_reward.py (23) — SC2 reward calc
+### test_sc2_reward.py (27) — SC2 reward calc
 - defaults; from_yaml; unknown raises; loads bundled config
 - score delta; step penalty only; step penalty n_ticks scaling; win bonus; loss penalty; no-outcome no bonus; economy weight; idle penalty when idle / not when busy
+- movement shaping: exploration bonus for varied `Move_screen` targets; repeat-target penalty; penalty for moving to friendly centroid; self-penalty skipped when no friendly units are visible
 
 ### test_sc2_client.py (64) — PySC2 client wrapper
 - minigame flat obs shape; score-delta threading; player_relative centroid; terminal outcome recorded
@@ -545,7 +546,7 @@ Assetto Corsa shared-memory client.
 
 ---
 
-## Why 839 tests run in ~50 s
+## Why 899 tests run in ~50 s
 
 These tests look heavy because of the names ("training loop", "env reset", "DQN convergence") but operationally they're almost all pure-Python unit tests with zero external I/O:
 
