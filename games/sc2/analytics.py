@@ -65,7 +65,6 @@ SUPPORTS_PATH:     bool = False   # no pos_x / pos_z path-trace plots for SC2
 _REWARD_COMPONENT_TO_CFG_KEY: dict[str, str] = {
     "score": "score_weight",
     "economy": "economy_weight",
-    "idle_penalty": "idle_penalty",
     "idle_bonus": "idle_bonus",
     "move_exploration": "move_exploration_bonus",
     "move_repeat_penalty": "move_repeat_penalty",
@@ -73,10 +72,13 @@ _REWARD_COMPONENT_TO_CFG_KEY: dict[str, str] = {
     "attack_move_bonus": "attack_move_bonus",
     "click_attack_bonus": "click_attack_bonus",
     "attack_friendly_penalty": "attack_friendly_penalty",
-    "step_penalty": "step_penalty",
 }
 _DEFAULT_REWARD_CFG: dict[str, float | int] = dataclasses.asdict(SC2RewardConfig())
-_NO_SCALE_COMPONENT_KEYS: set[str] = {"scout"}
+# Components that pass through unscaled.  These are either inherently
+# scale-free (scout) or per-step background costs whose weights are
+# intentionally tiny; dividing by a weight like 0.001 would amplify them
+# 1000× and make every normalized reward falsely negative.
+_NO_SCALE_COMPONENT_KEYS: set[str] = {"scout", "step_penalty", "idle_penalty"}
 _WARNED_NON_NUMERIC_WEIGHT: bool = False
 
 # ---------------------------------------------------------------------------

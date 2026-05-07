@@ -126,6 +126,7 @@ behaviour of the actual `train_rl()` loop end-to-end on a real env.
 - finish-rate aggregation: empty / none / all / partial
 - summary string: empty / contains finish rate / best finish time / no time when none / lateral offset
 - summary table: progress / finish-time / dash-on-no-finish / lateral-offset columns
+- `plot_gs_reward_trajectories`: chart written by `save_grid_summary` / referenced in summary.md / no crash with empty sims
 
 ### test_belief.py — fog-of-war belief encoder
 - initial encode all zero; update sets value+confidence; project decays confidence
@@ -544,7 +545,7 @@ handful of iterations only).
 - `plot_army_count`: renders to file / skips when no series / skips when no sims
 - `plot_build_order`: renders to file / skips when no build order / skips when no sims / single unit type / multiple unit types
 - `save_experiment_results`: writes results.md / writes SC2 plots (incl. new 4) / mentions game / no crash empty sims / no racing plots written
-- `save_grid_summary`: forwards config-normalized rewards (derived from reward components + reward weights) so cross-run ranking is scale-invariant; wires SC2 extra-plot hook into framework summary generation; covers no-components fallback, multi-sim normalization, malformed YAML fallback, non-mapping YAML fallback, non-numeric weight fallback, allow-listed `scout` component (no unmapped-key warning spam), and emits SC2 cross-run charts + summary links
+- `save_grid_summary`: forwards config-normalized rewards (step_penalty and idle_penalty pass through unscaled — they are tiny per-step background costs that would be amplified 1000× if divided by their weight); wires SC2 extra-plot hook into framework summary generation; covers no-components fallback, multi-sim normalization (step_penalty unscaled), malformed YAML fallback, non-mapping YAML fallback, non-numeric weight fallback, allow-listed `scout`/`step_penalty`/`idle_penalty` components (no unmapped-key warning), step_penalty with tiny weight stays unscaled, idle_penalty stays unscaled, positive raw best reward stays positive after normalization, and emits SC2 cross-run charts + summary links
 
 ## CLI / misc
 
