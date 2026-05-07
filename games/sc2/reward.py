@@ -47,6 +47,14 @@ class SC2RewardConfig:
         the screen summary features (``screen_self_count`` / ``screen_enemy_count``
         / centroids) populated by the client; with the default obs preset
         these are always present.
+    attack_bonus :
+        Per-step bonus awarded when the agent issues ``Attack_screen``
+        (fn_idx 3) *and* at least one enemy unit is visible on screen.
+        Encourages using attack-move over plain move (the unit will fight
+        back instead of running past enemies) and direct click-to-attack on
+        a visible enemy.  Default ``0.0`` — opt-in.  Recommended on combat
+        minigames (DefeatRoaches, DefeatZerglingsAndBanelings) and any ladder
+        map where the agent tends to move rather than engage.
     economy_weight :
         Coefficient on (minerals + vespene) delta.  Useful for economy
         minigames.  Set to 0 for pure-combat minigames.
@@ -58,6 +66,7 @@ class SC2RewardConfig:
     step_penalty:    float = -0.001
     idle_penalty:    float = 0.0
     idle_bonus:      float = 0.0
+    attack_bonus:    float = 0.0
     economy_weight:  float = 0.0
 
     @classmethod
@@ -92,6 +101,8 @@ class SC2RewardCalculator(RewardCalculatorBase):
             pixel counts on screen (for ``idle_bonus`` combat-range check)
         ``screen_self_cx`` / ``screen_self_cy`` / ``screen_enemy_cx`` /
             ``screen_enemy_cy`` — centroids in screen pixels
+        ``action_fn_idx`` is also used by ``attack_bonus`` (fn_idx 3 =
+            ``Attack_screen``) — fires when ``screen_enemy_count > 0``.
     """
 
     # Maximum centroid-distance for friendly units to be considered
@@ -178,6 +189,15 @@ class SC2RewardCalculator(RewardCalculatorBase):
                 if dist <= self._COMBAT_RANGE_FRAC * screen_size:
                     idle_bonus = cfg.idle_bonus * n_ticks
         components["idle_bonus"] = float(idle_bonus)
+
+        # Attack bonus: reward using Attack_screen (fn_idx 3) when enemies are
+        # visible — encourages attack-move over plain move and direct
+        # click-to-attack on a visible enemy.
+        attack_bonus = 0.0
+        if cfg.attack_bonus != 0.0 and info.get("action_fn_idx") == 3:
+            if info.get("screen_enemy_count", 0.0) > 0:
+                attack_bonus = cfg.attack_bonus * n_ticks
+        components["attack_bonus"] = float(attack_bonus)
 
         # Time cost.
         components["step_penalty"] = float(cfg.step_penalty * n_ticks)

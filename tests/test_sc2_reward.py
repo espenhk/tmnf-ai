@@ -279,7 +279,7 @@ class TestSC2RewardComponents(unittest.TestCase):
                   "prev_vespene": 0.0, "vespene": 0.0},
         )
         for key in ("score", "economy", "idle_penalty", "idle_bonus",
-                    "step_penalty", "terminal"):
+                    "attack_bonus", "step_penalty", "terminal"):
             self.assertIn(key, comp)
 
     def test_components_sum_equals_total(self):
@@ -312,6 +312,88 @@ class TestSC2RewardComponents(unittest.TestCase):
             elapsed_s=1.0, info=info,
         )
         self.assertAlmostEqual(r, r2)
+
+
+class TestSC2AttackBonus(unittest.TestCase):
+    """Tests for the attack_bonus reward (attack-move / click-to-attack)."""
+
+    def _make_calc(self, **kwargs) -> SC2RewardCalculator:
+        cfg_kwargs = {"score_weight": 0.0, "step_penalty": 0.0,
+                      "win_bonus": 0.0, "loss_penalty": 0.0,
+                      "economy_weight": 0.0}
+        cfg_kwargs.update(kwargs)
+        return SC2RewardCalculator(SC2RewardConfig(**cfg_kwargs))
+
+    def _attack_info(self, fn_idx: int, enemy_count: float = 1.0) -> dict:
+        """Info dict simulating an Attack_screen action with enemies on screen."""
+        return {
+            "prev_score": 0.0, "score": 0.0,
+            "action_fn_idx": fn_idx,
+            "screen_enemy_count": enemy_count,
+        }
+
+    def test_attack_bonus_fires_on_attack_screen_with_enemy(self):
+        calc = self._make_calc(attack_bonus=3.0)
+        r = calc.compute(
+            prev_state=None, curr_state=None, finished=False,
+            elapsed_s=1.0,
+            info=self._attack_info(fn_idx=3),  # Attack_screen
+        )
+        self.assertAlmostEqual(r, 3.0)
+
+    def test_attack_bonus_skipped_when_action_is_move(self):
+        """Plain Move_screen (fn_idx 2) does not trigger the bonus."""
+        calc = self._make_calc(attack_bonus=3.0)
+        r = calc.compute(
+            prev_state=None, curr_state=None, finished=False,
+            elapsed_s=1.0,
+            info=self._attack_info(fn_idx=2),  # Move_screen
+        )
+        self.assertAlmostEqual(r, 0.0)
+
+    def test_attack_bonus_skipped_when_no_enemy_on_screen(self):
+        """Attack_screen with no visible enemies does not trigger the bonus."""
+        calc = self._make_calc(attack_bonus=3.0)
+        r = calc.compute(
+            prev_state=None, curr_state=None, finished=False,
+            elapsed_s=1.0,
+            info=self._attack_info(fn_idx=3, enemy_count=0.0),
+        )
+        self.assertAlmostEqual(r, 0.0)
+
+    def test_attack_bonus_skipped_when_action_is_no_op(self):
+        calc = self._make_calc(attack_bonus=3.0)
+        r = calc.compute(
+            prev_state=None, curr_state=None, finished=False,
+            elapsed_s=1.0,
+            info=self._attack_info(fn_idx=0),  # no_op
+        )
+        self.assertAlmostEqual(r, 0.0)
+
+    def test_attack_bonus_disabled_by_default(self):
+        """attack_bonus default is 0.0 — existing experiments unaffected."""
+        cfg = SC2RewardConfig()
+        self.assertEqual(cfg.attack_bonus, 0.0)
+
+    def test_attack_bonus_scales_with_n_ticks(self):
+        calc = self._make_calc(attack_bonus=2.0)
+        r = calc.compute(
+            prev_state=None, curr_state=None, finished=False,
+            elapsed_s=1.0,
+            info=self._attack_info(fn_idx=3),
+            n_ticks=4,
+        )
+        self.assertAlmostEqual(r, 8.0)
+
+    def test_attack_bonus_in_components(self):
+        calc = self._make_calc(attack_bonus=1.5)
+        _, comp = calc.compute_with_components(
+            prev_state=None, curr_state=None, finished=False,
+            elapsed_s=1.0,
+            info=self._attack_info(fn_idx=3),
+        )
+        self.assertIn("attack_bonus", comp)
+        self.assertAlmostEqual(comp["attack_bonus"], 1.5)
 
 
 if __name__ == "__main__":

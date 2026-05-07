@@ -40,6 +40,14 @@ idle_penalty: 0.0
 # learnable rather than only discoverable through luck.
 idle_bonus: 0.0
 
+# --- Attack bonus ---
+# Per-step bonus when the agent issues Attack_screen (fn_idx 3) AND at least
+# one enemy is visible on screen.  Encourages attack-move over plain move
+# (the unit will fight back instead of running past enemies) and direct
+# click-to-attack on a visible enemy.  Off by default; enable on combat
+# minigames or any map where the agent tends to move rather than engage.
+attack_bonus: 0.0
+
 # --- Economy delta (mineral + vespene) ---
 # Recommended: 0.001 for ladder maps (Simple64), 0.0 for minigames.
 economy_weight: 0.0
