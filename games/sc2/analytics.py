@@ -75,6 +75,8 @@ _REWARD_COMPONENT_TO_CFG_KEY: dict[str, str] = {
     "step_penalty": "step_penalty",
 }
 _DEFAULT_REWARD_CFG: dict[str, float | int] = dataclasses.asdict(SC2RewardConfig())
+_NO_SCALE_COMPONENT_KEYS: set[str] = {"scout"}
+_WARNED_INVALID_SCALE: bool = False
 
 # ---------------------------------------------------------------------------
 # Action-label helpers
@@ -535,7 +537,17 @@ def _save(fig: "Figure", path: str) -> None:
 
 def _safe_scale(weight: float | int | None) -> float:
     """Absolute normalization scale; tiny weights are treated as effectively zero."""
-    scale = abs(float(weight or 0.0))
+    global _WARNED_INVALID_SCALE
+    try:
+        scale = abs(float(weight or 0.0))
+    except (TypeError, ValueError):
+        if not _WARNED_INVALID_SCALE:
+            logger.warning(
+                "SC2 reward normalisation: non-numeric reward weight encountered; "
+                "using neutral scale 1.0."
+            )
+            _WARNED_INVALID_SCALE = True
+        return 1.0
     return scale if scale > 1e-12 else 1.0
 
 
@@ -560,6 +572,10 @@ def _normalised_reward_for_sim(sim, reward_cfg: dict[str, float | int]) -> float
             else:
                 scale = 1.0
         else:
+            if key in _NO_SCALE_COMPONENT_KEYS:
+                scale = 1.0
+                total += v / scale
+                continue
             cfg_key = _REWARD_COMPONENT_TO_CFG_KEY.get(key)
             if cfg_key:
                 scale = _safe_scale(reward_cfg[cfg_key])
@@ -583,8 +599,26 @@ def _normalise_rewards_for_summary(data: ExperimentData) -> ExperimentData:
     if data.reward_config_file and os.path.exists(data.reward_config_file):
         try:
             with open(data.reward_config_file) as f:
-                reward_cfg.update(yaml.safe_load(f) or {})
-        except yaml.YAMLError as exc:
+                loaded_cfg = yaml.safe_load(f) or {}
+            if isinstance(loaded_cfg, dict):
+                non_string_keys = [k for k in loaded_cfg if not isinstance(k, str)]
+                if non_string_keys:
+                    logger.warning(
+                        "SC2 reward normalisation: ignored non-string reward config keys in %s: %s",
+                        data.reward_config_file,
+                        sorted(repr(k) for k in non_string_keys),
+                    )
+                reward_cfg.update({
+                    k: v for k, v in loaded_cfg.items()
+                    if isinstance(k, str)
+                })
+            else:
+                logger.warning(
+                    "SC2 reward normalisation: reward config %s is not a mapping; "
+                    "falling back to defaults.",
+                    data.reward_config_file,
+                )
+        except (yaml.YAMLError, TypeError, ValueError) as exc:
             logger.warning(
                 "SC2 reward normalisation: failed to parse reward config %s (%s); "
                 "falling back to neutral scales.",

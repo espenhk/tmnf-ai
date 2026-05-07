@@ -476,6 +476,56 @@ class TestSaveGridSummary(unittest.TestCase):
             forwarded_sim = forwarded_runs[0][1].greedy_sims[0]
             self.assertAlmostEqual(forwarded_sim.reward, 5.0, places=6)
 
+    def test_non_mapping_reward_config_yaml_falls_back(self):
+        with tempfile.TemporaryDirectory() as d:
+            reward_cfg_path = os.path.join(d, "reward_config.yaml")
+            with open(reward_cfg_path, "w", encoding="utf-8") as f:
+                f.write("[]\n")
+
+            sim = _make_sim(sim=1, reward=5.0, reward_components={"score": 5.0})
+            data = _make_experiment([sim], name="exp_e")
+            data.reward_config_file = reward_cfg_path
+
+            with mock.patch("games.sc2.analytics._framework_save_grid_summary") as m:
+                save_grid_summary([("exp_e", data)], [], d, "gs_test")
+
+            forwarded_runs = m.call_args.args[0]
+            forwarded_sim = forwarded_runs[0][1].greedy_sims[0]
+            self.assertAlmostEqual(forwarded_sim.reward, 5.0, places=6)
+
+    def test_non_numeric_reward_weight_falls_back(self):
+        with tempfile.TemporaryDirectory() as d:
+            reward_cfg_path = os.path.join(d, "reward_config.yaml")
+            with open(reward_cfg_path, "w", encoding="utf-8") as f:
+                f.write("score_weight: foo\n")
+
+            sim = _make_sim(sim=1, reward=5.0, reward_components={"score": 5.0})
+            data = _make_experiment([sim], name="exp_f")
+            data.reward_config_file = reward_cfg_path
+
+            with mock.patch("games.sc2.analytics._framework_save_grid_summary") as m:
+                save_grid_summary([("exp_f", data)], [], d, "gs_test")
+
+            forwarded_runs = m.call_args.args[0]
+            forwarded_sim = forwarded_runs[0][1].greedy_sims[0]
+            self.assertAlmostEqual(forwarded_sim.reward, 5.0, places=6)
+
+    def test_scout_component_does_not_emit_unmapped_warning(self):
+        with tempfile.TemporaryDirectory() as d:
+            sim = _make_sim(sim=1, reward=2.0, reward_components={"scout": 2.0})
+            data = _make_experiment([sim], name="exp_g")
+
+            with mock.patch("games.sc2.analytics._framework_save_grid_summary"), \
+                    mock.patch("games.sc2.analytics.logger.warning") as warn:
+                save_grid_summary([("exp_g", data)], [], d, "gs_test")
+
+            self.assertTrue(
+                all(
+                    "unmapped reward component" not in str(call.args[0])
+                    for call in warn.call_args_list
+                )
+            )
+
 
 # ---------------------------------------------------------------------------
 # GreedySimResult new fields (supply_capped_fraction, build_order, series)
