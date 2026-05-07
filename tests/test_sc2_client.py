@@ -1069,32 +1069,34 @@ class TestAvailableActionsMaskCachingOverhead(unittest.TestCase):
         finally:
             sc2_client_mod._pysc2_id_to_fn_idx = old_cache
 
-    def test_available_actions_features_overhead(self):
-        """1 000 consecutive calls must complete in under 1 second.
+    def test_available_actions_features_calls_cache_once_per_invocation(self):
+        """_available_actions_features must call _get_pysc2_id_to_fn_idx() exactly
+        once per _available_actions_features() call regardless of how many
+        FUNCTION_IDS entries exist.
 
-        This is a regression guard: a per-call pysc2 attribute walk would be
-        measurably slower at this call count and would trip the budget.
+        A regression back to the old per-entry getattr loop would call the
+        cache builder zero or many extra times; patching the helper and counting
+        calls is deterministic and does not depend on wall-clock timing.
         """
-        import time
+        from unittest.mock import patch
         import games.sc2.client as sc2_client_mod
-        old_cache = sc2_client_mod._pysc2_id_to_fn_idx
-        try:
-            sc2_client_mod._pysc2_id_to_fn_idx = dict(self._FAKE_CACHE)
-            client = SC2Client(map_name="MoveToBeacon")
-            ob = self._minigame_ob(np.array([0, 7, 331], dtype=np.int32))
-            n_calls = 1_000
-            t0 = time.perf_counter()
+        client = SC2Client(map_name="MoveToBeacon")
+        ob = self._minigame_ob(np.array([0, 7, 331], dtype=np.int32))
+        with patch.object(
+            sc2_client_mod,
+            "_get_pysc2_id_to_fn_idx",
+            wraps=lambda: dict(self._FAKE_CACHE),
+        ) as mock_cache:
+            n_calls = 5
             for _ in range(n_calls):
                 client._available_actions_features(ob)
-            elapsed = time.perf_counter() - t0
-            self.assertLess(
-                elapsed,
-                1.0,
-                f"_available_actions_features took {elapsed:.3f}s for {n_calls} calls "
-                f"({elapsed / n_calls * 1e6:.1f} µs/call) — cache may not be in use.",
+            self.assertEqual(
+                mock_cache.call_count,
+                n_calls,
+                f"_get_pysc2_id_to_fn_idx called {mock_cache.call_count} times "
+                f"for {n_calls} _available_actions_features invocations; "
+                "expected exactly one call per invocation (not per FUNCTION_IDS entry).",
             )
-        finally:
-            sc2_client_mod._pysc2_id_to_fn_idx = old_cache
 
 
 if __name__ == "__main__":

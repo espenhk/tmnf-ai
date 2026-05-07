@@ -436,7 +436,7 @@ handful of iterations only).
 - alerts: empty array → 0; one alert → 1; two alerts → 2; missing key → 0; None value → 0; alert_count present in ladder names
 - minimap enemy centroid: minimap_enemy_cx/cy computed from player_relative==4 layer; correct when beacon present; zero when no beacon on minimap (edge case)
 - action fallback (#124, beacon-idling fix): blocked Move_screen → select_army once, then no_op on consecutive blocked steps; pending flag cleared when Move_screen available; no_op action passes through unchanged
-- action-mask caching overhead (#140): _available_actions_features uses module-level cache (no per-call pysc2 import); correctness test with injected cache; 1 000-call budget regression (< 1 s)
+- action-mask caching overhead (#140): _available_actions_features uses module-level cache (no per-call pysc2 import); correctness test with injected cache; deterministic regression asserting _get_pysc2_id_to_fn_idx is called exactly once per _available_actions_features invocation (not once per FUNCTION_IDS entry)
 
 ### test_sc2_env.py (27) — SC2 env wrapper
 - minigame obs space; action space shape+bounds; ladder obs space; episode time-limit get/set
