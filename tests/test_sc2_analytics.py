@@ -21,6 +21,7 @@ import tempfile
 import unittest
 from unittest import mock
 
+import games.sc2.analytics as sc2_analytics
 from framework.analytics import ExperimentData, GreedySimResult
 from games.sc2.analytics import (
     SUPPORTS_PATH,
@@ -419,7 +420,7 @@ class TestSaveGridSummary(unittest.TestCase):
             data = _make_experiment([sim], name="exp_a")
             data.reward_config_file = reward_cfg_path
 
-            with mock.patch("games.sc2.analytics._framework_save_grid_summary") as m:
+            with mock.patch.object(sc2_analytics, "_framework_save_grid_summary") as m:
                 save_grid_summary([("exp_a", data)], ["score_weight"], d, "gs_test")
 
             forwarded_runs = m.call_args.args[0]
@@ -431,7 +432,7 @@ class TestSaveGridSummary(unittest.TestCase):
             sim = _make_sim(sim=1, reward=12.5, reward_components=None)
             data = _make_experiment([sim], name="exp_b")
 
-            with mock.patch("games.sc2.analytics._framework_save_grid_summary") as m:
+            with mock.patch.object(sc2_analytics, "_framework_save_grid_summary") as m:
                 save_grid_summary([("exp_b", data)], [], d, "gs_test")
 
             forwarded_runs = m.call_args.args[0]
@@ -451,7 +452,7 @@ class TestSaveGridSummary(unittest.TestCase):
             data = _make_experiment(sims, name="exp_c")
             data.reward_config_file = reward_cfg_path
 
-            with mock.patch("games.sc2.analytics._framework_save_grid_summary") as m:
+            with mock.patch.object(sc2_analytics, "_framework_save_grid_summary") as m:
                 save_grid_summary([("exp_c", data)], [], d, "gs_test")
 
             forwarded_runs = m.call_args.args[0]
@@ -469,7 +470,7 @@ class TestSaveGridSummary(unittest.TestCase):
             data = _make_experiment([sim], name="exp_d")
             data.reward_config_file = reward_cfg_path
 
-            with mock.patch("games.sc2.analytics._framework_save_grid_summary") as m:
+            with mock.patch.object(sc2_analytics, "_framework_save_grid_summary") as m:
                 save_grid_summary([("exp_d", data)], [], d, "gs_test")
 
             forwarded_runs = m.call_args.args[0]
@@ -486,7 +487,7 @@ class TestSaveGridSummary(unittest.TestCase):
             data = _make_experiment([sim], name="exp_e")
             data.reward_config_file = reward_cfg_path
 
-            with mock.patch("games.sc2.analytics._framework_save_grid_summary") as m:
+            with mock.patch.object(sc2_analytics, "_framework_save_grid_summary") as m:
                 save_grid_summary([("exp_e", data)], [], d, "gs_test")
 
             forwarded_runs = m.call_args.args[0]
@@ -503,7 +504,7 @@ class TestSaveGridSummary(unittest.TestCase):
             data = _make_experiment([sim], name="exp_f")
             data.reward_config_file = reward_cfg_path
 
-            with mock.patch("games.sc2.analytics._framework_save_grid_summary") as m:
+            with mock.patch.object(sc2_analytics, "_framework_save_grid_summary") as m:
                 save_grid_summary([("exp_f", data)], [], d, "gs_test")
 
             forwarded_runs = m.call_args.args[0]
@@ -515,8 +516,8 @@ class TestSaveGridSummary(unittest.TestCase):
             sim = _make_sim(sim=1, reward=2.0, reward_components={"scout": 2.0})
             data = _make_experiment([sim], name="exp_g")
 
-            with mock.patch("games.sc2.analytics._framework_save_grid_summary"), \
-                    mock.patch("games.sc2.analytics.logger.warning") as warn:
+            with mock.patch.object(sc2_analytics, "_framework_save_grid_summary"), \
+                    mock.patch.object(sc2_analytics.logger, "warning") as warn:
                 save_grid_summary([("exp_g", data)], [], d, "gs_test")
 
             self.assertTrue(
