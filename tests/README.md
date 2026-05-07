@@ -42,7 +42,7 @@
 - [SC2](#sc2)
   - [test\_sc2\_obs\_spec.py (18) — SC2 obs spec](#test_sc2_obs_specpy-18--sc2-obs-spec)
   - [test\_sc2\_actions.py (14) — discrete action grid](#test_sc2_actionspy-14--discrete-action-grid)
-  - [test\_sc2\_reward.py (43) — SC2 reward calc](#test_sc2_rewardpy-43--sc2-reward-calc)
+  - [test\_sc2\_reward.py (51) — SC2 reward calc](#test_sc2_rewardpy-51--sc2-reward-calc)
   - [test\_sc2\_client.py (71) — PySC2 client wrapper](#test_sc2_clientpy-71--pysc2-client-wrapper)
   - [test\_sc2\_env.py (27) — SC2 env wrapper](#test_sc2_envpy-27--sc2-env-wrapper)
   - [test\_sc2\_apm\_limiter.py (29) — token-bucket APM limiter + SC2Env integration](#test_sc2_apm_limiterpy-29--token-bucket-apm-limiter--sc2env-integration)
@@ -417,7 +417,7 @@ handful of iterations only).
 - shape / dtype / xy in unit square; centre = select_army; others = move_screen
 - probe actions count / shape; warmup shape / select_army; function_ids table complete
 
-### test_sc2_reward.py (43) — SC2 reward calc
+### test_sc2_reward.py (51) — SC2 reward calc
 - defaults; from_yaml; unknown raises; loads bundled config
 - score delta; step penalty only; step penalty n_ticks scaling; win bonus; loss penalty; no-outcome no bonus; economy weight; idle penalty when idle / not when busy
 - idle bonus: fires when no_op in combat range; skipped for non-no_op / out-of-range enemy / no enemy / no self; disabled by default; n_ticks scaling
@@ -425,6 +425,7 @@ handful of iterations only).
 - click_attack_bonus: fires when Attack_screen target is on/near enemy centroid; skipped when target far from enemy / no enemy; disabled by default; n_ticks scaling
 - cooldown: default=8; same target always fires; rapid switch withheld; fires again after cooldown elapsed; reset() clears state; both bonuses mutually exclusive
 - movement shaping: exploration bonus for varied `Move_screen` targets; repeat-target penalty; penalty for moving to friendly centroid; self-penalty skipped when no friendly units are visible
+- attack_friendly_penalty: fires when Attack_screen targets near friendly centroid; skipped for target far from friendly / no friendly on screen / Move_screen; disabled when zero; n_ticks scaling; appears in components dict; default is strongly negative
 
 ### test_sc2_client.py (71) — PySC2 client wrapper
 - minigame flat obs shape; score-delta threading; player_relative centroid; terminal outcome recorded
@@ -568,7 +569,7 @@ Assetto Corsa shared-memory client.
 
 ---
 
-## Why 918 tests run in ~50 s
+## Why 926 tests run in ~50 s
 ## Integration tests (`tests/integration/`)
 
 End-to-end tests that spin up a real gymnasium environment (no mocking) and
@@ -646,8 +647,8 @@ These tests look heavy because of the names ("training loop", "env reset", "DQN 
 4. **Whole files are config / dataclass tests.** `test_grid_search.py` (32), `test_reward.py` (44), `test_sc2_genetic_policy.py` (70), `test_torcs_obs_spec.py` (14), `test_analytics_task_metrics.py` (17), `test_game_adapter.py` (41) are mostly "from_yaml round-trip / shape / default-value / cartesian product" — microseconds each.
 5. **No matplotlib rendering.** TORCS analytics tests use `Agg` (non-interactive) and dump to `tmp_path`; `test_analytics_no_matplotlib.py` explicitly checks the import path that *avoids* it.
 6. **Filesystem work uses `tmp_path`** (RAM-backed `/tmp`), and the only network is `test_distributed.py` binding `localhost` for HTTP coordinator tests — which is why that's the one file with `time.sleep` and is still milliseconds because it talks to itself.
-7. **Heavy collection work is amortised.** `pytest`'s ~1 second startup + 53 collection modules is a small share of the wall clock; once collected, 916 mostly-arithmetic asserts run in the remaining ~49 seconds.
+7. **Heavy collection work is amortised.** `pytest`'s ~1 second startup + 53 collection modules is a small share of the wall clock; once collected, 924 mostly-arithmetic asserts run in the remaining ~49 seconds.
 
-Roughly: 916 tests × ~58 ms average = ~49 s of work + ~1 s of import/collection ≈ 50 s total — nothing in the suite waits on a game tick, a network packet, or a GPU.
+Roughly: 924 tests × ~58 ms average = ~49 s of work + ~1 s of import/collection ≈ 50 s total — nothing in the suite waits on a game tick, a network packet, or a GPU.
 
 The 28 integration tests in `tests/integration/` are excluded from this count.  CarRacing tests run real Box2D physics and take ~2 s; SC2 tests launch the Blizzard headless binary and take ~1–3 minutes for test execution (the CI workflow additionally downloads the ~2 GB binary once during the setup step).
