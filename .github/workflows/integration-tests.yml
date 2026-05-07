@@ -68,7 +68,7 @@ jobs:
       - name: Install Python dependencies
         run: |
           pip install pytest numpy scipy pyyaml gymnasium matplotlib
-          pip install pysc2 protobuf
+          pip install pysc2 "protobuf<4"
 
       - name: Download & install SC2 headless binary
         run: |
