@@ -21,6 +21,9 @@ class TestSC2RewardConfig(unittest.TestCase):
         self.assertEqual(cfg.win_bonus, 100.0)
         self.assertEqual(cfg.loss_penalty, -100.0)
         self.assertLess(cfg.step_penalty, 0.0)
+        self.assertGreater(cfg.move_exploration_bonus, 0.0)
+        self.assertLess(cfg.move_repeat_penalty, 0.0)
+        self.assertLess(cfg.move_self_penalty, 0.0)
 
     def test_from_yaml(self):
         path = _write_yaml("score_weight: 0.5\nwin_bonus: 50.0\n")
@@ -263,6 +266,87 @@ class TestSC2IdleBonus(unittest.TestCase):
         self.assertAlmostEqual(r, 6.0)
 
 
+class TestSC2MoveShaping(unittest.TestCase):
+    """Tests for anti-hyperfixation movement shaping."""
+
+    def _make_calc(self, **kwargs) -> SC2RewardCalculator:
+        cfg_kwargs = {
+            "score_weight": 0.0,
+            "step_penalty": 0.0,
+            "win_bonus": 0.0,
+            "loss_penalty": 0.0,
+            "economy_weight": 0.0,
+            "idle_bonus": 0.0,
+            "idle_penalty": 0.0,
+            "move_exploration_bonus": 1.0,
+            "move_repeat_penalty": -2.0,
+            "move_self_penalty": -3.0,
+        }
+        cfg_kwargs.update(kwargs)
+        return SC2RewardCalculator(SC2RewardConfig(**cfg_kwargs))
+
+    def _move_info(
+        self,
+        *,
+        x: float,
+        y: float,
+        prev_x: float | None = None,
+        prev_y: float | None = None,
+        self_cx: float = 40.0,
+        self_cy: float = 40.0,
+        self_count: float = 1.0,
+    ) -> dict:
+        return {
+            "prev_score": 0.0,
+            "score": 0.0,
+            "action_fn_idx": 2,  # Move_screen
+            "action_target_x": x,
+            "action_target_y": y,
+            "prev_move_target_x": prev_x,
+            "prev_move_target_y": prev_y,
+            "screen_size": 64.0,
+            "screen_self_count": self_count,
+            "screen_self_cx": self_cx,
+            "screen_self_cy": self_cy,
+        }
+
+    def test_move_exploration_bonus_increases_for_new_target(self):
+        calc = self._make_calc(move_repeat_penalty=0.0, move_self_penalty=0.0)
+        r = calc.compute(
+            prev_state=None, curr_state=None, finished=False,
+            elapsed_s=1.0,
+            info=self._move_info(x=0.9, y=0.1, prev_x=0.1, prev_y=0.1),
+        )
+        self.assertGreater(r, 0.0)
+
+    def test_move_repeat_penalty_for_same_target(self):
+        calc = self._make_calc(move_exploration_bonus=0.0, move_self_penalty=0.0)
+        r = calc.compute(
+            prev_state=None, curr_state=None, finished=False,
+            elapsed_s=1.0,
+            info=self._move_info(x=0.5, y=0.5, prev_x=0.5, prev_y=0.5),
+        )
+        self.assertAlmostEqual(r, -2.0)
+
+    def test_move_self_penalty_when_targeting_friendly_centroid(self):
+        calc = self._make_calc(move_exploration_bonus=0.0, move_repeat_penalty=0.0)
+        r = calc.compute(
+            prev_state=None, curr_state=None, finished=False,
+            elapsed_s=1.0,
+            info=self._move_info(x=40.0 / 64.0, y=40.0 / 64.0),
+        )
+        self.assertAlmostEqual(r, -3.0)
+
+    def test_move_self_penalty_not_applied_without_visible_friendlies(self):
+        calc = self._make_calc(move_exploration_bonus=0.0, move_repeat_penalty=0.0)
+        r = calc.compute(
+            prev_state=None, curr_state=None, finished=False,
+            elapsed_s=1.0,
+            info=self._move_info(x=40.0 / 64.0, y=40.0 / 64.0, self_count=0.0),
+        )
+        self.assertAlmostEqual(r, 0.0)
+
+
 class TestSC2RewardComponents(unittest.TestCase):
     """Issue #128/2b: per-component reward breakdown."""
 
@@ -279,6 +363,7 @@ class TestSC2RewardComponents(unittest.TestCase):
                   "prev_vespene": 0.0, "vespene": 0.0},
         )
         for key in ("score", "economy", "idle_penalty", "idle_bonus",
+                    "move_exploration", "move_repeat_penalty", "move_self_penalty",
                     "attack_move_bonus", "click_attack_bonus",
                     "step_penalty", "terminal"):
             self.assertIn(key, comp)

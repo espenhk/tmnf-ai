@@ -42,7 +42,7 @@
 - [SC2](#sc2)
   - [test\_sc2\_obs\_spec.py (18) — SC2 obs spec](#test_sc2_obs_specpy-18--sc2-obs-spec)
   - [test\_sc2\_actions.py (14) — discrete action grid](#test_sc2_actionspy-14--discrete-action-grid)
-  - [test\_sc2\_reward.py (39) — SC2 reward calc](#test_sc2_rewardpy-39--sc2-reward-calc)
+  - [test\_sc2\_reward.py (43) — SC2 reward calc](#test_sc2_rewardpy-43--sc2-reward-calc)
   - [test\_sc2\_client.py (70) — PySC2 client wrapper](#test_sc2_clientpy-70--pysc2-client-wrapper)
   - [test\_sc2\_env.py (27) — SC2 env wrapper](#test_sc2_envpy-27--sc2-env-wrapper)
   - [test\_sc2\_apm\_limiter.py (29) — token-bucket APM limiter + SC2Env integration](#test_sc2_apm_limiterpy-29--token-bucket-apm-limiter--sc2env-integration)
@@ -62,11 +62,6 @@
 - [Integration tests (`tests/integration/`)](#integration-tests-testsintegration)
   - [integration/test\_car\_racing.py (14) — CarRacing real-env end-to-end tests](#integrationtest_car_racingpy-14--caracing-real-env-end-to-end-tests)
   - [integration/test\_sc2.py (14) — SC2 real-binary end-to-end tests](#integrationtest_sc2py-14--sc2-real-binary-end-to-end-tests)
-- [Why 907 tests run in ~50 s](#why-907-tests-run-in-50-s)
-
-907 tests across 54 files (unit-test suite, excluding `tests/integration/`). Runs in ~50 seconds via `python -m pytest tests/ --ignore=tests/integration/` (also excluding tests that require tminterface, pysc2 live env, gym_torcs, or the SC2 binary). The full suite including those files has 1030 tests.
-
-Additionally, **28 integration tests** live in `tests/integration/` (14 CarRacing + 14 SC2). These are run by the `integration-tests` workflow after PR approval (as a final merge gate) and on-demand via `workflow_dispatch`.  To run them locally:
 
 ```bash
 # CarRacing only (requires gymnasium[box2d])
@@ -421,13 +416,14 @@ handful of iterations only).
 - shape / dtype / xy in unit square; centre = select_army; others = move_screen
 - probe actions count / shape; warmup shape / select_army; function_ids table complete
 
-### test_sc2_reward.py (39) — SC2 reward calc
+### test_sc2_reward.py (43) — SC2 reward calc
 - defaults; from_yaml; unknown raises; loads bundled config
 - score delta; step penalty only; step penalty n_ticks scaling; win bonus; loss penalty; no-outcome no bonus; economy weight; idle penalty when idle / not when busy
 - idle bonus: fires when no_op in combat range; skipped for non-no_op / out-of-range enemy / no enemy / no self; disabled by default; n_ticks scaling
 - attack_move_bonus: fires when Attack_screen target is on empty ground with enemies visible; skipped for Move_screen / no enemy; disabled by default; n_ticks scaling
 - click_attack_bonus: fires when Attack_screen target is on/near enemy centroid; skipped when target far from enemy / no enemy; disabled by default; n_ticks scaling
 - cooldown: default=8; same target always fires; rapid switch withheld; fires again after cooldown elapsed; reset() clears state; both bonuses mutually exclusive
+- movement shaping: exploration bonus for varied `Move_screen` targets; repeat-target penalty; penalty for moving to friendly centroid; self-penalty skipped when no friendly units are visible
 
 ### test_sc2_client.py (70) — PySC2 client wrapper
 - minigame flat obs shape; score-delta threading; player_relative centroid; terminal outcome recorded
@@ -569,6 +565,7 @@ Assetto Corsa shared-memory client.
 
 ---
 
+## Why 911 tests run in ~50 s
 ## Integration tests (`tests/integration/`)
 
 End-to-end tests that spin up a real gymnasium environment (no mocking) and
@@ -624,12 +621,6 @@ both execute end-to-end against the real SC2 binary.
 - SC2Env lifecycle: reset obs shape; step 5-tuple; reward finite; obs shape consistent; episode terminates; close idempotent; multiple resets
 - full episode: varied actions; info contains score
 - training loop: genetic 1 generation (pop=2); epsilon_greedy 1 episode
-
----
-
----
-
-## Why 907 tests run in ~50 s
 
 These tests look heavy because of the names ("training loop", "env reset", "DQN convergence") but operationally they're almost all pure-Python unit tests with zero external I/O:
 
