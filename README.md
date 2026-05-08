@@ -234,6 +234,19 @@ reward_params:
 
 This creates one experiment per unique combination (3 × 2 = 6 here). Experiment names encode only the varied params: `gs_v1__ms0.05__cw_n0.1`, etc.
 
+To compare several completed grid searches that live under a
+`<policy>/vX/` folder structure, run:
+
+```bash
+python cross_grid_report.py experiments/<track_or_map>/
+```
+
+That script recursively finds `*__summary/summary.md`, copies each summary
+bundle into a new output folder, and writes a top-level cross-grid
+`summary.md` showing the best run, average best reward, generation-to-best,
+and notable search-shape params (for example population sizes or hidden-layer
+sizes) for each discovered grid search.
+
 ---
 
 ## Distributed training

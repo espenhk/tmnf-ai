@@ -7,6 +7,7 @@
   - [test\_belief.py — fog-of-war belief encoder](#test_beliefpy--fog-of-war-belief-encoder)
   - [test\_build\_centerline.py — `tracks/registry.json` builder](#test_build_centerlinepy--tracksregistryjson-builder)
   - [test\_consolidate.py — grid-search result consolidation](#test_consolidatepy--grid-search-result-consolidation)
+  - [test\_cross\_grid\_report.py — recursive cross-grid summary collation](#test_cross_grid_reportpy--recursive-cross-grid-summary-collation)
   - [test\_curiosity.py — ICM/RND curiosity bonuses](#test_curiositypy--icmrnd-curiosity-bonuses)
   - [test\_discretize\_obs.py — continuous→discrete obs binning](#test_discretize_obspy--continuousdiscrete-obs-binning)
   - [test\_distributed.py — coordinator/worker protocol + HTTP server](#test_distributedpy--coordinatorworker-protocol--http-server)
@@ -108,7 +109,9 @@ groups, `_print_episode_summary` compact format); that `framework.analytics`
 imports cleanly on a machine with no matplotlib; and the `redo_analytics.py`
 script (game auto-detection, single-experiment regeneration,
 multi-experiment summaries, `--no-individual`, inferred summary dir,
-graceful skip of missing experiments).
+graceful skip of missing experiments), plus `cross_grid_report.py`
+(recursive `<policy>/vX/` discovery, copied-summary link rewriting, and
+cross-grid family comparison tables).
 
 **Not tested.** Real distributed training across multiple machines (only the
 in-process HTTP loopback is exercised); actual matplotlib rendering or PNG
@@ -139,6 +142,10 @@ behaviour of the actual `train_rl()` loop end-to-end on a real env.
 ### test_consolidate.py — grid-search result consolidation
 - experiment-data round-trip / load missing raises / valid JSON
 - creates results dir; produces summary; infers summary dir; skips missing; detects varied keys
+
+### test_cross_grid_report.py — recursive cross-grid summary collation
+- discovery: only `*__summary/summary.md` under `<policy>/vX/` is treated as a cross-grid candidate
+- report generation: copies summary bundles, rewrites copied summary links back to original run assets, ranks discovered grid-search families, pushes missing-reward families to the bottom, ignores prior output trees on rerun, remaps moved reward-config/weights paths, and surfaces average/best reward + generation-to-best + population-size / hidden-layer / best-run param choices
 
 ### test_redo_analytics.py — `redo_analytics.py` re-generation script
 - game detection: honors explicit `training_params.game` (incl. `assetto_corsa` alias), SC2 inferred from `map_name` / `agent_race`, TMNF default, empty params → TMNF
