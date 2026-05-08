@@ -56,6 +56,8 @@ def _write_run(
     rewards: list[float],
     training_params: dict,
     reward_yaml: str = "progress_weight: 10000.0\n",
+    stored_weights_file: str | None = None,
+    stored_reward_config_file: str | None = None,
 ) -> str:
     experiment_dir = os.path.join(version_dir, name)
     results_dir = os.path.join(experiment_dir, "results")
@@ -67,7 +69,13 @@ def _write_run(
     with open(reward_config_file, "w", encoding="utf-8") as f:
         f.write(reward_yaml)
     save_experiment_data_json(
-        _make_data(name, rewards, training_params, weights_file, reward_config_file),
+        _make_data(
+            name,
+            rewards,
+            training_params,
+            stored_weights_file or weights_file,
+            stored_reward_config_file or reward_config_file,
+        ),
         results_dir,
     )
     return experiment_dir
@@ -183,3 +191,87 @@ class TestCrossGridReport(unittest.TestCase):
             self.assertIn("| `mutation_scale` | 0.1 |", content)
             self.assertIn("| `learning_rate` | 0.01 |", content)
             self.assertNotIn("draft", content)
+
+    def test_missing_rewards_rank_after_real_results(self):
+        from cross_grid_report import build_cross_grid_report
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root_dir = os.path.join(tmpdir, "experiments")
+
+            full_version = os.path.join(root_dir, "arena", "genetic", "v1")
+            os.makedirs(full_version)
+            _write_run(
+                full_version,
+                "good_run",
+                [2.0, 4.0],
+                {"policy_type": "genetic", "population_size": 8},
+            )
+            _write_summary(full_version, "gs_genetic_v1__summary", "good_run")
+
+            empty_version = os.path.join(root_dir, "arena", "neural_net", "v2")
+            os.makedirs(empty_version)
+            _write_run(
+                empty_version,
+                "empty_run",
+                [],
+                {"policy_type": "neural_net", "hidden_sizes": [16, 16]},
+            )
+            _write_summary(empty_version, "gs_neural_net_v2__summary", "empty_run")
+
+            summary_path = build_cross_grid_report(root_dir, summary_name="compare")
+
+            with open(summary_path, encoding="utf-8") as f:
+                content = f.read()
+
+            self.assertIn("| 1 | genetic | v1 | 1 | +4.0 | +4.0 |", content)
+            self.assertIn("| 2 | neural_net | v2 | 1 | — | — |", content)
+
+    def test_rerun_ignores_existing_output_tree(self):
+        from cross_grid_report import build_cross_grid_report
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root_dir = os.path.join(tmpdir, "experiments")
+            version_dir = os.path.join(root_dir, "arena", "genetic", "v1")
+            os.makedirs(version_dir)
+            _write_run(
+                version_dir,
+                "run1",
+                [1.0, 3.0],
+                {"policy_type": "genetic", "population_size": 16},
+            )
+            _write_summary(version_dir, "gs_genetic_v1__summary", "run1")
+
+            first_summary = build_cross_grid_report(root_dir, summary_name="compare")
+            second_summary = build_cross_grid_report(root_dir, summary_name="compare")
+
+            self.assertEqual(first_summary, second_summary)
+            with open(second_summary, encoding="utf-8") as f:
+                content = f.read()
+
+            self.assertIn("found 1 grid-search summaries", content)
+            self.assertEqual(content.count("| 1 | genetic | v1 | 1 | +3.0 | +3.0 |"), 1)
+
+    def test_moved_experiment_paths_remap_reward_config_and_weights(self):
+        from cross_grid_report import build_cross_grid_report
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root_dir = os.path.join(tmpdir, "experiments")
+            version_dir = os.path.join(root_dir, "arena", "genetic", "v1")
+            os.makedirs(version_dir)
+            _write_run(
+                version_dir,
+                "run1",
+                [1.0, 3.0],
+                {"policy_type": "genetic", "population_size": 16},
+                reward_yaml="progress_weight: 10000.0\nstep_penalty: -0.1\n",
+                stored_weights_file=os.path.join(tmpdir, "old", "policy_weights.yaml"),
+                stored_reward_config_file=os.path.join(tmpdir, "old", "reward_config.yaml"),
+            )
+            _write_summary(version_dir, "gs_genetic_v1__summary", "run1")
+
+            summary_path = build_cross_grid_report(root_dir, summary_name="compare")
+
+            with open(summary_path, encoding="utf-8") as f:
+                content = f.read()
+
+            self.assertIn("| `step_penalty` | -0.1 |", content)

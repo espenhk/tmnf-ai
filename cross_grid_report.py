@@ -61,6 +61,13 @@ def _read_reward_config(path: str | None) -> dict:
     return parsed if isinstance(parsed, dict) else {}
 
 
+def _is_subpath(path: str, parent: str) -> bool:
+    try:
+        return os.path.commonpath([path, parent]) == parent
+    except ValueError:
+        return False
+
+
 def _format_value(value) -> str:
     if isinstance(value, float):
         if math.isfinite(value):
@@ -119,6 +126,19 @@ def _extract_hidden_sizes(training_params: dict) -> str | None:
     return None
 
 
+def _remap_data_paths(experiment_dir: str, data) -> None:
+    for attr, filename in (
+        ("weights_file", "policy_weights.yaml"),
+        ("reward_config_file", "reward_config.yaml"),
+    ):
+        stored = getattr(data, attr, None)
+        if stored and os.path.exists(stored):
+            continue
+        candidate = os.path.join(experiment_dir, filename)
+        if os.path.exists(candidate):
+            setattr(data, attr, candidate)
+
+
 def _flatten_run_params(training_params: dict, reward_cfg: dict) -> dict:
     params = {
         key: value
@@ -150,10 +170,28 @@ def _infer_flattened_varied_keys(runs: list[tuple[str, object]]) -> list[str]:
     )
 
 
-def discover_grid_search_families(root_dir: str) -> list[GridSearchFamily]:
+def discover_grid_search_families(
+    root_dir: str,
+    exclude_dirs: list[str] | None = None,
+) -> list[GridSearchFamily]:
     families: list[GridSearchFamily] = []
+    exclude_roots = [
+        os.path.abspath(path)
+        for path in (exclude_dirs or [])
+    ]
     seen_version_dirs: set[str] = set()
-    for dirpath, _, filenames in os.walk(root_dir):
+    for dirpath, dirnames, filenames in os.walk(root_dir):
+        abs_dirpath = os.path.abspath(dirpath)
+        dirnames[:] = [
+            name
+            for name in dirnames
+            if not any(
+                _is_subpath(os.path.join(abs_dirpath, name), exclude_root)
+                for exclude_root in exclude_roots
+            )
+        ]
+        if any(_is_subpath(abs_dirpath, exclude_root) for exclude_root in exclude_roots):
+            continue
         if "summary.md" not in filenames or not dirpath.endswith("__summary"):
             continue
         version_dir = os.path.dirname(dirpath)
@@ -212,6 +250,12 @@ def copy_grid_search_summary(
     )
     parent = os.path.dirname(copied_summary_dir)
     os.makedirs(parent, exist_ok=True)
+    if os.path.abspath(family.summary_dir) == os.path.abspath(copied_summary_dir):
+        copied_summary_rel = os.path.relpath(
+            os.path.join(copied_summary_dir, "summary.md"),
+            output_dir,
+        ).replace(os.sep, "/")
+        return copied_summary_dir, copied_summary_rel
     if os.path.exists(copied_summary_dir):
         shutil.rmtree(copied_summary_dir)
     shutil.copytree(family.summary_dir, copied_summary_dir)
@@ -240,6 +284,7 @@ def _load_family_metrics(family: GridSearchFamily) -> GridSearchFamily | None:
             data = load_experiment_data(experiment_dir)
         except FileNotFoundError:
             continue
+        _remap_data_paths(experiment_dir, data)
         runs.append((data.experiment_name, data))
 
     if not runs:
@@ -305,8 +350,10 @@ def write_cross_grid_summary(
     ranked = sorted(
         families,
         key=lambda f: (
-            float("-inf") if f.best_reward is None else -f.best_reward,
-            float("-inf") if f.avg_best_reward is None else -f.avg_best_reward,
+            f.best_reward is None,
+            0.0 if f.best_reward is None else -f.best_reward,
+            f.avg_best_reward is None,
+            0.0 if f.avg_best_reward is None else -f.avg_best_reward,
             f.policy_name,
             f.version_name,
         ),
@@ -367,10 +414,12 @@ def build_cross_grid_report(
     summary_name: str = "cross_grid",
 ) -> str | None:
     root_dir = os.path.abspath(root_dir)
-    output_dir = os.path.abspath(output_dir or os.path.join(root_dir, f"{summary_name}__summary"))
+    output_dir = os.path.abspath(
+        output_dir or os.path.join(root_dir, f"{summary_name}__summary")
+    )
     os.makedirs(output_dir, exist_ok=True)
 
-    families = discover_grid_search_families(root_dir)
+    families = discover_grid_search_families(root_dir, exclude_dirs=[output_dir])
     if not families:
         logger.error("No grid-search summaries found under %s", root_dir)
         return None
