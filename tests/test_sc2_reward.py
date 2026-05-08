@@ -210,12 +210,30 @@ class TestSC2IdleBonus(unittest.TestCase):
         )
         self.assertAlmostEqual(r, 2.0)
 
+    def test_idle_bonus_fires_at_attack_range_boundary(self):
+        calc = self._make_calc(idle_bonus=2.0)
+        r = calc.compute(
+            prev_state=None, curr_state=None, finished=False,
+            elapsed_s=1.0,
+            info=self._combat_info(fn_idx=0, dist=20.0),
+        )
+        self.assertAlmostEqual(r, 2.0)
+
     def test_idle_bonus_skipped_when_action_is_not_no_op(self):
         calc = self._make_calc(idle_bonus=2.0)
         r = calc.compute(
             prev_state=None, curr_state=None, finished=False,
             elapsed_s=1.0,
             info=self._combat_info(fn_idx=2, dist=5.0),  # Move_screen
+        )
+        self.assertAlmostEqual(r, 0.0)
+
+    def test_idle_bonus_skipped_just_outside_attack_range(self):
+        calc = self._make_calc(idle_bonus=2.0)
+        r = calc.compute(
+            prev_state=None, curr_state=None, finished=False,
+            elapsed_s=1.0,
+            info=self._combat_info(fn_idx=0, dist=21.0),
         )
         self.assertAlmostEqual(r, 0.0)
 

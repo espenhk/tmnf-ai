@@ -156,9 +156,10 @@ class SC2RewardCalculator(RewardCalculatorBase):
     # Maximum centroid-distance for friendly units to be considered
     # "in combat range" for the ``idle_bonus`` shaping reward.  Expressed
     # as a fraction of the screen feature-layer side so the threshold
-    # scales with non-default screen_size values (~Marine range at the
-    # 64-pixel default ≈ 25 px).
-    _COMBAT_RANGE_FRAC: float = 25.0 / 64.0
+    # scales with non-default screen_size values (~Marine attack range at the
+    # 64-pixel default ≈ 20 px).  Keep this tight so idle_bonus only applies
+    # when units can actually fire, not when they're just outside weapon range.
+    _COMBAT_RANGE_FRAC: float = 20.0 / 64.0
     # Minimum move distance (as a screen fraction) that counts as a
     # "meaningful" move.  Below this threshold the exploration bonus is
     # withheld and the repeat penalty is applied instead.  At the default

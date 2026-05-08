@@ -422,7 +422,7 @@ handful of iterations only).
 ### test_sc2_reward.py — SC2 reward calc
 - defaults; from_yaml; unknown raises; loads bundled config
 - score delta; step penalty only; step penalty n_ticks scaling; win bonus; loss penalty; no-outcome no bonus; economy weight; idle penalty when idle / not when busy
-- idle bonus: fires when no_op in combat range; skipped for non-no_op / out-of-range enemy / no enemy / no self; disabled by default; n_ticks scaling
+- idle bonus: fires when no_op in combat range (including exact attack-range boundary); skipped for non-no_op / just-outside-range enemy / out-of-range enemy / no enemy / no self; disabled by default; n_ticks scaling
 - attack_move_bonus: fires when Attack_screen target is on empty ground with enemies visible; skipped for Move_screen / no enemy; disabled by default; n_ticks scaling
 - click_attack_bonus: fires when Attack_screen target is on/near enemy centroid; skipped when target far from enemy / no enemy; disabled by default; n_ticks scaling
 - cooldown: default=8; same target always fires; rapid switch withheld; fires again after cooldown elapsed; reset() clears state; both bonuses mutually exclusive
