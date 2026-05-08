@@ -31,10 +31,14 @@ import argparse
 import logging
 import os
 from typing import Any
+from typing import TYPE_CHECKING
 
 import yaml
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from framework.analytics import ExperimentData
 
 
 # ---------------------------------------------------------------------------
@@ -51,15 +55,17 @@ _ANALYTICS_MODULES = {
 }
 
 
-def _normalize_game_name(game: str) -> str:
-    game = (game or "").strip().lower()
+def _normalize_game_name(game: str | None) -> str:
+    if game is None:
+        return ""
+    game = str(game).strip().lower()
     game = _GAME_ALIASES.get(game, game)
     return game
 
 
 def _detect_game(training_params: dict) -> str:
     """Infer game from training-param keys; defaults to 'tmnf'."""
-    game = _normalize_game_name(str(training_params.get("game", "")))
+    game = _normalize_game_name(training_params.get("game", ""))
     if game:
         return game
     if _SC2_KEYS & set(training_params):
@@ -101,7 +107,7 @@ def _load_analytics_fns(game: str):
     return save_exp, save_grid
 
 
-def _load_reward_cfg(path: str) -> dict[str, Any]:
+def _load_reward_config(path: str | None) -> dict[str, Any]:
     if not path or not os.path.exists(path):
         return {}
     try:
@@ -113,7 +119,7 @@ def _load_reward_cfg(path: str) -> dict[str, Any]:
         return {}
 
 
-def _infer_varied_keys(all_runs: list[tuple[str, object]]) -> list[str]:
+def _infer_varied_keys(all_runs: list[tuple[str, "ExperimentData"]]) -> list[str]:
     """Infer varied params across training_params and reward_config files."""
     training_keys: set[str] = set()
     reward_keys: set[str] = set()
@@ -121,7 +127,7 @@ def _infer_varied_keys(all_runs: list[tuple[str, object]]) -> list[str]:
 
     for _, data in all_runs:
         training_keys.update(data.training_params.keys())
-        reward_cfg = _load_reward_cfg(data.reward_config_file)
+        reward_cfg = _load_reward_config(data.reward_config_file)
         reward_cfg_by_name[data.experiment_name] = reward_cfg
         reward_keys.update(reward_cfg.keys())
 
@@ -264,7 +270,7 @@ def main() -> None:
     parser.add_argument(
         "--game",
         default=None,
-        choices=["tmnf", "sc2", "torcs", "beamng", "car_racing", "assetto", "assetto_corsa"],
+        choices=["tmnf", "sc2", "torcs", "beamng", "car_racing", "assetto"],
         help=(
             "Game analytics module to use. "
             "Auto-detected from training_params when not given "

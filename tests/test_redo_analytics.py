@@ -125,6 +125,8 @@ class TestLoadAnalyticsFns(unittest.TestCase):
     def test_assetto_alias_loads_assetto_module(self):
         from redo_analytics import _load_analytics_fns
         save_exp, _ = _load_analytics_fns("assetto")
+        self.assertTrue(callable(save_exp))
+        self.assertEqual(save_exp.__name__, "save_experiment_results")
         self.assertIn("assetto_corsa.analytics", save_exp.__module__)
 
 
