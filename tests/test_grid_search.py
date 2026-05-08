@@ -1,12 +1,13 @@
 """Tests for grid_search.py — grid expansion and name generation."""
 from __future__ import annotations
 
+import glob
 import os
 import tempfile
 
 import yaml
 
-from grid_search import _expand_grid, _make_experiment_name, _fmt_value, _build_policy_params, _POLICY_PARAM_MAP, _load_grid_config
+from grid_search import _ABBREV, _expand_grid, _make_experiment_name, _fmt_value, _build_policy_params, _POLICY_PARAM_MAP, _load_grid_config
 
 
 class TestExpandGrid:
@@ -223,3 +224,22 @@ class TestLoadGridConfig:
         combos, varied = _expand_grid(t, r)
         assert len(combos) == 2
         assert varied == ["mutation_scale"]
+
+
+class TestAbbreviationCoverage:
+    def test_all_default_training_and_reward_keys_have_abbreviations(self):
+        config_paths = glob.glob("games/**/config/training_params.yaml", recursive=True)
+        config_paths += glob.glob("games/**/config/reward_config.yaml", recursive=True)
+
+        keys = set()
+        for path in config_paths:
+            with open(path, encoding="utf-8") as f:
+                data = yaml.safe_load(f) or {}
+            keys.update(data.keys())
+
+        missing = sorted(k for k in keys if k not in _ABBREV)
+        assert missing == []
+
+    def test_all_promoted_policy_params_have_abbreviations(self):
+        missing = sorted(k for k in _POLICY_PARAM_MAP if k not in _ABBREV)
+        assert missing == []
