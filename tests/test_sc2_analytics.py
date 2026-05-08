@@ -541,10 +541,11 @@ class TestSaveGridSummary(unittest.TestCase):
                 )
             )
 
-    def test_step_penalty_divided_by_weight_with_floor(self):
-        """step_penalty is divided by max(abs(weight), 0.001).
-        For weight=-0.001 (the minimum), the floor applies and acts as
-        the divisor — so -0.5 / 0.001 = -500 (scales by number of steps).
+    def test_step_penalty_with_weight_below_1_passes_through_raw(self):
+        """step_penalty weight < 1.0 → scale=1.0 → raw value passes through unchanged.
+
+        The raw contribution already encodes the weight (raw = steps × weight),
+        so dividing by the weight would amplify it 1000× and swamp other signals.
         """
         with tempfile.TemporaryDirectory() as d:
             reward_cfg_path = os.path.join(d, "reward_config.yaml")
@@ -563,11 +564,11 @@ class TestSaveGridSummary(unittest.TestCase):
 
             forwarded_runs = m.call_args.args[0]
             forwarded_sim = forwarded_runs[0][1].greedy_sims[0]
-            # scale = max(0.001, 0.001) = 0.001 → -0.5 / 0.001 = -500
-            self.assertAlmostEqual(forwarded_sim.reward, -500.0, places=6)
+            # scale = max(0.001, 1.0) = 1.0 → -0.5 / 1.0 = -0.5 (not the amplified -500)
+            self.assertAlmostEqual(forwarded_sim.reward, -0.5, places=6)
 
-    def test_idle_penalty_divided_by_weight_with_floor(self):
-        """idle_penalty is divided by max(abs(weight), 0.001)."""
+    def test_idle_penalty_with_weight_below_1_passes_through_raw(self):
+        """idle_penalty weight < 1.0 → scale=1.0 → raw value passes through unchanged."""
         with tempfile.TemporaryDirectory() as d:
             reward_cfg_path = os.path.join(d, "reward_config.yaml")
             with open(reward_cfg_path, "w", encoding="utf-8") as f:
@@ -585,32 +586,65 @@ class TestSaveGridSummary(unittest.TestCase):
 
             forwarded_runs = m.call_args.args[0]
             forwarded_sim = forwarded_runs[0][1].greedy_sims[0]
-            # scale = max(0.001, 0.001) = 0.001 → -0.3 / 0.001 = -300
-            self.assertAlmostEqual(forwarded_sim.reward, -300.0, places=6)
+            # scale = max(0.001, 1.0) = 1.0 → -0.3 / 1.0 = -0.3 (not -300)
+            self.assertAlmostEqual(forwarded_sim.reward, -0.3, places=6)
 
-    def test_weight_below_floor_clamped_to_prevent_extreme_amplification(self):
-        """A weight smaller than 0.001 is clamped to 0.001, preventing ×10000 amplification."""
+    def test_sub_1_weights_compared_by_proportional_raw_contribution(self):
+        """Two sub-1.0 weights (0.001 vs 0.002) both use scale=1.0, so runs are
+        compared by their raw contributions — the larger weight naturally produces
+        a larger raw value, preserving the correct relative ordering.
+        """
         with tempfile.TemporaryDirectory() as d:
             reward_cfg_path = os.path.join(d, "reward_config.yaml")
             with open(reward_cfg_path, "w", encoding="utf-8") as f:
-                # weight=0.0001 would amplify by 10000× without the floor
+                # weight=0.0001 — still sub-1.0 — should also pass through raw
                 f.write("step_penalty: -0.0001\n")
 
             sim = _make_sim(
                 sim=1, reward=-0.5,
                 reward_components={"step_penalty": -0.5},
             )
-            data = _make_experiment([sim], name="exp_floor")
+            data = _make_experiment([sim], name="exp_small")
             data.reward_config_file = reward_cfg_path
 
             with mock.patch.object(sc2_analytics, "_framework_save_grid_summary") as m:
-                save_grid_summary([("exp_floor", data)], [], d, "gs_test")
+                save_grid_summary([("exp_small", data)], [], d, "gs_test")
 
             forwarded_runs = m.call_args.args[0]
             forwarded_sim = forwarded_runs[0][1].greedy_sims[0]
-            # scale = max(0.0001, 0.001) = 0.001 (floor clamped, not 0.0001)
-            # → -0.5 / 0.001 = -500  (not -5000 that weight 0.0001 would give)
-            self.assertAlmostEqual(forwarded_sim.reward, -500.0, places=6)
+            # scale = max(0.0001, 1.0) = 1.0 → -0.5 / 1.0 = -0.5
+            self.assertAlmostEqual(forwarded_sim.reward, -0.5, places=6)
+
+    def test_tiny_weight_does_not_make_positive_reward_negative(self):
+        """Realistic SC2 sim: idle_bonus >> step_penalty → normalized reward stays positive."""
+        with tempfile.TemporaryDirectory() as d:
+            reward_cfg_path = os.path.join(d, "reward_config.yaml")
+            with open(reward_cfg_path, "w", encoding="utf-8") as f:
+                f.write("idle_bonus: 0.5\nstep_penalty: -0.001\nscore_weight: 1.0\n")
+
+            # Mirrors a real SC2 sim: 648 idle steps, 1504 total steps, score=-9.
+            sim = _make_sim(
+                sim=1, reward=313.5,
+                reward_components={
+                    "score": -9.0,
+                    "idle_bonus": 324.0,   # 648 idle steps × 0.5
+                    "step_penalty": -1.504, # 1504 steps × 0.001
+                },
+            )
+            data = _make_experiment([sim], name="exp_real")
+            data.reward_config_file = reward_cfg_path
+
+            with mock.patch.object(sc2_analytics, "_framework_save_grid_summary") as m:
+                save_grid_summary([("exp_real", data)], [], d, "gs_test")
+
+            forwarded_runs = m.call_args.args[0]
+            forwarded_sim = forwarded_runs[0][1].greedy_sims[0]
+            # score:       -9 / max(1.0, 1.0) = -9.0
+            # idle_bonus: 324 / max(0.5, 1.0) = 324.0   (sub-1.0 → raw)
+            # step_penalty: -1.504 / max(0.001, 1.0) = -1.504  (sub-1.0 → raw)
+            # total = -9.0 + 324.0 - 1.504 = 313.496  (positive ✓, not the old -865)
+            self.assertGreater(forwarded_sim.reward, 0.0)
+            self.assertAlmostEqual(forwarded_sim.reward, 313.496, places=2)
 
     def test_writes_sc2_cross_run_summary_charts(self):
         with tempfile.TemporaryDirectory() as d:
