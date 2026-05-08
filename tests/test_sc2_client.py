@@ -619,7 +619,7 @@ class TestSC2ClientActionFallback(unittest.TestCase):
         # Step 1: first blocked step → should substitute select_army.
         call1 = self.client._action_to_call(action)
         self.assertEqual(call1.function, _FakeFunctions.select_army.id)
-        self.assertTrue(self.client._select_army_pending)
+        self.assertEqual(self.client._blocked_unit_targeted_steps, 1)
 
         # Step 2: still blocked → should NOT repeat select_army; use no_op.
         call2 = self.client._action_to_call(action)
@@ -630,9 +630,8 @@ class TestSC2ClientActionFallback(unittest.TestCase):
         self.assertEqual(call3.function, _FakeFunctions.no_op.id)
 
     def test_pending_flag_cleared_when_move_screen_becomes_available(self):
-        """After a select_army substitution, when Move_screen finally becomes
-        available again the pending flag is reset and a future blocked step
-        will trigger a fresh select_army substitution."""
+        """After blocked-step tracking starts, a legal Move_screen should reset
+        it so the next blocked streak starts with select_army again."""
         blocked = {_FakeFunctions.no_op.id, _FakeFunctions.select_army.id}
         available = {
             _FakeFunctions.no_op.id,
@@ -644,17 +643,31 @@ class TestSC2ClientActionFallback(unittest.TestCase):
         # First blocked step: select_army substituted, pending=True.
         self.client._available_actions = blocked
         self.client._action_to_call(action)
-        self.assertTrue(self.client._select_army_pending)
+        self.assertEqual(self.client._blocked_unit_targeted_steps, 1)
 
-        # Move_screen becomes available: pending should reset.
+        # Move_screen becomes available: blocked-step counter should reset.
         self.client._available_actions = available
         self.client._action_to_call(action)
-        self.assertFalse(self.client._select_army_pending)
+        self.assertEqual(self.client._blocked_unit_targeted_steps, 0)
 
         # Now block again: should trigger select_army again (not no_op).
         self.client._available_actions = blocked
         call = self.client._action_to_call(action)
         self.assertEqual(call.function, _FakeFunctions.select_army.id)
+
+    def test_select_army_retried_periodically_when_blocked_persists(self):
+        """Long blocked streaks should periodically retry select_army so the
+        agent cannot get stuck in endless no_op after a round transition."""
+        blocked_available = {
+            _FakeFunctions.no_op.id, _FakeFunctions.select_army.id,
+        }
+        self.client._available_actions = blocked_available
+        action = np.array([2, 0.4, 0.6, 0], dtype=np.float32)
+
+        calls = [self.client._action_to_call(action).function for _ in range(8)]
+        self.assertEqual(calls[0], _FakeFunctions.select_army.id)
+        self.assertTrue(all(c == _FakeFunctions.no_op.id for c in calls[1:7]))
+        self.assertEqual(calls[7], _FakeFunctions.select_army.id)
 
 class TestSC2ClientAvailableFnIds(unittest.TestCase):
     """Tests for the info["available_fn_ids"] field added by _timestep_to_obs_info."""
