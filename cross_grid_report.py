@@ -62,10 +62,11 @@ def _read_reward_config(path: str | None) -> dict:
 
 
 def _is_subpath(path: str, parent: str) -> bool:
-    try:
-        return os.path.commonpath([path, parent]) == parent
-    except ValueError:
-        return False
+    normalized_path = os.path.normcase(os.path.abspath(path))
+    normalized_parent = os.path.normcase(os.path.abspath(parent))
+    if normalized_path == normalized_parent:
+        return True
+    return normalized_path.startswith(normalized_parent + os.sep)
 
 
 def _format_value(value) -> str:
@@ -175,20 +176,15 @@ def discover_grid_search_families(
     exclude_dirs: list[str] | None = None,
 ) -> list[GridSearchFamily]:
     families: list[GridSearchFamily] = []
-    exclude_roots = [
-        os.path.abspath(path)
-        for path in (exclude_dirs or [])
-    ]
+    exclude_roots = [os.path.abspath(path) for path in (exclude_dirs or [])]
     seen_version_dirs: set[str] = set()
     for dirpath, dirnames, filenames in os.walk(root_dir):
         abs_dirpath = os.path.abspath(dirpath)
+        child_dirs = {name: os.path.join(abs_dirpath, name) for name in dirnames}
         dirnames[:] = [
             name
-            for name in dirnames
-            if not any(
-                _is_subpath(os.path.join(abs_dirpath, name), exclude_root)
-                for exclude_root in exclude_roots
-            )
+            for name, child_dir in child_dirs.items()
+            if not any(_is_subpath(child_dir, exclude_root) for exclude_root in exclude_roots)
         ]
         if any(_is_subpath(abs_dirpath, exclude_root) for exclude_root in exclude_roots):
             continue
@@ -250,12 +246,15 @@ def copy_grid_search_summary(
     )
     parent = os.path.dirname(copied_summary_dir)
     os.makedirs(parent, exist_ok=True)
-    if os.path.abspath(family.summary_dir) == os.path.abspath(copied_summary_dir):
-        copied_summary_rel = os.path.relpath(
-            os.path.join(copied_summary_dir, "summary.md"),
-            output_dir,
-        ).replace(os.sep, "/")
-        return copied_summary_dir, copied_summary_rel
+    try:
+        if os.path.samefile(family.summary_dir, copied_summary_dir):
+            copied_summary_rel = os.path.relpath(
+                os.path.join(copied_summary_dir, "summary.md"),
+                output_dir,
+            ).replace(os.sep, "/")
+            return copied_summary_dir, copied_summary_rel
+    except FileNotFoundError:
+        pass
     if os.path.exists(copied_summary_dir):
         shutil.rmtree(copied_summary_dir)
     shutil.copytree(family.summary_dir, copied_summary_dir)

@@ -252,13 +252,14 @@ class TestCrossGridReport(unittest.TestCase):
             self.assertEqual(content.count("| 1 | genetic | v1 | 1 | +3.0 | +3.0 |"), 1)
 
     def test_moved_experiment_paths_remap_reward_config_and_weights(self):
-        from cross_grid_report import build_cross_grid_report
+        from cross_grid_report import _remap_data_paths, build_cross_grid_report
+        from framework.analytics import load_experiment_data
 
         with tempfile.TemporaryDirectory() as tmpdir:
             root_dir = os.path.join(tmpdir, "experiments")
             version_dir = os.path.join(root_dir, "arena", "genetic", "v1")
             os.makedirs(version_dir)
-            _write_run(
+            experiment_dir = _write_run(
                 version_dir,
                 "run1",
                 [1.0, 3.0],
@@ -268,6 +269,19 @@ class TestCrossGridReport(unittest.TestCase):
                 stored_reward_config_file=os.path.join(tmpdir, "old", "reward_config.yaml"),
             )
             _write_summary(version_dir, "gs_genetic_v1__summary", "run1")
+            self.assertFalse(os.path.exists(os.path.join(tmpdir, "old", "policy_weights.yaml")))
+            self.assertFalse(os.path.exists(os.path.join(tmpdir, "old", "reward_config.yaml")))
+
+            data = load_experiment_data(experiment_dir)
+            _remap_data_paths(experiment_dir, data)
+            self.assertEqual(
+                data.reward_config_file,
+                os.path.join(experiment_dir, "reward_config.yaml"),
+            )
+            self.assertEqual(
+                data.weights_file,
+                os.path.join(experiment_dir, "policy_weights.yaml"),
+            )
 
             summary_path = build_cross_grid_report(root_dir, summary_name="compare")
 
