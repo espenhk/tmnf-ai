@@ -158,7 +158,7 @@ class TestSC2Adapter:
     @pytest.mark.parametrize("bad_type,expected_hint", [
         ("hill_climbing", "sc2_genetic"),
         ("genetic",       "sc2_genetic"),
-        ("neural_net",    "sc2_neural_dqn"),
+        ("neural_net",    "sc2_neural_net"),
     ])
     def test_build_extras_rejects_incompatible_policy_type(self, bad_type, expected_hint):
         """Incompatible policy types must raise ValueError naming the bad type and migration hint."""
@@ -191,6 +191,7 @@ class TestSC2Adapter:
 
     @pytest.mark.parametrize("policy_type,bad_param", [
         ("sc2_genetic",  "hidden_sizes"),
+        ("sc2_neural_net", "population_size"),
         ("cmaes",        "mutation_scale"),
         ("sc2_cmaes",    "learning_rate"),
         ("sc2_lstm",     "mutation_scale"),
@@ -238,6 +239,21 @@ class TestSC2Adapter:
                 "policy_params": {},
             }, False)
             assert extras is not None
+
+    def test_build_extras_accepts_valid_params_for_sc2_neural_net(self):
+        """Valid policy_params for sc2_neural_net must not raise."""
+        import os
+        import tempfile
+
+        a = self._adapter()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            wf = os.path.join(tmpdir, "policy_weights.yaml")
+            extras = a.build_extras(wf, {
+                "policy_type": "sc2_neural_net",
+                "policy_params": {"hidden_sizes": [16, 64, 64, 16]},
+            }, False)
+            assert extras is not None
+            assert "sc2_neural_net" in extras.factories
 
 
 class TestBeamNGAdapter:

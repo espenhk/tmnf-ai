@@ -28,7 +28,7 @@ _SC2_INCOMPATIBLE_POLICY_TYPES: frozenset[str] = frozenset({
 # Migration hint for each incompatible type.
 _SC2_MIGRATION_HINT: dict[str, str] = {
     "hill_climbing": "sc2_genetic",
-    "neural_net":    "sc2_neural_dqn or sc2_reinforce",
+    "neural_net":    "sc2_neural_net",
     "genetic":       "sc2_genetic",
 }
 
@@ -51,6 +51,7 @@ _SC2_VALID_POLICY_PARAMS: dict[str, frozenset[str]] = {
         "target_update_freq", "learning_rate", "epsilon_start", "epsilon_end",
         "epsilon_decay_steps", "gamma",
     }),
+    "sc2_neural_net": frozenset({"hidden_sizes"}),
     "cmaes":          frozenset({"population_size", "initial_sigma", "eval_episodes"}),
     "reinforce":      frozenset({
         "hidden_sizes", "learning_rate", "gamma", "entropy_coeff", "baseline",
@@ -313,6 +314,18 @@ class SC2Adapter:
                 gamma=policy_params.get("gamma", 0.995),
             )
 
+        def _make_sc2_neural_net():
+            from games.sc2.sc2_policies import SC2NeuralNetPolicy
+            if os.path.exists(weights_file) and not re_initialize:
+                with open(weights_file) as _f:
+                    _cfg = yaml.safe_load(_f) or {}
+                if isinstance(_cfg, dict) and _cfg.get("policy_type") == "sc2_neural_net":
+                    return SC2NeuralNetPolicy.from_cfg(_cfg, obs_spec)
+            return SC2NeuralNetPolicy(
+                obs_spec=obs_spec,
+                hidden_sizes=policy_params.get("hidden_sizes", [16, 16]),
+            )
+
         def _make_cmaes():
             from games.sc2.policies import (
                 CMAESPolicy as SC2CMAESPolicy,
@@ -550,6 +563,7 @@ class SC2Adapter:
                 "sc2_genetic":   _make_sc2_genetic,
                 "neural_dqn":    _make_neural_dqn,
                 "sc2_neural_dqn": _make_sc2_neural_dqn,
+                "sc2_neural_net": _make_sc2_neural_net,
                 "cmaes":         _make_cmaes,
                 "reinforce":     _make_reinforce,
                 "sc2_reinforce": _make_sc2_reinforce,
