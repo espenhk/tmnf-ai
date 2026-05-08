@@ -117,6 +117,11 @@ _MARINE_RANGE_PX_AT_64: float = 20.0
 # Built on first use when pysc2 is available.
 _pysc2_id_to_fn_idx: dict[int, int] | None = None
 
+# Retry cadence for re-issuing select_army when a unit-targeted action stays
+# blocked for many consecutive steps. Prevents permanent idling after
+# round/selection transitions in minigames while still avoiding per-step spam.
+_SELECT_ARMY_RETRY_BLOCKED_STEPS: int = 8
+
 # ---------------------------------------------------------------------------
 # Lazy PySC2 field-name helpers
 # ---------------------------------------------------------------------------
@@ -267,11 +272,10 @@ class SC2Client:
         self._explored_mask: np.ndarray | None = None
         self._available_actions: set[int] | None = None
         self._last_fn_idx: int = 0  # for last_fn_* one-hot in rich preset
-        # True after _action_to_call has already substituted select_army once
-        # for a blocked unit-targeted action.  Prevents repeated select_army
-        # spam when Move_screen stays unavailable for multiple consecutive steps
-        # (e.g. immediately after a beacon is scored in MoveToBeacon).
-        self._select_army_pending: bool = False
+        # Consecutive blocked unit-targeted steps where select_army is available.
+        # Used to issue one immediate select_army and then periodic retries
+        # (instead of permanent no_op) if the blocked state persists.
+        self._blocked_unit_targeted_steps: int = 0
         # Lookup table for unit-type ids → label, populated lazily so unit
         # tests don't import pysc2.lib.units at module load.
         self._unit_type_id_to_name: dict[int, str] | None = None
@@ -292,7 +296,7 @@ class SC2Client:
         self._explored_mask = None
         self._available_actions = None
         self._last_fn_idx = 0
-        self._select_army_pending = False
+        self._blocked_unit_targeted_steps = 0
         return self._timestep_to_obs_info(timesteps[0])
 
     def step(self, action: np.ndarray) -> tuple[np.ndarray, float, bool, dict]:
@@ -416,26 +420,29 @@ class SC2Client:
                 "Move_screen", "Attack_screen", "Harvest_Gather_screen",
             )
             if unit_targeted and select_army_id in self._available_actions:
-                if not self._select_army_pending:
-                    # First blocked step: issue select_army once to re-establish
-                    # army selection (e.g. at episode start or after a beacon
-                    # scoring event deselects the unit).
+                self._blocked_unit_targeted_steps += 1
+                if (
+                    self._blocked_unit_targeted_steps == 1
+                    or self._blocked_unit_targeted_steps % _SELECT_ARMY_RETRY_BLOCKED_STEPS == 0
+                ):
+                    # First blocked step: issue select_army to re-establish army
+                    # selection. If the blocked state persists for many steps
+                    # (e.g. post-round transitions), retry periodically so the
+                    # agent does not get stuck in perpetual no_op.
                     logger.debug(
                         "Action %s blocked; auto-selecting army (#124).", fn_name,
                     )
                     # Reflect the executed action, not the requested one, so the
                     # rich preset's last_fn_* one-hot stays consistent.
                     self._last_fn_idx = 1  # FUNCTION_IDS index for select_army
-                    self._select_army_pending = True
                     return pysc2_actions.FunctionCall(select_army_id, [[0]])
-                # select_army was already issued last step but Move_screen is
-                # still blocked — issuing it again would cause the agent to spam
-                # "Select army" for the entire scoring transition period in
-                # MoveToBeacon.  Wait with no_op instead so the policy can
-                # resume moving as soon as Move_screen becomes available again.
+                # Between periodic retries, wait with no_op to avoid spamming
+                # select_army every step during short transition windows.
                 logger.debug(
                     "Action %s still blocked after select_army; issuing no_op.", fn_name,
                 )
+            else:
+                self._blocked_unit_targeted_steps = 0
             logger.debug(
                 "Action %s blocked (not in available_actions); substituting no_op.",
                 fn_name,
@@ -445,9 +452,8 @@ class SC2Client:
                 int(pysc2_actions.FUNCTIONS.no_op.id), []
             )
 
-        # Action is available — reset the pending flag so a future blocked step
-        # triggers a fresh select_army substitution if needed.
-        self._select_army_pending = False
+        # Action is available — reset blocked-step tracking.
+        self._blocked_unit_targeted_steps = 0
         self._last_fn_idx = fn_idx
 
         if fn_name != "no_op":
