@@ -445,7 +445,7 @@ handful of iterations only).
 ### test_sc2_env.py — SC2 env wrapper
 - minigame obs space; action space shape+bounds; ladder obs space; episode time-limit get/set
 - reset returns obs+info; step 5-tuple; score-delta reward; done terminates; loss outcome
-- close calls client.close; info keys; prev_score threaded; custom reward config
+- close calls client.close; info keys; prev_score threaded; skipped-frame counters (default 0, per-step accumulation from game_loop deltas); custom reward config
 - end-screen analytics: series absent on mid-episode step; present on terminal step; supply_capped_fraction correct; army series value; resource series sums minerals+vespene; starting units excluded from build order; new units produce events; empty build order when no unit_counts
 
 ### test_sc2_apm_limiter.py — token-bucket APM limiter + SC2Env integration
@@ -533,18 +533,19 @@ handful of iterations only).
 
 ### test_sc2_analytics.py — SC2-specific analytics plots and flags
 - `SUPPORTS_THROTTLE=False` / `SUPPORTS_PATH=False` flags
-- `GreedySimResult` new fields: `action_counts` / `obs_averages` / `xy_hist` — default None; stored correctly
+- `GreedySimResult` new fields: `action_counts` / `obs_averages` / `xy_hist` / `skipped_frames` — default None; stored correctly
 - `GreedySimResult` end-screen fields: `supply_capped_fraction` / `build_order` / `army_count_series` / `resource_series` — default None; stored correctly
 - `plot_action_frequency`: renders to file / skips when no data / skips when no sims / single fn_idx
 - `plot_obs_averages`: renders to file / skips when no data / skips when all-zero / unknown feature key safe
 - `plot_spatial_heatmap`: renders to file / skips when no data / skips all-zero hist / partial None sims ignored
 - `plot_outcome_breakdown`: renders to file / skips when all None / skips when no sims / win+loss ladder
+- `plot_skipped_frames`: renders to file / skips when all None / zero-only still renders
 - `plot_supply_capped`: renders to file / skips when all None / skips when no sims / zero fraction renders
 - `plot_resource_series`: renders to file / uses best sim / skips when no series / skips when no sims / falls back to last sim when none improved
 - `plot_army_count`: renders to file / skips when no series / skips when no sims
 - `plot_build_order`: renders to file / skips when no build order / skips when no sims / single unit type / multiple unit types
-- `save_experiment_results`: writes results.md / writes SC2 plots (incl. new 4) / mentions game / no crash empty sims / no racing plots written
-- `save_grid_summary`: forwards config-normalized rewards (derived from reward components + reward weights) so cross-run ranking is scale-invariant; wires SC2 extra-plot hook into framework summary generation; covers no-components fallback, multi-sim normalization, malformed YAML fallback, non-mapping YAML fallback, non-numeric weight fallback, allow-listed `scout` component (no unmapped-key warning spam), and emits SC2 cross-run charts + summary links
+- `save_experiment_results`: writes results.md / writes SC2 plots (incl. skipped_frames) / mentions game / no crash empty sims / no racing plots written
+- `save_grid_summary`: forwards config-normalized rewards (derived from reward components + reward weights) so cross-run ranking is scale-invariant; wires SC2 extra-plot hook into framework summary generation; covers no-components fallback, multi-sim normalization, malformed YAML fallback, non-mapping YAML fallback, non-numeric weight fallback, allow-listed `scout` component (no unmapped-key warning spam), and emits SC2 cross-run charts (incl. skipped-frames) + summary links
 
 ## CLI / misc
 

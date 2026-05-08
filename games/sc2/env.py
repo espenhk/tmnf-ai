@@ -202,6 +202,8 @@ class SC2Env(BaseGameEnv):
         self._ep_obs_step_count: int = 0
         self._ep_xy_hist: np.ndarray = np.zeros((8, 8), dtype=np.int64)
         self._ep_apm_throttled_steps: int = 0
+        self._prev_step_game_loop: float | None = None
+        self._ep_skipped_frames: int = 0
         # Per-episode SC2 end-screen analytics (supply cap, time-series, build order).
         self._ep_supply_capped_steps: int = 0
         self._ep_army_series: list = []       # [[game_time_s, army_count], ...]
@@ -237,6 +239,15 @@ class SC2Env(BaseGameEnv):
         self._ep_obs_step_count = 0
         self._ep_xy_hist = np.zeros((8, 8), dtype=np.int64)
         self._ep_apm_throttled_steps = 0
+        _reset_game_loop = info.get("game_loop")
+        if _reset_game_loop is None:
+            self._prev_step_game_loop = None
+        else:
+            try:
+                self._prev_step_game_loop = float(_reset_game_loop)
+            except (TypeError, ValueError):
+                self._prev_step_game_loop = None
+        self._ep_skipped_frames = 0
         self._ep_supply_capped_steps = 0
         self._ep_army_series = []
         self._ep_resource_series = []
@@ -312,6 +323,29 @@ class SC2Env(BaseGameEnv):
         # APM throttle metadata — useful for diagnostics and analytics.
         info["apm_throttled"] = _apm_throttled
         info["episode_apm_throttled_steps"] = self._ep_apm_throttled_steps
+        # Realtime skip-frame diagnostics: if game_loop advanced more than the
+        # expected step_mul since the previous action, the excess is counted as
+        # skipped frames (action arrived too late for those loops).
+        _skipped_frames_this_step = 0
+        _raw_game_loop = info.get("game_loop")
+        _curr_game_loop: float | None
+        if _raw_game_loop is None:
+            _curr_game_loop = None
+        else:
+            try:
+                _curr_game_loop = float(_raw_game_loop)
+            except (TypeError, ValueError):
+                _curr_game_loop = None
+        if _curr_game_loop is not None and self._prev_step_game_loop is not None:
+            _delta = max(0.0, _curr_game_loop - self._prev_step_game_loop)
+            _skipped_frames_this_step = int(
+                max(0.0, np.floor(_delta - float(self._step_mul) + 1e-6))
+            )
+            self._ep_skipped_frames += _skipped_frames_this_step
+        if _curr_game_loop is not None:
+            self._prev_step_game_loop = _curr_game_loop
+        info["skipped_frames_this_step"] = _skipped_frames_this_step
+        info["episode_skipped_frames"] = self._ep_skipped_frames
 
         time_over = self._elapsed_s > self._max_episode_time_s
         finished = done
