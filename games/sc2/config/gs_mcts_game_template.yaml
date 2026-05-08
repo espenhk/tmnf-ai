@@ -35,19 +35,19 @@
 # obs dims gives 3^235–3^287 ≈ 10^112–10^137 possible states — no state
 # would ever be revisited.  Use neural_dqn for belief + Q-learning.
 
-base_name: "gs_sc2_mcts_v2"
+base_name: "gs_sc2_mcts_game_v1"
 game: sc2
 
 training_params:
-  obs_spec_preset: [ladder, rich]   # see state-space note above; ladder/rich runs are diagnostic
-  enable_belief: false              # tabular state-space explosion; see comment above
-  map_name: DefeatRoaches
+  obs_spec_preset: rich   # see state-space note above; ladder/rich runs are diagnostic
+  enable_belief: true              # tabular state-space explosion; see comment above
+  map_name: Simple64
   in_game_episode_s: 120.0
   step_mul: 8
   screen_size: 64
   minimap_size: 64
   max_apm: 300
-  agent_race: random
+  agent_race: [terran, zerg, protoss]
   n_sims: 300                 # 300 episodes; UCT needs a dense Q-table before exploitation is reliable
   policy_type: mcts
   mcts_c: [1.0, 1.41, 2.0]
@@ -59,8 +59,6 @@ training_params:
 reward_params:
   score_weight: 1.0
   step_penalty: -0.001
-  win_bonus: 20.0
-  loss_penalty: 0.0
   idle_bonus: 1.0
   move_exploration_bonus: [0.5, 1.0, 2.0]
   move_repeat_penalty: [-0.2, -0.1, -0.05]

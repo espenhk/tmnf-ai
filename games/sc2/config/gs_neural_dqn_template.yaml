@@ -43,12 +43,11 @@ training_params:
   agent_race: random
   n_sims: 200                 # 200 episodes; ~48 000 env steps total
   policy_type: neural_dqn
-  obs_spec_preset: ladder   # 43-dim ladder vs 95-dim rich
+  obs_spec_preset: rich
   enable_belief: [false, true]      # false: obs only; true: obs+192 belief dims + scout reward
   learning_rate: [0.0005, 0.001, 0.003]
   epsilon_decay_steps: [3000, 8000]
-  max_apm: [50, 300]
-  hidden_sizes: [64, 64]
+  hidden_sizes: [[64, 64], [16, 256, 256, 256, 16]]
   policy_params:
     replay_buffer_size: 15000
     batch_size: 64
@@ -63,10 +62,7 @@ reward_params:
   step_penalty: -0.001
   win_bonus: 20.0
   loss_penalty: 0.0
-<<<<<<< HEAD
   idle_bonus: 1.0
-=======
-  move_exploration_bonus: 0.01
-  move_repeat_penalty: -0.02
-  move_self_penalty: -0.01
->>>>>>> b4c35d1385871ca52af1ca92fc783bfa8e0fc9e1
+  move_exploration_bonus: [0.5, 1.0, 2.0]
+  move_repeat_penalty: [-0.2, -0.1, -0.05]
+  move_self_penalty: [-0.1, -0.05, -0.02]
