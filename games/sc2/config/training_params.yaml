@@ -27,7 +27,7 @@ patience: 0                  # stop greedy loop if no improvement for this many 
 
 # Policy algorithm for the greedy training phase.
 # SC2-specific policies (correct action encoding for [fn_idx, x, y, queue]):
-#   sc2_genetic (default), sc2_reinforce, cmaes, neural_dqn, reinforce, lstm
+#   sc2_genetic (default), sc2_neural_net, sc2_reinforce, cmaes, neural_dqn, reinforce, lstm
 # Framework tabular policies also work (select from DISCRETE_ACTIONS directly):
 #   epsilon_greedy, mcts
 # Note: hill_climbing, neural_net, and the framework's genetic policy are NOT
@@ -46,6 +46,10 @@ patience: 0                  # stop greedy loop if no improvement for this many 
 #   learning_rate: 0.001
 #   epsilon_start: 1.0
 #   epsilon_end: 0.05
+
+# sc2_neural_net policy_params (TMNF-style hill-climbing MLP with SC2 action encoding):
+# policy_params:
+#   hidden_sizes: [16, 64, 64, 16]
 
 policy_type: sc2_genetic
 

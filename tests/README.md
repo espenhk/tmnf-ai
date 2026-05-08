@@ -50,6 +50,7 @@
   - [test\_sc2\_cmaes\_policy.py — `SC2CMAESPolicy` (CMA-ES over multi-head linear policy)](#test_sc2_cmaes_policypy--sc2cmaespolicy-cma-es-over-multi-head-linear-policy)
   - [test\_sc2\_lstm\_policy.py — `SC2LSTMPolicy` + `SC2LSTMEvolutionPolicy`](#test_sc2_lstm_policypy--sc2lstmpolicy--sc2lstmevolutionpolicy)
   - [test\_sc2\_genetic\_policy.py — `SC2MultiHeadLinearPolicy` + genetic trainer](#test_sc2_genetic_policypy--sc2multiheadlinearpolicy--genetic-trainer)
+  - [test\_sc2\_neural\_net\_policy.py — hill-climbing MLP policy for SC2](#test_sc2_neural_net_policypy--hill-climbing-mlp-policy-for-sc2)
   - [test\_sc2\_neural\_dqn\_policy.py — masked DQN for SC2](#test_sc2_neural_dqn_policypy--masked-dqn-for-sc2)
   - [test\_sc2\_cnn\_policy.py — CNN feature extractor + CMA-ES variant](#test_sc2_cnn_policypy--cnn-feature-extractor--cma-es-variant)
   - [test\_sc2\_reinforce\_policy.py — REINFORCE policy for SC2](#test_sc2_reinforce_policypy--reinforce-policy-for-sc2)
@@ -493,6 +494,12 @@ handful of iterations only).
 - Save: yaml / champion lossless / cfg policy_type=sc2_genetic / from_cfg roundtrip / restores champion / no champion key OK
 - Call: 4-vec after init / raises before init
 - Available-actions masking: no-mask selects highest fn / None by default / masking blocks unavailable fn / selects best available / on_episode_start caches ids / no key clears mask / None info clears mask / update caches ids / no key in update leaves unchanged / mask applied after on_episode_start / mask applied after update / empty set falls back to no_op
+
+### test_sc2_neural_net_policy.py — hill-climbing MLP policy for SC2
+- Action: shape (4,) / fn_idx range / x+y unit square / queue binary
+- Determinism and cfg roundtrip: deterministic calls / from_cfg action-equivalent
+- Params and weights: hidden_sizes preserved / layer shapes match architecture
+- Mutation and masking: mutated weights differ / unavailable fn_idx masked / update caches available_fn_ids
 
 ### test_sc2_neural_dqn_policy.py — masked DQN for SC2
 - fn_idx_for_cell: centre=select_army / others=move_screen / consistent / int

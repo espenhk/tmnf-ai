@@ -396,11 +396,12 @@ python grid_search.py my_sc2_grid.yaml --game sc2
 
 ## Supported policies
 
-SC2-compatible policies are listed below. The framework's generic `hill_climbing`, `neural_net`, and base `genetic` policies are **not** compatible with SC2: their output encoding clips `fn_idx` to `[−1, 1]` and thresholds `x`/`y` to binary, which is unsuitable for the SC2 action space — use `sc2_genetic` or `sc2_cmaes` instead.
+SC2-compatible policies are listed below. The framework's generic `hill_climbing`, `neural_net`, and base `genetic` policies are **not** compatible with SC2: their output encoding clips `fn_idx` to `[−1, 1]` and thresholds `x`/`y` to binary, which is unsuitable for the SC2 action space — use SC2-specific equivalents such as `sc2_neural_net`, `sc2_genetic`, or `sc2_cmaes`.
 
 | `policy_type` | Algorithm | Notes |
 |---|---|---|
 | `sc2_genetic` | Population of `SC2MultiHeadLinearPolicy`, evolutionary crossover+mutation | **Recommended default.** SC2-native multi-head individuals; separate fn_idx (6×obs_dim) and sigmoid spatial (2×obs_dim) heads |
+| `sc2_neural_net` | TMNF-style hill-climbing MLP | Uses `hidden_sizes` list (e.g. `[16, 64, 64, 16]`); outputs SC2-native `[fn_idx, x, y, queue]` |
 | `sc2_reinforce` | Two-head REINFORCE MLP (softmax fn + sigmoid spatial) | Gradient-trained; recommended over legacy `reinforce` for SC2 |
 | `sc2_cmaes` | (μ/μ_w, λ)-CMA-ES over `SC2MultiHeadLinearPolicy` flat weights | Recommended over legacy `cmaes` for SC2 |
 | `sc2_lstm` | LSTM with SC2-native action encoding, trained by isotropic ES | Recommended over legacy `lstm` for SC2 |
@@ -459,6 +460,28 @@ policy_params:
 ```
 
 Trainer state (network weights + Adam moments) is saved to `trainer_state.npz` and reloaded on restart.
+
+---
+
+### `sc2_neural_net` — SC2NeuralNetPolicy
+
+TMNF-style MLP trained with the same mutation-and-keep hill-climbing loop as `neural_net`, but with SC2 action encoding:
+
+- `fn_idx`: sigmoid-scaled to `[0, 5]` and snapped to an available function ID.
+- `x`, `y`: sigmoid outputs in `[0, 1]`.
+- `queue`: thresholded to `{0, 1}`.
+
+```yaml
+policy_type: sc2_neural_net
+policy_params:
+  hidden_sizes: [16, 64, 64, 16]
+```
+
+Grid-search template for very large networks:
+
+```bash
+python grid_search.py games/sc2/config/gs_sc2_neural_net_template.yaml --game sc2
+```
 
 ---
 

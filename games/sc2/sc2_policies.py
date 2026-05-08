@@ -425,6 +425,131 @@ class SC2GeneticPolicy(GeneticPolicy):
 
 
 # ---------------------------------------------------------------------------
+# SC2NeuralNetPolicy — TMNF-style MLP with SC2 action encoding
+# ---------------------------------------------------------------------------
+
+class SC2NeuralNetPolicy(BasePolicy):
+    """Small MLP policy trained via hill-climbing (same loop as TMNF neural_net).
+
+    Architecture: obs → Linear → ReLU → ... → Linear(4)
+
+    Output encoding for SC2 action vector ``[fn_idx, x, y, queue]``:
+        fn_idx: sigmoid(out[0]) scaled to [0, N_FUNCTION_IDS-1], then snapped
+                to an available integer function ID.
+        x, y  : sigmoid(out[1]), sigmoid(out[2]) ∈ [0, 1]
+        queue : step(out[3]) ∈ {0, 1}
+    """
+
+    def __init__(
+        self,
+        obs_spec: ObsSpec,
+        hidden_sizes: list[int] | None = None,
+    ) -> None:
+        self._obs_spec = obs_spec
+        self._action_dim = 4
+        self._hidden = list(hidden_sizes or [16, 16])
+        layer_dims = [obs_spec.dim] + self._hidden + [self._action_dim]
+        rng = np.random.default_rng()
+        self._weights: list[np.ndarray] = []
+        self._biases: list[np.ndarray] = []
+        for i in range(len(layer_dims) - 1):
+            fan_in = layer_dims[i]
+            w = rng.standard_normal((layer_dims[i + 1], fan_in)).astype(np.float32)
+            w *= np.sqrt(2.0 / fan_in)  # He init
+            b = np.zeros(layer_dims[i + 1], dtype=np.float32)
+            self._weights.append(w)
+            self._biases.append(b)
+
+        self._available_fn_ids: set[int] | None = None
+
+    @classmethod
+    def from_cfg(cls, cfg: dict, obs_spec: ObsSpec) -> "SC2NeuralNetPolicy":
+        obj = object.__new__(cls)
+        obj._obs_spec = obs_spec
+        obj._action_dim = 4
+        obj._hidden = cfg.get("hidden_sizes", [16, 16])
+        obj._weights = [np.array(w, dtype=np.float32) for w in cfg["weights"]]
+        obj._biases = [np.array(b, dtype=np.float32) for b in cfg["biases"]]
+        obj._available_fn_ids = None
+        return obj
+
+    def _project_fn_idx(self, fn_scalar: float) -> int:
+        fn_raw = _sigmoid(fn_scalar) * (N_FUNCTION_IDS - 1)
+        fn_idx = int(np.clip(fn_raw, 0.0, float(N_FUNCTION_IDS - 1)))
+        if self._available_fn_ids is None:
+            return fn_idx
+        available = sorted(i for i in self._available_fn_ids if 0 <= i < N_FUNCTION_IDS)
+        if not available:
+            return 0
+        if fn_idx in self._available_fn_ids:
+            return fn_idx
+        return min(available, key=lambda i: abs(i - fn_raw))
+
+    def __call__(self, obs: np.ndarray) -> np.ndarray:
+        x = (obs / self._obs_spec.scales).astype(np.float32)
+        for i, (w, b) in enumerate(zip(self._weights, self._biases)):
+            x = w @ x + b
+            if i < len(self._weights) - 1:
+                x = np.maximum(0.0, x)
+
+        fn_idx = self._project_fn_idx(float(x[0]))
+        act_x = _sigmoid(float(x[1]))
+        act_y = _sigmoid(float(x[2]))
+        queue = float(int(float(x[3]) > 0.0))
+        return np.array([fn_idx, act_x, act_y, queue], dtype=np.float32)
+
+    def mutated(self, scale: float = 0.1, **_) -> "SC2NeuralNetPolicy":
+        rng = np.random.default_rng()
+        obj = object.__new__(type(self))
+        obj._obs_spec = self._obs_spec
+        obj._action_dim = self._action_dim
+        obj._hidden = list(self._hidden)
+        obj._weights = [
+            w + rng.normal(0.0, scale, w.shape).astype(np.float32)
+            for w in self._weights
+        ]
+        obj._biases = [
+            b + rng.normal(0.0, scale, b.shape).astype(np.float32)
+            for b in self._biases
+        ]
+        obj._available_fn_ids = (
+            set(self._available_fn_ids) if self._available_fn_ids is not None else None
+        )
+        return obj
+
+    def to_cfg(self) -> dict:
+        return {
+            "policy_type": "sc2_neural_net",
+            "hidden_sizes": self._hidden,
+            "action_dim": self._action_dim,
+            "weights": [w.tolist() for w in self._weights],
+            "biases": [b.tolist() for b in self._biases],
+        }
+
+    def on_episode_start(self, **kwargs) -> None:
+        info = kwargs.get("info") or {}
+        available = info.get("available_fn_ids")
+        if available is not None:
+            self._available_fn_ids = set(available)
+        else:
+            self._available_fn_ids = None
+
+    def update(
+        self,
+        obs: np.ndarray,
+        action: np.ndarray | int,
+        reward: float,
+        next_obs: np.ndarray,
+        done: bool,
+        **kwargs,
+    ) -> None:
+        info = kwargs.get("info") or {}
+        available = info.get("available_fn_ids")
+        if available is not None:
+            self._available_fn_ids = set(available)
+
+
+# ---------------------------------------------------------------------------
 # SC2REINFORCEPolicy — two-head REINFORCE for StarCraft 2
 # ---------------------------------------------------------------------------
 
@@ -1656,4 +1781,3 @@ class SC2LSTMEvolutionPolicy:
             self._mean  = data["mean"].astype(np.float64)
             self._sigma = float(data["sigma"])
         logger.info("[SC2LSTMEvolutionPolicy] trainer state loaded from %s", path)
-
