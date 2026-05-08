@@ -19,12 +19,12 @@
 #   maps regardless of score_weight.
 
 # --- Primary signal ---
-score_weight: 1.0
+score_weight: 10.0
 
 # --- Terminal outcome (ladder maps) ---
 # These are applied whenever player_outcome != None (terminal ladder step).
 # For minigames player_outcome is always None, so these have no effect.
-win_bonus: 100.0
+win_bonus: 1000.0
 loss_penalty: -100.0
 
 
@@ -39,7 +39,7 @@ idle_penalty: 0.0
 # combat range of an enemy.  Off by default; enable on combat minigames
 # (DefeatRoaches, DefeatZerglingsAndBanelings) to make "stand still and shoot"
 # learnable rather than only discoverable through luck.
-idle_bonus: 1.0
+idle_bonus: 0.5
 
 # --- Move exploration / anti-hyperfixation ---
 # move_exploration_bonus: per-step bonus when a Move_screen command targets a
@@ -52,7 +52,7 @@ idle_bonus: 1.0
 # move_self_penalty: per-step penalty when a Move_screen command targets the
 #   centroid of currently-visible friendly units (discourages "move where we
 #   already are").
-move_exploration_bonus: 0.5
+move_exploration_bonus: 0.2
 move_repeat_penalty: -0.2
 move_self_penalty: -0.1
 
@@ -84,4 +84,4 @@ attack_friendly_penalty: -10.0
 
 # --- Economy delta (mineral + vespene) ---
 # Recommended: 0.001 for ladder maps (Simple64), 0.0 for minigames.
-economy_weight: 0.0
+economy_weight: 0.001

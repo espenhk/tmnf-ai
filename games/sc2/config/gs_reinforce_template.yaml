@@ -52,7 +52,3 @@ training_params:
     gamma: 0.99
     baseline: running_mean    # "none" disables baseline; rarely better for minigames
 
-reward_params:
-  win_bonus: 20.0
-  loss_penalty: 0.0
-  idle_bonus: 1.0
