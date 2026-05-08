@@ -1,0 +1,15 @@
+map_name: DefeatRoaches
+in_game_episode_s: 120.0
+step_mul: 8
+screen_size: 64
+minimap_size: 64
+agent_race: random
+n_sims: 50
+policy_type: lstm
+obs_spec_preset: rich
+enable_belief: false
+hidden_size: 16
+initial_sigma: 0.05
+max_apm: 50
+policy_params:
+  population_size: 20
