@@ -55,6 +55,7 @@
   - [test\_sc2\_neural\_dqn\_policy.py — masked DQN for SC2](#test_sc2_neural_dqn_policypy--masked-dqn-for-sc2)
   - [test\_sc2\_cnn\_policy.py — CNN feature extractor + CMA-ES variant](#test_sc2_cnn_policypy--cnn-feature-extractor--cma-es-variant)
   - [test\_sc2\_reinforce\_policy.py — REINFORCE policy for SC2](#test_sc2_reinforce_policypy--reinforce-policy-for-sc2)
+  - [test\_sc2\_eval.py — `--eval` evaluation mode](#test_sc2_evalpy----eval-evaluation-mode)
   - [test\_sc2\_play.py — `play_sc2.py` script](#test_sc2_playpy--play_sc2py-script)
   - [test\_sc2\_simple64\_training.py — Simple64 ladder integration](#test_sc2_simple64_trainingpy--simple64-ladder-integration)
   - [test\_sc2\_analytics.py — SC2-specific analytics plots and flags](#test_sc2_analyticspy--sc2-specific-analytics-plots-and-flags)
@@ -452,6 +453,8 @@ handful of iterations only).
 - action fallback (#124, beacon-idling fix): blocked Move_screen → select_army immediately, then no_op on short blocked streaks with periodic select_army retries on long streaks; legal Move_screen resets the blocked-streak tracker; no_op action passes through unchanged
 - action-mask caching overhead (#140): _available_actions_features uses module-level cache (no per-call pysc2 import); correctness test with injected cache; deterministic regression asserting _get_pysc2_id_to_fn_idx is called exactly once per _available_actions_features invocation (not once per FUNCTION_IDS entry)
 - score_features field-name access: named NamedNumpyArray access takes priority over positional; score→score_total rename applied; missing score array → all zeros
+- last_fn_idx property: select_army substitution → idx=1; consecutive block → no_op idx=0; passthrough → requested idx
+- realtime param: default False stored; True stored; forwarded as kwarg to SC2Env constructor
 
 ### test_sc2_env.py — SC2 env wrapper
 - minigame obs space; action space shape+bounds; ladder obs space; episode time-limit get/set
@@ -531,6 +534,12 @@ handful of iterations only).
 - Gradient: weights change after update / direction improves expected action
 - Available-actions masking: illegal fn_idx masked out / mask updates from info kwarg
 - Serialisation: cfg keys / policy_type / from_cfg roundtrip / save+reload / wrong obs dim raises
+
+### test_sc2_eval.py — `--eval` evaluation mode
+- CLI validation: num_episodes 0/negative rejected; 1 accepted; eval_speed 0 rejected; positive accepted; cheater_easy / elite rejected; valid names accepted
+- _print_action_breakdown: fn names present; 70/30% correct; substitution line shown when nonzero / hidden when zero; zero total_steps no divide-by-zero
+- _print_aggregate_summary: 66.7% win rate for 2/3 wins; 100% all wins; single episode no crash
+- _run_episode: policy called each step; step count matches env steps; on_episode_start receives info dict (available_fn_ids present); update() called each step; outcome from terminal info; substitution counted when executed≠requested; no substitution when match; cumulative reward summed
 
 ### test_sc2_play.py — `play_sc2.py` script
 - Missing weights raises; loads sc2_multi_head for sc2_genetic / correct weights / neural_dqn / reinforce / lstm; cmaes no policy_type → SC2Linear; unknown → SC2Linear

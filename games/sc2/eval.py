@@ -11,6 +11,11 @@ Loads the champion policy from a completed experiment and runs it for one or
 more episodes against the configured built-in bot (ladder maps) or in the
 standard minigame environment.  No weight updates occur.
 
+The eval loop uses SC2Env (the same Gymnasium wrapper used for training) so
+that all experiment configuration is honoured: reward shaping, episode
+timeout, max_apm throttling, belief observations, spatial layers, and the
+obs_spec preset all match the training run exactly.
+
 Speed control
 -------------
 Eval mode enables PySC2's ``realtime`` flag, which is what makes the game
@@ -24,9 +29,10 @@ it was trained on.
 
 Action logging
 --------------
-Each step is logged at DEBUG level.  At the end of every episode a breakdown
-of executed action types (with percentages and an ASCII bar) is printed to
-stdout.  The same breakdown is repeated as an aggregate across all episodes.
+Each step is logged at DEBUG level (pass ``--log-level DEBUG``).  At the end
+of every episode a breakdown of executed action types (with counts,
+percentages, and an ASCII bar) is printed to stdout.  The same breakdown is
+repeated as an aggregate across all episodes.
 """
 
 from __future__ import annotations
@@ -40,7 +46,8 @@ import numpy as np
 import yaml
 
 from games.sc2.actions import FUNCTION_IDS
-from games.sc2.client import SC2Client
+from games.sc2.env import SC2Env
+from games.sc2.reward import SC2RewardConfig
 
 if TYPE_CHECKING:
     import argparse
@@ -66,7 +73,7 @@ def eval_sc2(experiment_name: str, args: argparse.Namespace) -> None:
     args :
         Parsed ``argparse.Namespace`` from ``main.py``.  Inspected for
         ``--track``, ``--num-episodes``, ``--bot-difficulty``,
-        ``--eval-speed``, ``--log-level``.
+        ``--eval-speed``.
     """
     from games.sc2.adapter import SC2Adapter
     from games.sc2.play import _load_champion_policy
@@ -79,6 +86,7 @@ def eval_sc2(experiment_name: str, args: argparse.Namespace) -> None:
     track_override = getattr(args, "track", None)
     experiment_dir = adapter.experiment_dir(experiment_name, master_p, track_override)
     training_params_file = os.path.join(experiment_dir, "training_params.yaml")
+    reward_cfg_file = os.path.join(experiment_dir, "reward_config.yaml")
     weights_file = os.path.join(experiment_dir, "policy_weights.yaml")
 
     if not os.path.isdir(experiment_dir):
@@ -92,10 +100,27 @@ def eval_sc2(experiment_name: str, args: argparse.Namespace) -> None:
         with open(training_params_file) as f:
             p = yaml.safe_load(f)
 
+    # Load reward config (needed for shaped reward, consistent with training).
+    reward_config: SC2RewardConfig | None = None
+    if os.path.exists(reward_cfg_file):
+        with open(reward_cfg_file) as f:
+            reward_cfg_dict = yaml.safe_load(f) or {}
+        reward_config = SC2RewardConfig(**{
+            k: v for k, v in reward_cfg_dict.items()
+            if k in SC2RewardConfig.__dataclass_fields__
+        })
+
     map_name = track_override or p.get("map_name", "MoveToBeacon")
-    screen_size = p.get("screen_size", 64)
-    minimap_size = p.get("minimap_size", 64)
-    agent_race = p.get("agent_race", "random")
+    screen_size: int = p.get("screen_size", 64)
+    minimap_size: int = p.get("minimap_size", 64)
+    agent_race: str = p.get("agent_race", "random")
+    obs_spec_preset: str | None = p.get("obs_spec_preset")
+    enable_belief: bool = bool(p.get("enable_belief", False))
+    screen_layers: list[str] = p.get("screen_layers") or []
+    minimap_layers: list[str] = p.get("minimap_layers") or []
+    max_apm: int | None = p.get("max_apm")
+    apm_burst_s: float = float(p.get("apm_burst_s", 2.0))
+    max_episode_time_s: float = float(p.get("in_game_episode_s", 120.0))
 
     # step_mul: --eval-speed overrides experiment config.
     config_step_mul: int = p.get("step_mul", 8)
@@ -110,7 +135,12 @@ def eval_sc2(experiment_name: str, args: argparse.Namespace) -> None:
 
     num_episodes: int = getattr(args, "num_episodes", 1)
 
-    policy = _load_champion_policy(weights_file, map_name)
+    policy = _load_champion_policy(
+        weights_file,
+        map_name,
+        obs_spec_preset=obs_spec_preset,
+        enable_belief=enable_belief,
+    )
 
     speed_note = (
         f"{step_mul}  (overriding config={config_step_mul})"
@@ -126,20 +156,30 @@ def eval_sc2(experiment_name: str, args: argparse.Namespace) -> None:
     print(f"  Episodes:       {num_episodes}")
     print(f"  Bot difficulty: {bot_difficulty}")
     print(f"  Step mul:       {speed_note}")
-    print(f"  Realtime:       yes  (game runs at natural game pace)")
+    print(f"  Episode limit:  {max_episode_time_s:.0f} s")
+    if max_apm:
+        print(f"  Max APM:        {max_apm}")
+    print(f"  Realtime:       yes")
     print("=" * 62)
     print()
 
-    client = SC2Client(
+    env = SC2Env(
         map_name=map_name,
+        reward_config=reward_config,
+        max_episode_time_s=max_episode_time_s,
         step_mul=step_mul,
         screen_size=screen_size,
         minimap_size=minimap_size,
         agent_race=agent_race,
         bot_difficulty=bot_difficulty,
         visualize=True,
+        screen_layers=screen_layers or None,
+        minimap_layers=minimap_layers or None,
+        obs_spec_preset=obs_spec_preset,
+        enable_belief=enable_belief,
+        max_apm=max_apm,
+        apm_burst_s=apm_burst_s,
         realtime=True,
-        play_mode=False,
     )
 
     all_results: list[dict] = []
@@ -147,13 +187,13 @@ def eval_sc2(experiment_name: str, args: argparse.Namespace) -> None:
 
     try:
         for ep_idx in range(num_episodes):
-            result = _run_episode(client, policy, ep_idx + 1, num_episodes)
+            result = _run_episode(env, policy, ep_idx + 1, num_episodes)
             all_results.append(result)
             all_action_counts.update(result["action_counts"])
     except KeyboardInterrupt:
         print("\n[Eval] Interrupted by user.")
     finally:
-        client.close()
+        env.close()
 
     if all_results:
         _print_aggregate_summary(all_results, all_action_counts)
@@ -164,19 +204,19 @@ def eval_sc2(experiment_name: str, args: argparse.Namespace) -> None:
 # ---------------------------------------------------------------------------
 
 def _run_episode(
-    client: SC2Client,
+    env: SC2Env,
     policy,
     ep_idx: int,
     total_episodes: int,
 ) -> dict:
     """Run one episode and return a result dict."""
-    obs, _info = client.reset()
+    obs, info = env.reset()
 
     if hasattr(policy, "on_episode_start"):
-        policy.on_episode_start()
+        policy.on_episode_start(**info)
 
     step_count = 0
-    cumulative_score = 0.0
+    cumulative_reward = 0.0
     action_counts: collections.Counter = collections.Counter()
     substitution_count = 0
 
@@ -185,13 +225,18 @@ def _run_episode(
         action = policy(obs)
 
         requested_fn_name = FUNCTION_IDS.get(int(action[0]), "no_op")
-        obs, score, done, info = client.step(action)
-        executed_fn_name = FUNCTION_IDS.get(client.last_fn_idx, "no_op")
+        obs, reward, terminated, truncated, info = env.step(action)
+        done = terminated or truncated
+        executed_fn_name = FUNCTION_IDS.get(env._client.last_fn_idx, "no_op")
+
+        # Let policies that use available_fn_ids masks refresh them.
+        if hasattr(policy, "update"):
+            policy.update(obs, action, reward, info)
 
         action_counts[executed_fn_name] += 1
         if executed_fn_name != requested_fn_name:
             substitution_count += 1
-        cumulative_score += score
+        cumulative_reward += reward
         step_count += 1
 
         if logger.isEnabledFor(logging.DEBUG):
@@ -199,14 +244,14 @@ def _run_episode(
             y_norm = float(np.clip(action[2], 0.0, 1.0))
             if executed_fn_name != requested_fn_name:
                 logger.debug(
-                    "Step %4d | %-24s -> %-24s (subst.) | x=%.3f y=%.3f | score_delta=%+.1f",
+                    "Step %4d | %-24s -> %-24s (subst.) | x=%.3f y=%.3f | r=%+.2f",
                     step_count, requested_fn_name, executed_fn_name,
-                    x_norm, y_norm, score,
+                    x_norm, y_norm, reward,
                 )
             else:
                 logger.debug(
-                    "Step %4d | %-24s            | x=%.3f y=%.3f | score_delta=%+.1f",
-                    step_count, executed_fn_name, x_norm, y_norm, score,
+                    "Step %4d | %-24s            | x=%.3f y=%.3f | r=%+.2f",
+                    step_count, executed_fn_name, x_norm, y_norm, reward,
                 )
 
     if hasattr(policy, "on_episode_end"):
@@ -219,7 +264,7 @@ def _run_episode(
 
     print(f"\n  Episode {ep_idx}/{total_episodes}  [{result_str}]"
           f"  score={final_score:.1f}  loop={int(game_loop)}"
-          f"  steps={step_count}  cumulative_reward={cumulative_score:.1f}")
+          f"  steps={step_count}  reward={cumulative_reward:.1f}")
 
     _print_action_breakdown(action_counts, step_count, substitution_count,
                             label=f"Episode {ep_idx}")
@@ -229,7 +274,7 @@ def _run_episode(
         "score": final_score,
         "game_loop": game_loop,
         "steps": step_count,
-        "cumulative_reward": cumulative_score,
+        "cumulative_reward": cumulative_reward,
         "action_counts": action_counts,
         "substitution_count": substitution_count,
     }
@@ -257,7 +302,8 @@ def _print_action_breakdown(
         print(f"    {fn_name:<28} {count:5d} / {total_steps:5d}  ({pct:5.1f}%)  [{bar}]")
     if substitution_count > 0:
         sub_pct = 100.0 * substitution_count / max(total_steps, 1)
-        print(f"    {'  (blocked → substituted)':<28} {substitution_count:5d} / {total_steps:5d}  ({sub_pct:5.1f}%)")
+        print(f"    {'  (blocked → substituted)':<28} {substitution_count:5d} / "
+              f"{total_steps:5d}  ({sub_pct:5.1f}%)")
 
 
 def _print_aggregate_summary(
@@ -285,11 +331,11 @@ def _print_aggregate_summary(
     print(f"  Wins / Losses / Draws:   {wins} / {losses} / {draws}")
     if n > 0:
         print(f"  Win rate:                {100.0 * wins / n:.1f}%")
-    print(f"  Score:                   {np.mean(scores):.1f}  (σ={np.std(scores):.1f})"
+    print(f"  Score:    mean={np.mean(scores):.1f}  σ={np.std(scores):.1f}"
           f"  range=[{min(scores):.1f}, {max(scores):.1f}]")
-    print(f"  Game loop:               {np.mean(game_loops):.0f}  (σ={np.std(game_loops):.0f})")
-    print(f"  Steps per episode:       {np.mean(steps):.0f}  (σ={np.std(steps):.0f})")
-    print(f"  Cumulative reward:       {np.mean(rewards):.1f}  (σ={np.std(rewards):.1f})")
+    print(f"  Game loop: mean={np.mean(game_loops):.0f}  σ={np.std(game_loops):.0f}")
+    print(f"  Steps:     mean={np.mean(steps):.0f}  σ={np.std(steps):.0f}")
+    print(f"  Reward:    mean={np.mean(rewards):.1f}  σ={np.std(rewards):.1f}")
     print()
     _print_action_breakdown(all_action_counts, total_steps, total_subs,
                             label="all episodes")

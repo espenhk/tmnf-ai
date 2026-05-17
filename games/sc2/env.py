@@ -108,6 +108,7 @@ class SC2Env(BaseGameEnv):
         enable_belief: bool = False,
         max_apm: int | None = None,
         apm_burst_s: float = 2.0,
+        realtime: bool = False,
     ) -> None:
         super().__init__()
 
@@ -175,6 +176,7 @@ class SC2Env(BaseGameEnv):
             agent_race=agent_race,
             bot_difficulty=bot_difficulty,
             visualize=visualize,
+            realtime=realtime,
             screen_layers=self._screen_layers,
             minimap_layers=self._minimap_layers,
             obs_spec_preset=obs_spec_preset,

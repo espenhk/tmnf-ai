@@ -62,7 +62,9 @@ def main() -> None:
         help="Ignore any existing weights file and restart from scratch, "
              "including probe and cold-start phases.",
     )
-    parser.add_argument(
+
+    sc2_mode = parser.add_mutually_exclusive_group()
+    sc2_mode.add_argument(
         "--play", action="store_true",
         help=(
             "Human-vs-AI interactive play mode (SC2 only).  "
@@ -71,7 +73,7 @@ def main() -> None:
             "the trained agent.  No weight updates occur."
         ),
     )
-    parser.add_argument(
+    sc2_mode.add_argument(
         "--eval", action="store_true",
         help=(
             "Evaluation mode (SC2 only).  "
@@ -81,8 +83,17 @@ def main() -> None:
             "No weight updates occur."
         ),
     )
+
+    def _positive_int(name: str):
+        def _check(v: str) -> int:
+            iv = int(v)
+            if iv < 1:
+                raise argparse.ArgumentTypeError(f"{name} must be ≥ 1, got {v}")
+            return iv
+        return _check
+
     parser.add_argument(
-        "--num-episodes", type=int, default=1,
+        "--num-episodes", type=_positive_int("--num-episodes"), default=1,
         help="Number of evaluation episodes to run (default: 1, used with --eval)",
     )
     parser.add_argument(
@@ -90,8 +101,8 @@ def main() -> None:
         default=None,
         choices=[
             "very_easy", "easy", "medium", "medium_hard",
-            "hard", "harder", "very_hard", "elite",
-            "cheater_easy", "cheater_medium", "cheater_hard",
+            "hard", "harder", "very_hard",
+            "cheat_vision", "cheat_money", "cheat_insane",
         ],
         help=(
             "SC2 built-in bot difficulty for ladder maps during --eval "
@@ -100,7 +111,7 @@ def main() -> None:
         ),
     )
     parser.add_argument(
-        "--eval-speed", type=int, default=None, metavar="STEP_MUL",
+        "--eval-speed", type=_positive_int("--eval-speed"), default=None, metavar="STEP_MUL",
         help=(
             "Override step_mul during --eval.  Controls how many game ticks "
             "advance between policy calls — i.e. observation granularity, "

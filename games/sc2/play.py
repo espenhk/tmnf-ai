@@ -115,7 +115,7 @@ def _run_episode(client: SC2Client, policy) -> None:
     obs, info = client.reset()
 
     if hasattr(policy, "on_episode_start"):
-        policy.on_episode_start()
+        policy.on_episode_start(**info)
 
     step_count = 0
 
@@ -140,23 +140,26 @@ def _run_episode(client: SC2Client, policy) -> None:
 # Policy loading
 # ---------------------------------------------------------------------------
 
-def _load_champion_policy(weights_file: str, map_name: str):
+def _load_champion_policy(
+    weights_file: str,
+    map_name: str,
+    obs_spec_preset: str | None = None,
+    enable_belief: bool = False,
+):
     """Return the champion policy loaded from *weights_file*.
 
     Detection order:
 
-    1. ``policy_type: sc2_genetic`` — explicit tag →
-       :class:`~games.sc2.sc2_policies.SC2MultiHeadLinearPolicy`
-    2. ``policy_type: neural_dqn / reinforce / lstm`` — neural policies
-       reconstructed from their serialised state
-    3. No ``policy_type`` key — structural detection:
+    1. Explicit ``policy_type`` key in the YAML file — dispatches to the
+       matching policy class.
+    2. No ``policy_type`` key — structural detection:
 
        * ``fn_idx_0_weights`` present → multi-head format →
          :class:`~games.sc2.sc2_policies.SC2MultiHeadLinearPolicy`
-         (SC2GeneticPolicy champion files)
+         (SC2GeneticPolicy / SC2CMAESPolicy champion files)
        * otherwise → per-head format →
          :class:`~games.sc2.policies.SC2LinearPolicy`
-         (CMA-ES champion files: ``fn_idx_weights``, ``x_weights``, …)
+         (legacy CMA-ES champion files)
     """
     if not os.path.exists(weights_file):
         raise SystemExit(
@@ -165,7 +168,14 @@ def _load_champion_policy(weights_file: str, map_name: str):
         )
 
     from games.sc2.obs_spec import get_spec
-    obs_spec = get_spec(map_name)
+    obs_spec = get_spec(map_name, preset=obs_spec_preset)
+
+    if enable_belief:
+        from pathlib import Path
+        from games.sc2.belief_schema import load_belief_config, extend_obs_spec
+        _cfg_path = Path(__file__).parent / "config" / "belief_config.yaml"
+        belief_cfg = load_belief_config(_cfg_path)
+        obs_spec = extend_obs_spec(obs_spec, belief_cfg)
 
     with open(weights_file) as f:
         cfg = yaml.safe_load(f) or {}
@@ -173,9 +183,21 @@ def _load_champion_policy(weights_file: str, map_name: str):
     policy_type = cfg.get("policy_type")
     logger.info("[Play] Loading champion policy (type=%s) from %s", policy_type, weights_file)
 
-    if policy_type == "sc2_genetic":
+    if policy_type in ("sc2_genetic", "sc2_cmaes"):
         from games.sc2.sc2_policies import SC2MultiHeadLinearPolicy
         return SC2MultiHeadLinearPolicy.load(weights_file, obs_spec)
+
+    if policy_type == "sc2_neural_net":
+        from games.sc2.sc2_policies import SC2NeuralNetPolicy
+        return SC2NeuralNetPolicy.from_cfg(cfg, obs_spec)
+
+    if policy_type == "sc2_reinforce":
+        from games.sc2.sc2_policies import SC2REINFORCEPolicy
+        return SC2REINFORCEPolicy.from_cfg(cfg, obs_spec)
+
+    if policy_type == "sc2_lstm":
+        from games.sc2.sc2_policies import SC2LSTMPolicy
+        return SC2LSTMPolicy.from_cfg(cfg, obs_spec)
 
     if policy_type == "neural_dqn":
         from games.sc2.policies import NeuralDQNPolicy
@@ -190,10 +212,9 @@ def _load_champion_policy(weights_file: str, map_name: str):
         return LSTMPolicy.from_cfg(cfg, obs_spec)
 
     # No explicit policy_type — detect format by key structure.
-    # SC2GeneticPolicy saves champions via SC2MultiHeadLinearPolicy.save(), which writes
-    # fn_idx_0_weights / spatial_0_weights keys (no policy_type key in the file).
-    # CMA-ES saves champions via SC2LinearPolicy.save(), which writes fn_idx_weights /
-    # x_weights / y_weights / queue_weights keys (also no policy_type key).
+    # SC2GeneticPolicy / SC2CMAESPolicy save via SC2MultiHeadLinearPolicy.save() →
+    # fn_idx_0_weights keys, no policy_type tag.
+    # Legacy CMA-ES saves via SC2LinearPolicy.save() → fn_idx_weights / x_weights.
     if "fn_idx_0_weights" in cfg:
         from games.sc2.sc2_policies import SC2MultiHeadLinearPolicy
         return SC2MultiHeadLinearPolicy.load(weights_file, obs_spec)
