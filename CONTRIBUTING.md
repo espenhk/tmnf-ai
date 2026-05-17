@@ -187,8 +187,13 @@ add `<name>` to the `--game` choices in `main.py`.
 1. **Open a [new-game-integration issue](.github/ISSUE_TEMPLATE/game_support.yml)
    first** so we can agree on scope before code lands. The template asks
    the questions we need: licensing, platform, obs/action sketch, reward.
-2. **Copy `games/car_racing/` to `games/<name>/`** and rename the
-   `CarRacingAdapter` class. Strip out anything that doesn't apply.
+2. **Copy `games/_template/` to `games/<name>/`** and fill in the blanks:
+   ```bash
+   cp -r games/_template games/<name>
+   ```
+   Rename the `TemplateAdapter` class and replace all `NotImplementedError`
+   bodies with your game-specific logic. (You can also reference
+   `games/car_racing/` as the smallest working implementation.)
 3. **Stand up `env.py`** so `env.reset()` / `env.step(action)` work
    against the real game. Keep imports of the game's SDK *inside*
    functions / methods, not at module top — Linux CI imports the

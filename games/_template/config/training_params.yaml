@@ -1,0 +1,33 @@
+# Training parameters for <GAME_NAME>.
+#
+# Copy this file to games/<your_game>/config/training_params.yaml.
+# Adjust values to suit your game's dynamics.
+
+game: _template               # Replace with your game slug
+speed: 1.0                    # Game speed multiplier (if supported)
+in_game_episode_s: 20.0       # Episode duration in seconds
+
+# Training loop settings
+n_sims: 100                   # Number of episodes per training generation
+mutation_scale: 0.05          # Initial mutation magnitude
+mutation_share: 1.0           # Fraction of weights mutated per step
+adaptive_mutation: true       # Scale mutations based on performance
+patience: 0                   # Early-stop patience (0 = never stop early)
+
+# Policy selection — choose from:
+#   hill_climbing, neural_net, epsilon_greedy, mcts,
+#   genetic, cmaes, neural_dqn, reinforce, lstm
+policy_type: hill_climbing
+
+# Policy-specific hyperparameters (vary by policy_type):
+policy_params: {}
+  # Examples for genetic:
+  #   population_size: 20
+  #   elite_k: 3
+  # Examples for cmaes:
+  #   population_size: 50
+  #   sigma0: 0.3
+  # Examples for neural_dqn:
+  #   hidden_sizes: [64, 64]
+  #   lr: 0.001
+  #   buffer_size: 10000

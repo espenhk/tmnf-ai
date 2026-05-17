@@ -1,0 +1,13 @@
+# Reward configuration for <GAME_NAME> RL training.
+#
+# Copy this file to games/<your_game>/config/reward_config.yaml.
+# Keys must match your RewardConfig dataclass fields.
+
+# Scale factor applied to the game's native reward signal.
+native_reward_scale: 1.0
+
+# Per-step time penalty (encourages faster completion).
+step_penalty: -0.1
+
+# One-time bonus for completing the objective (e.g. finishing a lap).
+completion_bonus: 100.0
