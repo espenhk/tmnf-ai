@@ -42,16 +42,16 @@ training_params:
   map_name: Simple64
   obs_spec_preset: rich   # see state-space note above; ladder/rich runs are diagnostic
   enable_belief: true              # tabular state-space explosion; see comment above
-  in_game_episode_s: 120.0
   step_mul: 1
-  screen_size: 64
-  minimap_size: 64
+  in_game_episode_s: 600.0
+  screen_size: [64, 128, 256]
+  minimap_size: [64, 128, 256]
   max_apm: 300
-  agent_race: [terran, zerg, protoss]
-  n_sims: 300                 # 300 episodes; UCT needs a dense Q-table before exploitation is reliable
+  agent_race: terran
+  n_sims: 1000
   policy_type: mcts
-  mcts_c: [1.0, 1.41, 2.0]
-  alpha: [0.05, 0.1, 0.2]
+  mcts_c: 2.0
+  alpha: 0.05
   policy_params:
-    n_bins: 3
+    n_bins: [3, 4, 5]
     gamma: 0.99
