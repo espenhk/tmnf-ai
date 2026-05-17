@@ -103,11 +103,10 @@ def main() -> None:
         "--eval-speed", type=int, default=None, metavar="STEP_MUL",
         help=(
             "Override step_mul during --eval.  Controls how many game ticks "
-            "advance between agent decisions (step_mul / 22.4 = real seconds "
-            "per decision with --eval's realtime mode).  Lower = higher "
-            "effective APM, higher = fewer but larger jumps.  Defaults to "
-            "the experiment's configured step_mul; usually best left at that "
-            "value so the agent behaves as trained."
+            "advance between policy calls — i.e. observation granularity, "
+            "not action rate (max_apm governs that).  Defaults to the "
+            "experiment's configured step_mul; best left there so the agent "
+            "sees the same state deltas it was trained on."
         ),
     )
     parser.add_argument(

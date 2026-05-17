@@ -14,11 +14,13 @@ standard minigame environment.  No weight updates occur.
 Speed control
 -------------
 Eval mode enables PySC2's ``realtime`` flag, which is what makes the game
-run at natural game pace instead of as fast as possible.  ``step_mul``
-(overridable via ``--eval-speed``) then controls how many game ticks advance
-between agent decisions: at 22.4 ticks/s that is ``step_mul / 22.4`` real
-seconds per decision.  Best left at the training value so the agent behaves
-as trained; change it only to study agent behaviour at different APMs.
+run at natural game pace instead of as fast as possible.
+
+``step_mul`` (overridable via ``--eval-speed``) controls observation
+granularity — how many game ticks advance per policy call — not action rate.
+Action rate is governed by ``max_apm`` in the reward config.  ``--eval-speed``
+is best left at the training value so the agent sees the same state deltas
+it was trained on.
 
 Action logging
 --------------
