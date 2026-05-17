@@ -32,7 +32,12 @@ from framework.training import train_rl
 logger = logging.getLogger(__name__)
 
 
-def main() -> None:
+def _build_arg_parser() -> argparse.ArgumentParser:
+    """Return the fully configured argument parser for main().
+
+    Extracted so tests can import and exercise the real parser without
+    invoking the full training stack.
+    """
     parser = argparse.ArgumentParser(description="RL training (multi-game)")
     parser.add_argument(
         "experiment",
@@ -62,7 +67,9 @@ def main() -> None:
         help="Ignore any existing weights file and restart from scratch, "
              "including probe and cold-start phases.",
     )
-    parser.add_argument(
+
+    sc2_mode = parser.add_mutually_exclusive_group()
+    sc2_mode.add_argument(
         "--play", action="store_true",
         help=(
             "Human-vs-AI interactive play mode (SC2 only).  "
@@ -71,11 +78,63 @@ def main() -> None:
             "the trained agent.  No weight updates occur."
         ),
     )
+    sc2_mode.add_argument(
+        "--eval", action="store_true",
+        help=(
+            "Evaluation mode (SC2 only).  "
+            "Loads the champion policy from the experiment and runs it against "
+            "AI opponents for evaluation.  Runs multiple episodes and reports "
+            "aggregate statistics: win rate, average score, average game length.  "
+            "No weight updates occur."
+        ),
+    )
+
+    def _positive_int(name: str):
+        def _check(v: str) -> int:
+            iv = int(v)
+            if iv < 1:
+                raise argparse.ArgumentTypeError(f"{name} must be ≥ 1, got {v}")
+            return iv
+        return _check
+
+    parser.add_argument(
+        "--num-episodes", type=_positive_int("--num-episodes"), default=1,
+        help="Number of evaluation episodes to run (default: 1, used with --eval)",
+    )
+    parser.add_argument(
+        "--bot-difficulty",
+        default=None,
+        choices=[
+            "very_easy", "easy", "medium", "medium_hard",
+            "hard", "harder", "very_hard",
+            "cheat_vision", "cheat_money", "cheat_insane",
+        ],
+        help=(
+            "SC2 built-in bot difficulty for ladder maps during --eval "
+            "(default: use experiment config, fallback very_easy).  "
+            "Ignored for minigame maps."
+        ),
+    )
+    parser.add_argument(
+        "--eval-speed", type=_positive_int("--eval-speed"), default=None, metavar="STEP_MUL",
+        help=(
+            "Override step_mul during --eval.  Controls how many game ticks "
+            "advance between policy calls — i.e. observation granularity, "
+            "not action rate (max_apm governs that).  Defaults to the "
+            "experiment's configured step_mul; best left there so the agent "
+            "sees the same state deltas it was trained on."
+        ),
+    )
     parser.add_argument(
         "--log-level", default="INFO",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
         help="Logging verbosity (default: INFO)",
     )
+    return parser
+
+
+def main() -> None:
+    parser = _build_arg_parser()
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -87,12 +146,19 @@ def main() -> None:
     if args.play and args.game != "sc2":
         raise SystemExit("--play is only supported with --game sc2")
 
+    if args.eval and args.game != "sc2":
+        raise SystemExit("--eval is only supported with --game sc2")
+
     if args.game == "assetto":
         _run_assetto(args)
         return
 
     if args.play:
         _run_play_sc2(args)
+        return
+
+    if args.eval:
+        _run_eval_sc2(args)
         return
 
     adapter = GAME_ADAPTERS[args.game]()
@@ -157,6 +223,21 @@ def _run_one(adapter, args: argparse.Namespace) -> None:
         no_interrupt=args.no_interrupt,
         re_initialize=re_initialize,
     )
+
+
+# ======================================================================
+# SC2 evaluation entry point
+# ======================================================================
+
+def _run_eval_sc2(args: argparse.Namespace) -> None:
+    try:
+        from games.sc2.eval import eval_sc2  # noqa: PLC0415
+        eval_sc2(args.experiment, args)
+    except ImportError as exc:
+        raise SystemExit(
+            f"Cannot import SC2 eval dependencies: {exc}\n"
+            "Install pysc2 with:  poetry install --with sc2"
+        ) from exc
 
 
 # ======================================================================

@@ -87,6 +87,11 @@ class SC2Env(BaseGameEnv):
         worth of tokens can accumulate before the limiter kicks in.
         Defaults to ``2.0`` — short bursts are fine, but the agent cannot
         spend its entire per-minute budget instantaneously.
+    realtime :
+        If True, synchronise env steps with wall-clock time so the game
+        advances at natural game pace rather than as fast as possible.
+        Useful for evaluation / watch sessions.  Forwarded verbatim to
+        the underlying :class:`~games.sc2.client.SC2Client`.
     """
 
     metadata = {"render_modes": []}
@@ -108,6 +113,7 @@ class SC2Env(BaseGameEnv):
         enable_belief: bool = False,
         max_apm: int | None = None,
         apm_burst_s: float = 2.0,
+        realtime: bool = False,
     ) -> None:
         super().__init__()
 
@@ -175,6 +181,7 @@ class SC2Env(BaseGameEnv):
             agent_race=agent_race,
             bot_difficulty=bot_difficulty,
             visualize=visualize,
+            realtime=realtime,
             screen_layers=self._screen_layers,
             minimap_layers=self._minimap_layers,
             obs_spec_preset=obs_spec_preset,

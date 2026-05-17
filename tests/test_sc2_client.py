@@ -1233,5 +1233,122 @@ class TestAvailableActionsMaskCachingOverhead(unittest.TestCase):
             )
 
 
+class TestSC2ClientLastFnIdx(unittest.TestCase):
+    """last_fn_idx property reflects the actually-executed action."""
+
+    def setUp(self):
+        from unittest.mock import patch
+        patcher = patch.dict("sys.modules", {
+            "pysc2":             _FakePySc2,
+            "pysc2.lib":         _FakePySc2.lib,
+            "pysc2.lib.actions": _FakeActionsModule,
+        })
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+        from games.sc2 import client as client_mod
+        def _fake_atfc(action, screen_size):
+            fn_idx = int(action[0])
+            fn_id = {
+                0: _FakeFunctions.no_op.id,
+                1: _FakeFunctions.select_army.id,
+                2: _FakeFunctions.Move_screen.id,
+            }.get(fn_idx, _FakeFunctions.no_op.id)
+            return _FakeFunctionCall(fn_id, [])
+        patcher_helper = patch.object(client_mod, "action_to_function_call", _fake_atfc)
+        patcher_helper.start()
+        self.addCleanup(patcher_helper.stop)
+
+        from games.sc2.client import SC2Client
+        self.client = SC2Client(map_name="MoveToBeacon")
+
+    def test_last_fn_idx_reflects_substituted_select_army(self):
+        """When Move_screen is blocked and select_army is substituted,
+        last_fn_idx should be 1 (select_army), not 2 (Move_screen)."""
+        self.client._available_actions = {
+            _FakeFunctions.no_op.id, _FakeFunctions.select_army.id,
+        }
+        action = np.array([2, 0.4, 0.6, 0], dtype=np.float32)
+        self.client._action_to_call(action)
+        self.assertEqual(self.client.last_fn_idx, 1)
+
+    def test_last_fn_idx_reflects_substituted_no_op(self):
+        """When both Move_screen and select_army are blocked, last_fn_idx
+        should be 0 (no_op)."""
+        self.client._available_actions = {_FakeFunctions.no_op.id}
+        # First blocked step → select_army substituted.
+        action = np.array([2, 0.4, 0.6, 0], dtype=np.float32)
+        self.client._action_to_call(action)
+        # Second blocked step → no_op substituted.
+        self.client._action_to_call(action)
+        self.assertEqual(self.client.last_fn_idx, 0)
+
+    def test_last_fn_idx_reflects_passthrough_action(self):
+        """When the requested action is available, last_fn_idx equals the
+        requested fn_idx."""
+        self.client._available_actions = {
+            _FakeFunctions.no_op.id,
+            _FakeFunctions.select_army.id,
+            _FakeFunctions.Move_screen.id,
+        }
+        action = np.array([2, 0.4, 0.6, 0], dtype=np.float32)
+        self.client._action_to_call(action)
+        self.assertEqual(self.client.last_fn_idx, 2)
+
+
+class TestSC2ClientRealtimeParam(unittest.TestCase):
+    """SC2Client stores realtime flag and forwards it to SC2Env."""
+
+    def test_realtime_default_is_false(self):
+        from games.sc2.client import SC2Client
+        client = SC2Client(map_name="MoveToBeacon")
+        self.assertFalse(client._realtime)
+
+    def test_realtime_true_stored(self):
+        from games.sc2.client import SC2Client
+        client = SC2Client(map_name="MoveToBeacon", realtime=True)
+        self.assertTrue(client._realtime)
+
+    def test_realtime_forwarded_to_make_sc2_env(self):
+        from unittest.mock import patch, MagicMock
+        from games.sc2.client import SC2Client
+
+        client = SC2Client(map_name="MoveToBeacon", realtime=True)
+
+        fake_env_instance = MagicMock()
+        fake_sc2_env_mod = MagicMock()
+        fake_sc2_env_mod.SC2Env = MagicMock(return_value=fake_env_instance)
+
+        # "from pysc2.env import sc2_env" reads sys.modules["pysc2.env"].sc2_env,
+        # so the parent package mock must expose the module as an attribute.
+        fake_pysc2_env_pkg = MagicMock()
+        fake_pysc2_env_pkg.sc2_env = fake_sc2_env_mod
+
+        fake_features_mod = MagicMock()
+        fake_pysc2_lib_pkg = MagicMock()
+        fake_pysc2_lib_pkg.features = fake_features_mod
+
+        fake_absl_flags = MagicMock()
+        fake_absl_flags.FLAGS.is_parsed.return_value = True
+
+        with patch.dict("sys.modules", {
+            "pysc2":                    MagicMock(),
+            "pysc2.env":                fake_pysc2_env_pkg,
+            "pysc2.env.sc2_env":        fake_sc2_env_mod,
+            "pysc2.lib":                fake_pysc2_lib_pkg,
+            "pysc2.lib.features":       fake_features_mod,
+            "absl":                     MagicMock(),
+            "absl.flags":               fake_absl_flags,
+        }):
+            client._make_sc2_env()
+
+        self.assertTrue(
+            fake_sc2_env_mod.SC2Env.called,
+            "SC2Env constructor was not called",
+        )
+        _, kwargs = fake_sc2_env_mod.SC2Env.call_args
+        self.assertTrue(kwargs.get("realtime"), "realtime not forwarded to SC2Env")
+
+
 if __name__ == "__main__":
     unittest.main()
