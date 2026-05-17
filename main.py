@@ -102,12 +102,12 @@ def main() -> None:
     parser.add_argument(
         "--eval-speed", type=int, default=None, metavar="STEP_MUL",
         help=(
-            "Override step_mul during --eval.  Lower values produce more "
-            "decisions per second of real game time (more granular); higher "
-            "values advance the game further between decisions (faster but "
-            "jumpier).  Defaults to the experiment's configured step_mul.  "
-            "Tip: pair with a lower value (e.g. 2–4) to watch at a "
-            "comfortable pace."
+            "Override step_mul during --eval.  Controls how many game ticks "
+            "advance between agent decisions (step_mul / 22.4 = real seconds "
+            "per decision with --eval's realtime mode).  Lower = higher "
+            "effective APM, higher = fewer but larger jumps.  Defaults to "
+            "the experiment's configured step_mul; usually best left at that "
+            "value so the agent behaves as trained."
         ),
     )
     parser.add_argument(

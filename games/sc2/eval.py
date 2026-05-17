@@ -13,10 +13,12 @@ standard minigame environment.  No weight updates occur.
 
 Speed control
 -------------
-``--eval-speed N`` overrides ``step_mul``.  Lower N = more decisions per
-second of real game time; higher N = fewer (but larger) jumps per decision.
-Eval mode also enables PySC2's ``realtime`` flag so the game advances at
-natural game pace instead of as fast as possible, making it watchable.
+Eval mode enables PySC2's ``realtime`` flag, which is what makes the game
+run at natural game pace instead of as fast as possible.  ``step_mul``
+(overridable via ``--eval-speed``) then controls how many game ticks advance
+between agent decisions: at 22.4 ticks/s that is ``step_mul / 22.4`` real
+seconds per decision.  Best left at the training value so the agent behaves
+as trained; change it only to study agent behaviour at different APMs.
 
 Action logging
 --------------
