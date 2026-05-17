@@ -62,7 +62,21 @@ class SC2Env(BaseGameEnv):
     max_episode_time_s :
         Wall-clock seconds before the episode is truncated.
     step_mul :
-        Game-tick multiplier per env step.
+        Game-tick multiplier per env step.  SC2 runs at 22.4 ticks/second, so
+        one env step advances ``step_mul / 22.4`` seconds of *game* time.  The
+        default of 8 is ~357 ms of game time per step, or a theoretical ceiling
+        of ~168 game-time APM if the policy acts every step.
+
+        **Interaction with max_apm:** the APM limiter measures *wall-clock*
+        time (``time.monotonic()``), not game time.  PySC2 runs faster than
+        real-time by default (no ``realtime=True`` is set), so env steps arrive
+        faster in wall-clock terms than the game-time formula implies.  As a
+        result, setting ``max_apm`` to a value that looks safe relative to the
+        168-APM game-time ceiling can still trigger throttling in practice.
+        For example, with ``step_mul=8`` and training running at 2× real-time
+        speed, the agent attempts ~336 actions per wall-clock minute; a
+        ``max_apm=300`` limit would throttle roughly 1 in 9 of those actions.
+        If you do not want APM limiting, leave ``max_apm`` unset.
     screen_size, minimap_size :
         Square feature-layer resolutions.
     agent_race :
@@ -78,10 +92,19 @@ class SC2Env(BaseGameEnv):
     minimap_layers :
         PySC2 feature_minimap layer names appended after screen_layers.
     max_apm :
-        Optional maximum actions per minute.  When set, a token-bucket
-        limiter replaces non-no-op actions with ``no_op`` when the budget
-        is exhausted.  ``None`` (default) disables limiting.  No-op actions
-        (``fn_idx == 0``) are always free and do not consume budget.
+        Optional maximum actions per minute enforced by a token-bucket
+        limiter (wall-clock time).  When the budget is exhausted, non-no-op
+        actions are replaced with ``no_op``.  ``None`` (default) disables
+        limiting.  No-op actions (``fn_idx == 0``) are always free.
+
+        **Warning:** because ``max_apm`` is wall-clock based and PySC2 runs
+        faster than real-time during headless training, a limit that appears
+        generous relative to the game-time APM ceiling (``~168`` at
+        ``step_mul=8``) can still throttle the agent unpredictably.  This
+        creates a training/inference mismatch — the policy learns under
+        a speed-dependent constraint that does not apply at inference time.
+        Only set this when explicitly simulating human APM constraints; leave
+        it unset otherwise.
     apm_burst_s :
         Token-bucket burst window in seconds.  Controls how many seconds'
         worth of tokens can accumulate before the limiter kicks in.
