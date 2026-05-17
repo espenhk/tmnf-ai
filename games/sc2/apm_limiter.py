@@ -6,17 +6,21 @@ simulate that constraint so policies learn under more human-like conditions.
 Algorithm
 ---------
 A standard token bucket: tokens refill at ``max_apm / 60`` tokens per
-real-world second.  The bucket is capped at ``refill_rate * burst_s`` tokens
-so short bursts are allowed but the agent cannot bank a full minute's worth
-and spend them instantly.
+**game second** (i.e. ``game_loop / 22.4``).  The bucket is capped at
+``refill_rate * burst_s`` tokens so short bursts are allowed but the agent
+cannot bank a full minute's worth and spend them instantly.
+
+Because the clock is game time, the limit is independent of training speed —
+``max_apm=300`` means exactly 300 in-game actions per in-game minute whether
+training runs at 1× or 10× real-time.
 
 Usage
 -----
 Create one limiter per env, call :meth:`reset` at the start of each episode,
-and call :meth:`allow` before each step.  Pass the *same* monotonic clock
-value that the env already tracks so no extra ``time.monotonic()`` call is
-needed.  When :meth:`allow` returns ``False`` the caller should replace the
-intended action with a no-op.
+and call :meth:`allow` before each step.  Pass the current game time in
+seconds (``game_loop / SC2_TICKS_PER_S``) tracked by the env.  When
+:meth:`allow` returns ``False`` the caller should replace the intended action
+with a no-op.
 
 No-op actions (``fn_idx == 0``) are always allowed and **do not** consume a
 token; they do not count as actions in real SC2 APM counting either.
@@ -73,7 +77,7 @@ class ApmLimiter:
         Parameters
         ----------
         now :
-            Current wall-clock time in seconds (e.g. ``time.monotonic()``).
+            Current game time in seconds (``game_loop / 22.4``).
             The bucket is refilled to capacity.
         """
         self._tokens = self._max_tokens
@@ -94,7 +98,7 @@ class ApmLimiter:
         Parameters
         ----------
         now :
-            Current wall-clock time (seconds).
+            Current game time in seconds (``game_loop / 22.4``).
         fn_idx :
             Internal function index of the intended action.  Pass ``0`` for
             no-op (always allowed, no token consumed).  Any other value —

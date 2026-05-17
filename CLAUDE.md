@@ -391,7 +391,7 @@ The first run creates `experiments/sc2_<map>/<name>/` and copies both master con
 | `map_name` | `MoveToBeacon` | Any of the 7 minigame names or a ladder map (e.g. `Simple64`). |
 | `agent_race` | `random` | `protoss` / `terran` / `zerg` / `random`. |
 | `bot_difficulty` | `very_easy` | Only for ladder maps; ignored for minigames. |
-| `step_mul` | `8` | Game ticks per env step (~0.5 s real-time). |
+| `step_mul` | `1` | Game ticks per env step. `1` = finest granularity; the policy can act every engine tick (22.4 ticks/s). Higher values coarsen control and raise the effective APM ceiling (e.g. `step_mul=8` ≈ 168 game-time APM max). With `step_mul=1`, `max_apm` is the sole throttle on action rate. |
 | `screen_size`, `minimap_size` | `64` | Square feature-layer resolutions. |
 | `in_game_episode_s` | `120.0` | Seconds before truncation; use `600.0` for ladder maps. |
 | `obs_spec_preset` | *(map-based)* | Override observation preset: `"minigame"` (15 dims), `"ladder"` (46 dims), `"rich"` (103 dims). Unset = minigame names → minigame, others → ladder. |
@@ -399,7 +399,7 @@ The first run creates `experiments/sc2_<map>/<name>/` and copies both master con
 | `minimap_layers` | `[]` | Minimap channel names to concatenate with screen channels for `sc2_cnn`. |
 | `adaptive_mutation` | `true` | Apply the 1/5 success rule to adapt `mutation_scale` during the greedy phase. |
 | `patience` | `0` | Stop the greedy loop early if no improvement for this many consecutive sims (0 = run all). |
-| `max_apm` | *(null)* | APM cap using a rolling token-bucket limiter. Unset = no limit. |
+| `max_apm` | *(null)* | APM cap using a rolling token-bucket limiter measured in **game time** (`game_loop / 22.4`). `max_apm=300` means exactly 300 in-game actions per in-game minute regardless of training speed. Leave unset for no limit. |
 | `apm_burst_s` | `2.0` | Token-bucket burst window in seconds. |
 | `enable_belief` | `false` | Activate the fog-of-war belief + info-gain observation extension (adds ~192 dims for an 8×8 grid). |
 

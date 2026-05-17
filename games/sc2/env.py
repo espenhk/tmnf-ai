@@ -62,7 +62,21 @@ class SC2Env(BaseGameEnv):
     max_episode_time_s :
         Wall-clock seconds before the episode is truncated.
     step_mul :
-        Game-tick multiplier per env step.
+        Game-tick multiplier per env step.  SC2 runs at 22.4 ticks/second, so
+        one env step advances ``step_mul / 22.4`` seconds of *game* time.  The
+        default of 8 is ~357 ms of game time per step, or a theoretical ceiling
+        of ~168 game-time APM if the policy acts every step.
+
+        **Interaction with max_apm:** the APM limiter measures *wall-clock*
+        time (``time.monotonic()``), not game time.  PySC2 runs faster than
+        real-time by default (no ``realtime=True`` is set), so env steps arrive
+        faster in wall-clock terms than the game-time formula implies.  As a
+        result, setting ``max_apm`` to a value that looks safe relative to the
+        168-APM game-time ceiling can still trigger throttling in practice.
+        For example, with ``step_mul=8`` and training running at 2× real-time
+        speed, the agent attempts ~336 actions per wall-clock minute; a
+        ``max_apm=300`` limit would throttle roughly 1 in 9 of those actions.
+        If you do not want APM limiting, leave ``max_apm`` unset.
     screen_size, minimap_size :
         Square feature-layer resolutions.
     agent_race :
@@ -78,10 +92,15 @@ class SC2Env(BaseGameEnv):
     minimap_layers :
         PySC2 feature_minimap layer names appended after screen_layers.
     max_apm :
-        Optional maximum actions per minute.  When set, a token-bucket
-        limiter replaces non-no-op actions with ``no_op`` when the budget
-        is exhausted.  ``None`` (default) disables limiting.  No-op actions
-        (``fn_idx == 0``) are always free and do not consume budget.
+        Optional maximum actions per minute enforced by a token-bucket
+        limiter measured in **game time** (derived from PySC2's ``game_loop``
+        counter, not wall-clock time).  When the budget is exhausted,
+        non-no-op actions are replaced with ``no_op``.  ``None`` (default)
+        disables limiting.  No-op actions (``fn_idx == 0``) are always free.
+
+        Because the limiter uses game time, ``max_apm=300`` means exactly
+        300 actions per in-game minute regardless of whether training runs
+        faster or slower than real-time.
     apm_burst_s :
         Token-bucket burst window in seconds.  Controls how many seconds'
         worth of tokens can accumulate before the limiter kicks in.
@@ -101,7 +120,7 @@ class SC2Env(BaseGameEnv):
         map_name: str = "MoveToBeacon",
         reward_config: SC2RewardConfig | None = None,
         max_episode_time_s: float = 120.0,
-        step_mul: int = 8,
+        step_mul: int = 1,
         screen_size: int = 64,
         minimap_size: int = 64,
         agent_race: str = "random",
@@ -209,6 +228,7 @@ class SC2Env(BaseGameEnv):
         self._ep_obs_step_count: int = 0
         self._ep_xy_hist: np.ndarray = np.zeros((8, 8), dtype=np.int64)
         self._ep_apm_throttled_steps: int = 0
+        self._apm_game_time_s: float = 0.0
         self._prev_step_game_loop: float | None = None
         self._ep_skipped_frames: int = 0
         # Per-episode SC2 end-screen analytics (supply cap, time-series, build order).
@@ -247,6 +267,7 @@ class SC2Env(BaseGameEnv):
         self._ep_xy_hist = np.zeros((8, 8), dtype=np.int64)
         self._ep_apm_throttled_steps = 0
         self._prev_step_game_loop = self._safe_float_or_none(info.get("game_loop"))
+        self._apm_game_time_s = (self._prev_step_game_loop or 0.0) / _SC2_TICKS_PER_S
         self._ep_skipped_frames = 0
         self._ep_supply_capped_steps = 0
         self._ep_army_series = []
@@ -260,7 +281,7 @@ class SC2Env(BaseGameEnv):
         self._prev_game_loop = float(info.get("game_loop", 0.0))
 
         if self._apm_limiter is not None:
-            self._apm_limiter.reset(self._episode_start_s)
+            self._apm_limiter.reset(self._apm_game_time_s)
 
         if self._belief is not None:
             self._belief.reset()
@@ -278,12 +299,11 @@ class SC2Env(BaseGameEnv):
 
     def step(self, action: np.ndarray) -> tuple[np.ndarray | dict, float, bool, bool, dict]:
         # APM limiting: replace non-no-op actions with no_op when budget is
-        # exhausted.  The check uses the current wall-clock time so that the
-        # rolling token bucket tracks real elapsed time.
-        _now = time.monotonic()
+        # exhausted.  Uses game time (derived from game_loop) so max_apm is
+        # expressed in game-time APM regardless of training speed.
         _fn_idx_requested = int(action[0]) if len(action) > 0 else 0
         if self._apm_limiter is not None and not self._apm_limiter.allow(
-            _now,
+            self._apm_game_time_s,
             _fn_idx_requested,
             protect_burst_budget=True,
         ):
@@ -334,6 +354,9 @@ class SC2Env(BaseGameEnv):
                 max(0.0, np.floor(_delta - float(self._step_mul) + 1e-6))
             )
             self._ep_skipped_frames += _skipped_frames_this_step
+            self._apm_game_time_s += _delta / _SC2_TICKS_PER_S
+        else:
+            self._apm_game_time_s += self._step_mul / _SC2_TICKS_PER_S
         if _curr_game_loop is not None:
             self._prev_step_game_loop = _curr_game_loop
         info["skipped_frames_this_step"] = _skipped_frames_this_step
@@ -549,7 +572,7 @@ def make_env(
     experiment_dir: str | Path,
     map_name: str = "MoveToBeacon",
     max_episode_time_s: float = 120.0,
-    step_mul: int = 8,
+    step_mul: int = 1,
     screen_size: int = 64,
     minimap_size: int = 64,
     agent_race: str = "random",
