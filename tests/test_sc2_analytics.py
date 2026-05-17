@@ -991,5 +991,76 @@ class TestPlotBuildOrder(unittest.TestCase):
             self.assertIn("build_order.png", os.listdir(d))
 
 
+# ---------------------------------------------------------------------------
+# _sc2_task_metric and _GS_SUCCESS_REASONS (issue #209)
+# ---------------------------------------------------------------------------
+
+class TestSC2TaskMetric(unittest.TestCase):
+
+    def test_empty_sims_returns_zero(self):
+        data = _make_experiment([])
+        self.assertEqual(sc2_analytics._sc2_task_metric(data), 0.0)
+
+    def test_win_and_finish_are_successes(self):
+        sims = [
+            _make_sim(1, termination_reason="win"),
+            _make_sim(2, termination_reason="finish"),
+            _make_sim(3, termination_reason="timeout"),
+        ]
+        data = _make_experiment(sims)
+        self.assertAlmostEqual(sc2_analytics._sc2_task_metric(data), 2 / 3)
+
+    def test_loss_timeout_none_other_not_counted(self):
+        sims = [
+            _make_sim(1, termination_reason="loss"),
+            _make_sim(2, termination_reason="timeout"),
+            _make_sim(3, termination_reason=None),
+            _make_sim(4, termination_reason="other"),
+        ]
+        data = _make_experiment(sims)
+        self.assertEqual(sc2_analytics._sc2_task_metric(data), 0.0)
+
+    def test_all_wins(self):
+        sims = [_make_sim(i, termination_reason="win") for i in range(5)]
+        data = _make_experiment(sims)
+        self.assertAlmostEqual(sc2_analytics._sc2_task_metric(data), 1.0)
+
+    def test_success_reasons_constant_covers_win_and_finish(self):
+        self.assertIn("win", sc2_analytics._GS_SUCCESS_REASONS)
+        self.assertIn("finish", sc2_analytics._GS_SUCCESS_REASONS)
+        self.assertNotIn("loss", sc2_analytics._GS_SUCCESS_REASONS)
+        self.assertNotIn("timeout", sc2_analytics._GS_SUCCESS_REASONS)
+
+
+class TestSaveGridSummaryTaskMetricPassthrough(unittest.TestCase):
+    """SC2 save_grid_summary passes task_metric_fn and task_metric_fmt to framework."""
+
+    def test_passes_task_metric_fn_to_framework(self):
+        with tempfile.TemporaryDirectory() as d:
+            data = _make_experiment([_make_sim(sim=1, reward=1.0)], name="exp")
+            with mock.patch.object(sc2_analytics, "_framework_save_grid_summary") as m:
+                save_grid_summary([("exp", data)], [], d, "gs")
+            kwargs = m.call_args.kwargs
+            self.assertIn("task_metric_fn", kwargs)
+            self.assertTrue(callable(kwargs["task_metric_fn"]))
+
+    def test_passes_task_metric_fmt_to_framework(self):
+        with tempfile.TemporaryDirectory() as d:
+            data = _make_experiment([_make_sim(sim=1, reward=1.0)], name="exp")
+            with mock.patch.object(sc2_analytics, "_framework_save_grid_summary") as m:
+                save_grid_summary([("exp", data)], [], d, "gs")
+            kwargs = m.call_args.kwargs
+            self.assertIn("task_metric_fmt", kwargs)
+            self.assertTrue(callable(kwargs["task_metric_fmt"]))
+
+    def test_task_metric_fmt_formats_as_percentage(self):
+        with tempfile.TemporaryDirectory() as d:
+            data = _make_experiment([_make_sim(sim=1, reward=1.0)], name="exp")
+            with mock.patch.object(sc2_analytics, "_framework_save_grid_summary") as m:
+                save_grid_summary([("exp", data)], [], d, "gs")
+            fmt = m.call_args.kwargs["task_metric_fmt"]
+            self.assertEqual(fmt(0.75), "75.0%")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -131,6 +131,7 @@ behaviour of the actual `train_rl()` loop end-to-end on a real env.
 - summary string: empty / contains finish rate / best finish time / no time when none / lateral offset
 - summary table: progress / finish-time / dash-on-no-finish / lateral-offset columns
 - `plot_gs_reward_trajectories`: chart written by `save_grid_summary` / referenced in summary.md / no crash with empty sims
+- `save_grid_summary` task-metric plugin: default uses track progress with `.4f` format; custom fn replaces label+value; custom fn drives ranking; explicit `task_metric_fmt` overrides format independently of fn
 
 ### test_belief.py — fog-of-war belief encoder
 - initial encode all zero; update sets value+confidence; project decays confidence
@@ -562,7 +563,8 @@ handful of iterations only).
 - `plot_army_count`: renders to file / skips when no series / skips when no sims
 - `plot_build_order`: renders to file / skips when no build order / skips when no sims / single unit type / multiple unit types
 - `save_experiment_results`: writes results.md / writes SC2 plots (incl. skipped_frames) / mentions game / no crash empty sims / no racing plots written
-- `save_grid_summary`: forwards config-normalized rewards using `v / max(abs(weight), 1.0)` — weights ≥ 1.0 are divided (making large-weight components comparable across grid-search runs), weights < 1.0 use the raw value (which already encodes the weight, so dividing would amplify by ×1000); wires SC2 extra-plot hook into framework summary generation; covers no-components fallback, multi-sim normalization, malformed YAML fallback, non-mapping YAML fallback, non-numeric weight fallback, allow-listed `scout` component (no unmapped-key warning), step_penalty with sub-1.0 weight passes through raw (-0.5 not -500), idle_penalty with sub-1.0 weight passes through raw, any sub-1.0 weight (0.0001 or 0.001) both use scale=1.0, realistic positive reward stays positive after normalization (313.5 ✓), and emits SC2 cross-run charts + summary links
+- `save_grid_summary`: forwards config-normalized rewards using `v / max(abs(weight), 1.0)` — weights ≥ 1.0 are divided (making large-weight components comparable across grid-search runs), weights < 1.0 use the raw value (which already encodes the weight, so dividing would amplify by ×1000); wires SC2 extra-plot hook into framework summary generation; covers no-components fallback, multi-sim normalization, malformed YAML fallback, non-mapping YAML fallback, non-numeric weight fallback, allow-listed `scout` component (no unmapped-key warning), step_penalty with sub-1.0 weight passes through raw (-0.5 not -500), idle_penalty with sub-1.0 weight passes through raw, any sub-1.0 weight (0.0001 or 0.001) both use scale=1.0, realistic positive reward stays positive after normalization (313.5 ✓), and emits SC2 cross-run charts + summary links; passes `task_metric_fn`, `task_metric_fmt` (percentage formatter) to framework
+- `_sc2_task_metric`: empty sims → 0.0; win+finish counted as success; loss/timeout/None/other not counted; all-wins → 1.0; `_GS_SUCCESS_REASONS` constant contains win+finish, excludes loss+timeout
 
 ## CLI / misc
 

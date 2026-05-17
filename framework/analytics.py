@@ -745,6 +745,7 @@ def save_grid_summary(
     extra_plots_fn=None,
     task_metric_fn=None,
     task_metric_label: str = "Best Track Progress",
+    task_metric_fmt=None,
 ) -> None:
     """Generate a cross-experiment summary report and plots in *summary_dir*.
 
@@ -754,6 +755,9 @@ def save_grid_summary(
         best_track_progress so TMNF output is unchanged.
     task_metric_label: display name used in the chart, table column, and per-
         experiment stats row.
+    task_metric_fmt: optional callable(float) -> str for formatting the metric
+        value.  When None, defaults to "{:.4f}".format (TMNF track-progress
+        style).  Pass e.g. "{:.1%}".format for rate/percentage metrics.
     """
     os.makedirs(summary_dir, exist_ok=True)
     stats  = [(name, _gs_stats(data)) for name, data in runs]
@@ -782,9 +786,7 @@ def save_grid_summary(
     if extra_plots_fn is not None:
         extra_plots_fn(runs, summary_dir)
 
-    # Format the task metric value for the table.
-    def _fmt_task(v: float) -> str:
-        return f"{v:.1%}" if task_metric_fn is not None else f"{v:.4f}"
+    _fmt_task = task_metric_fmt if task_metric_fmt is not None else "{:.4f}".format
 
     lines = [
         f"# Grid Search Summary: {base_name}\n\n",
