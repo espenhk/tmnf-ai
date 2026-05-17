@@ -580,6 +580,14 @@ def _entropy_from_counts(action_counts: dict[int, int] | None) -> float | None:
     return float(-np.sum(probs[positive] * np.log2(probs[positive])))
 
 
+def _sc2_task_metric(data: ExperimentData) -> float:
+    """Fraction of greedy sims that ended with 'win' or 'finish'."""
+    sims = data.greedy_sims
+    if not sims:
+        return 0.0
+    return sum(1 for s in sims if s.termination_reason in {"win", "finish"}) / len(sims)
+
+
 def plot_gs_action_entropy(
     runs: list[tuple[str, ExperimentData]],
     summary_dir: str,
@@ -1027,5 +1035,7 @@ def save_grid_summary(
     _framework_save_grid_summary(
         normalised_runs, varied_keys, summary_dir, base_name,
         extra_plots_fn=_sc2_extra,
+        task_metric_fn=_sc2_task_metric,
+        task_metric_label="Win/Success Rate",
     )
     _append_sc2_grid_summary_section(summary_dir)

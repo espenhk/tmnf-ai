@@ -673,21 +673,25 @@ def plot_gs_reward_trajectories(
     _save(fig, os.path.join(summary_dir, "comparison_reward_trajectories.png"))
 
 
-def plot_gs_comparison_task_metrics(runs: list[tuple[str, dict]], summary_dir: str) -> None:
-    """Horizontal bar chart of best track progress per experiment (config-independent)."""
+def plot_gs_comparison_task_metrics(
+    runs: list[tuple[str, dict]],
+    summary_dir: str,
+    metric_label: str = "Best Track Progress",
+) -> None:
+    """Horizontal bar chart of the primary task metric per experiment (config-independent)."""
     if not _HAS_MPL:
         return
-    runs_sorted = sorted(runs, key=lambda x: x[1]["best_track_progress"])
+    runs_sorted = sorted(runs, key=lambda x: x[1]["task_metric"])
     names    = [r[0] for r in runs_sorted]
-    progress = [r[1]["best_track_progress"] for r in runs_sorted]
+    progress = [r[1]["task_metric"] for r in runs_sorted]
     n = len(names)
     colors = cm.RdYlGn(np.linspace(0.15, 0.85, n))
     fig, ax = plt.subplots(figsize=(10, max(4, n * 0.45)))
     bars = ax.barh(names, progress, color=colors, edgecolor="white", linewidth=0.5)
     for bar, p in zip(bars, progress):
         ax.text(p, bar.get_y() + bar.get_height() / 2, f"  {p:.3f}", va="center", fontsize=8)
-    ax.set_xlabel("Best Track Progress (fraction, config-independent)")
-    ax.set_title("Grid Search — Best Track Progress per Experiment")
+    ax.set_xlabel(f"{metric_label} (fraction, config-independent)")
+    ax.set_title(f"Grid Search — {metric_label} per Experiment")
     ax.set_xlim(0, max(max(progress) * 1.1, 1.05))
     ax.tick_params(axis="y", labelsize=7)
     fig.tight_layout()
@@ -739,36 +743,60 @@ def save_grid_summary(
     summary_dir: str,
     base_name: str,
     extra_plots_fn=None,
+    task_metric_fn=None,
+    task_metric_label: str = "Best Track Progress",
 ) -> None:
     """Generate a cross-experiment summary report and plots in *summary_dir*.
 
     extra_plots_fn: optional callable(runs, summary_dir) for game-specific plots.
+    task_metric_fn: optional callable(ExperimentData) -> float; replaces track
+        progress as the primary task metric.  When None, falls back to
+        best_track_progress so TMNF output is unchanged.
+    task_metric_label: display name used in the chart, table column, and per-
+        experiment stats row.
     """
     os.makedirs(summary_dir, exist_ok=True)
     stats  = [(name, _gs_stats(data)) for name, data in runs]
-    # Primary ranking: best track progress (config-independent); secondary: reward.
+
+    # Inject task_metric into each stats dict (custom fn or fallback to track progress).
+    stats_by_name = {name: s for name, s in stats}
+    if task_metric_fn is not None:
+        for name, data in runs:
+            stats_by_name[name]["task_metric"] = task_metric_fn(data)
+    else:
+        for name, s in stats:
+            s["task_metric"] = s["best_track_progress"]
+
+    # Primary ranking: task metric (config-independent); secondary: reward.
     ranked_by_progress = sorted(stats,
-                                key=lambda x: (-x[1]["best_track_progress"],
+                                key=lambda x: (-x[1]["task_metric"],
                                                -x[1]["best_reward"]))
     ranked_by_reward   = sorted(stats, key=lambda x: -x[1]["best_reward"])
 
     plot_gs_comparison_rewards([(name, s) for name, s in ranked_by_reward], summary_dir)
-    plot_gs_comparison_task_metrics([(name, s) for name, s in ranked_by_progress], summary_dir)
+    plot_gs_comparison_task_metrics(
+        [(name, s) for name, s in ranked_by_progress], summary_dir,
+        metric_label=task_metric_label,
+    )
     plot_gs_reward_trajectories(runs, summary_dir)
     if extra_plots_fn is not None:
         extra_plots_fn(runs, summary_dir)
+
+    # Format the task metric value for the table.
+    def _fmt_task(v: float) -> str:
+        return f"{v:.1%}" if task_metric_fn is not None else f"{v:.4f}"
 
     lines = [
         f"# Grid Search Summary: {base_name}\n\n",
         f"{len(runs)} experiments.\n\n",
         "## Rankings by Task Metrics (config-independent)\n\n",
-        "Ranked by best track progress, then by best reward.\n\n",
+        f"Ranked by {task_metric_label}, then by best reward.\n\n",
         "![Task metrics comparison](comparison_task_metrics.png)\n\n",
-        "| Rank | Experiment | Best Progress | Finish Rate | Best Finish Time | Best Reward |\n",
+        f"| Rank | Experiment | {task_metric_label} | Finish Rate | Best Finish Time | Best Reward |\n",
         "|------|-----------|---------------|-------------|-----------------|-------------|\n",
     ]
     for rank, (name, s) in enumerate(ranked_by_progress, 1):
-        prog = f"{s['best_track_progress']:.4f}"
+        prog = _fmt_task(s["task_metric"])
         fr   = f"{s['finish_rate']:.1%}"
         bft  = f"{s['best_finish_time_s']:.1f}s" if s["best_finish_time_s"] is not None else "—"
         lines.append(
@@ -793,15 +821,12 @@ def save_grid_summary(
         )
     lines.append("\n")
 
-    for rank, (name, data) in enumerate(
-        sorted(runs, key=lambda x: (-_gs_stats(x[1])["best_track_progress"],
-                                    -_gs_stats(x[1])["best_reward"])), 1
-    ):
-        s = _gs_stats(data)
+    for rank, (name, data) in enumerate(ranked_by_progress, 1):
+        s = stats_by_name[name]
         results_rel = f"../{name}/results"
         lines.append(f"---\n\n## {rank}. {name}\n\n"
                      f"**Best reward: {s['best_reward']:+.1f}** | "
-                     f"**Best progress: {s['best_track_progress']:.4f}** | "
+                     f"**{task_metric_label}: {_fmt_task(s['task_metric'])}** | "
                      f"**Finish rate: {s['finish_rate']:.1%}**\n\n")
         if varied_keys and data.training_params:
             reward_cfg = {}
@@ -823,7 +848,7 @@ def save_grid_summary(
         bft = f"{s['best_finish_time_s']:.1f}s" if s["best_finish_time_s"] is not None else "—"
         lines += [
             "| Stat | Value |\n|---|---|\n",
-            f"| Best track progress | {s['best_track_progress']:.4f} |\n",
+            f"| {task_metric_label} | {_fmt_task(s['task_metric'])} |\n",
             f"| Finish rate | {s['finish_rate']:.1%} |\n",
             f"| Best finish time | {bft} |\n",
             f"| Greedy improvements | {s['n_improvements']} |\n",
