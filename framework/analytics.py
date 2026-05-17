@@ -821,7 +821,9 @@ def save_grid_summary(
         )
     lines.append("\n")
 
-    for rank, (name, data) in enumerate(ranked_by_progress, 1):
+    runs_by_name = {n: d for n, d in runs}
+    for rank, (name, _) in enumerate(ranked_by_progress, 1):
+        data = runs_by_name[name]
         s = stats_by_name[name]
         results_rel = f"../{name}/results"
         lines.append(f"---\n\n## {rank}. {name}\n\n"
