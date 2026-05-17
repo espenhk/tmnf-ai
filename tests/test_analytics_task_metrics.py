@@ -266,5 +266,78 @@ class TestPlotGsRewardTrajectories(unittest.TestCase):
             self.assertIn("summary.md", os.listdir(d))
 
 
+# ---------------------------------------------------------------------------
+# save_grid_summary — task_metric_fn / task_metric_fmt plugin (issue #209)
+# ---------------------------------------------------------------------------
+
+class TestSaveGridSummaryTaskMetric(unittest.TestCase):
+
+    def _make_runs(self, progresses_by_name: dict) -> list:
+        runs = []
+        for name, progresses in progresses_by_name.items():
+            sims = [_make_sim(sim=i, reward=p * 10, improved=True,
+                              final_track_progress=p)
+                    for i, p in enumerate(progresses)]
+            exp = _make_experiment(sims)
+            exp.experiment_name = name
+            runs.append((name, exp))
+        return runs
+
+    def test_default_uses_track_progress_with_4f_format(self):
+        import tempfile, os
+        from framework.analytics import save_grid_summary
+        runs = self._make_runs({"exp_a": [0.7], "exp_b": [0.3]})
+        with tempfile.TemporaryDirectory() as d:
+            save_grid_summary(runs, [], d, "gs")
+            md = open(os.path.join(d, "summary.md"), encoding="utf-8").read()
+        self.assertIn("Best Track Progress", md)
+        self.assertIn("0.7000", md)
+        self.assertNotIn("70.0%", md)
+
+    def test_custom_metric_fn_replaces_label_and_value(self):
+        import tempfile, os
+        from framework.analytics import save_grid_summary
+        runs = self._make_runs({"exp_a": [0.0]})
+        with tempfile.TemporaryDirectory() as d:
+            save_grid_summary(runs, [], d, "gs",
+                              task_metric_fn=lambda _: 0.8,
+                              task_metric_label="Win Rate",
+                              task_metric_fmt="{:.1%}".format)
+            md = open(os.path.join(d, "summary.md"), encoding="utf-8").read()
+        self.assertIn("Win Rate", md)
+        self.assertIn("80.0%", md)
+        self.assertNotIn("Best Track Progress", md)
+
+    def test_custom_metric_drives_ranking(self):
+        import tempfile, os
+        from framework.analytics import save_grid_summary
+        # exp_b has higher custom metric despite lower track progress
+        runs = self._make_runs({"exp_a": [0.9], "exp_b": [0.1]})
+        metric_values = {"exp_a": 0.2, "exp_b": 0.8}
+        runs_by_name = dict(runs)
+
+        def metric_fn(data):
+            return metric_values[data.experiment_name]
+
+        with tempfile.TemporaryDirectory() as d:
+            save_grid_summary(runs, [], d, "gs",
+                              task_metric_fn=metric_fn,
+                              task_metric_label="Score",
+                              task_metric_fmt="{:.2f}".format)
+            md = open(os.path.join(d, "summary.md"), encoding="utf-8").read()
+        # exp_b should appear before exp_a in rankings
+        self.assertLess(md.index("## 1. exp_b"), md.index("## 2. exp_a"))
+
+    def test_custom_fmt_without_fn_applies_to_track_progress(self):
+        import tempfile, os
+        from framework.analytics import save_grid_summary
+        runs = self._make_runs({"exp_a": [0.5]})
+        with tempfile.TemporaryDirectory() as d:
+            save_grid_summary(runs, [], d, "gs",
+                              task_metric_fmt="{:.1%}".format)
+            md = open(os.path.join(d, "summary.md"), encoding="utf-8").read()
+        self.assertIn("50.0%", md)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

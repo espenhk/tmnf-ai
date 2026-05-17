@@ -296,6 +296,12 @@ _OUTCOME_COLORS: dict[str, str] = {
     "other":   "#95a5a6",
 }
 
+# Outcomes treated as success for the win/success-rate task metric.
+# "finish" covers minigame completion (player_outcome == 0, map ended without
+# a winner); "win" covers ladder victories (player_outcome > 0).  Both are
+# meaningful positive outcomes worth optimising toward.
+_GS_SUCCESS_REASONS: frozenset[str] = frozenset({"win", "finish"})
+
 
 def plot_outcome_breakdown(data: ExperimentData, results_dir: str) -> None:
     """Stacked-bar chart of win / finish / timeout / loss per greedy sim.
@@ -578,6 +584,14 @@ def _entropy_from_counts(action_counts: dict[int, int] | None) -> float | None:
     probs = counts / total
     positive = probs > 0
     return float(-np.sum(probs[positive] * np.log2(probs[positive])))
+
+
+def _sc2_task_metric(data: ExperimentData) -> float:
+    """Fraction of greedy sims that ended with a success outcome."""
+    sims = data.greedy_sims
+    if not sims:
+        return 0.0
+    return sum(1 for s in sims if s.termination_reason in _GS_SUCCESS_REASONS) / len(sims)
 
 
 def plot_gs_action_entropy(
@@ -1027,5 +1041,8 @@ def save_grid_summary(
     _framework_save_grid_summary(
         normalised_runs, varied_keys, summary_dir, base_name,
         extra_plots_fn=_sc2_extra,
+        task_metric_fn=_sc2_task_metric,
+        task_metric_label="Win/Success Rate",
+        task_metric_fmt="{:.1%}".format,
     )
     _append_sc2_grid_summary_section(summary_dir)
