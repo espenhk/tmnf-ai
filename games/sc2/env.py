@@ -93,18 +93,14 @@ class SC2Env(BaseGameEnv):
         PySC2 feature_minimap layer names appended after screen_layers.
     max_apm :
         Optional maximum actions per minute enforced by a token-bucket
-        limiter (wall-clock time).  When the budget is exhausted, non-no-op
-        actions are replaced with ``no_op``.  ``None`` (default) disables
-        limiting.  No-op actions (``fn_idx == 0``) are always free.
+        limiter measured in **game time** (derived from PySC2's ``game_loop``
+        counter, not wall-clock time).  When the budget is exhausted,
+        non-no-op actions are replaced with ``no_op``.  ``None`` (default)
+        disables limiting.  No-op actions (``fn_idx == 0``) are always free.
 
-        **Warning:** because ``max_apm`` is wall-clock based and PySC2 runs
-        faster than real-time during headless training, a limit that appears
-        generous relative to the game-time APM ceiling (``~168`` at
-        ``step_mul=8``) can still throttle the agent unpredictably.  This
-        creates a training/inference mismatch — the policy learns under
-        a speed-dependent constraint that does not apply at inference time.
-        Only set this when explicitly simulating human APM constraints; leave
-        it unset otherwise.
+        Because the limiter uses game time, ``max_apm=300`` means exactly
+        300 actions per in-game minute regardless of whether training runs
+        faster or slower than real-time.
     apm_burst_s :
         Token-bucket burst window in seconds.  Controls how many seconds'
         worth of tokens can accumulate before the limiter kicks in.
@@ -225,6 +221,7 @@ class SC2Env(BaseGameEnv):
         self._ep_obs_step_count: int = 0
         self._ep_xy_hist: np.ndarray = np.zeros((8, 8), dtype=np.int64)
         self._ep_apm_throttled_steps: int = 0
+        self._apm_game_time_s: float = 0.0
         self._prev_step_game_loop: float | None = None
         self._ep_skipped_frames: int = 0
         # Per-episode SC2 end-screen analytics (supply cap, time-series, build order).
@@ -263,6 +260,7 @@ class SC2Env(BaseGameEnv):
         self._ep_xy_hist = np.zeros((8, 8), dtype=np.int64)
         self._ep_apm_throttled_steps = 0
         self._prev_step_game_loop = self._safe_float_or_none(info.get("game_loop"))
+        self._apm_game_time_s = (self._prev_step_game_loop or 0.0) / _SC2_TICKS_PER_S
         self._ep_skipped_frames = 0
         self._ep_supply_capped_steps = 0
         self._ep_army_series = []
@@ -276,7 +274,7 @@ class SC2Env(BaseGameEnv):
         self._prev_game_loop = float(info.get("game_loop", 0.0))
 
         if self._apm_limiter is not None:
-            self._apm_limiter.reset(self._episode_start_s)
+            self._apm_limiter.reset(self._apm_game_time_s)
 
         if self._belief is not None:
             self._belief.reset()
@@ -294,12 +292,11 @@ class SC2Env(BaseGameEnv):
 
     def step(self, action: np.ndarray) -> tuple[np.ndarray | dict, float, bool, bool, dict]:
         # APM limiting: replace non-no-op actions with no_op when budget is
-        # exhausted.  The check uses the current wall-clock time so that the
-        # rolling token bucket tracks real elapsed time.
-        _now = time.monotonic()
+        # exhausted.  Uses game time (derived from game_loop) so max_apm is
+        # expressed in game-time APM regardless of training speed.
         _fn_idx_requested = int(action[0]) if len(action) > 0 else 0
         if self._apm_limiter is not None and not self._apm_limiter.allow(
-            _now,
+            self._apm_game_time_s,
             _fn_idx_requested,
             protect_burst_budget=True,
         ):
@@ -350,6 +347,9 @@ class SC2Env(BaseGameEnv):
                 max(0.0, np.floor(_delta - float(self._step_mul) + 1e-6))
             )
             self._ep_skipped_frames += _skipped_frames_this_step
+            self._apm_game_time_s += _delta / _SC2_TICKS_PER_S
+        else:
+            self._apm_game_time_s += self._step_mul / _SC2_TICKS_PER_S
         if _curr_game_loop is not None:
             self._prev_step_game_loop = _curr_game_loop
         info["skipped_frames_this_step"] = _skipped_frames_this_step

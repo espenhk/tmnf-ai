@@ -3,6 +3,10 @@ integration into :class:`games.sc2.env.SC2Env`.
 
 All tests are pure-Python: no SC2 binary, no PySC2 import, no real env.
 The env tests mock ``SC2Client`` as every other test_sc2_env test does.
+
+APM is measured in game time (game_loop / 22.4 ticks-per-second), not
+wall-clock time, so the limiter behaves identically regardless of how fast
+PySC2 runs relative to real time.
 """
 import unittest
 from unittest.mock import patch
@@ -12,6 +16,8 @@ import numpy as np
 from games.sc2.apm_limiter import ApmLimiter
 from games.sc2.env import SC2Env
 from games.sc2.obs_spec import BASE_OBS_DIM
+
+_SC2_TICKS_PER_S = 22.4  # SC2 engine rate — mirrors the constant in env.py
 
 
 # ---------------------------------------------------------------------------
@@ -153,31 +159,37 @@ class TestApmLimiterBasicBehaviour(unittest.TestCase):
 class TestApmLimiterRollingBudget(unittest.TestCase):
     """Verify that the rolling budget prevents "all in first second" patterns."""
 
-    def test_300_apm_spread_over_60_seconds(self):
-        """At 300 APM the limiter should allow ~300 actions over 60 seconds,
-        not 300 in the first second."""
+    def test_300_apm_spread_over_60_game_seconds(self):
+        """At 300 APM the limiter should allow ~300 actions over 60 game-seconds,
+        not 300 in the first game-second."""
         lim = ApmLimiter(max_apm=300, burst_s=2.0)
         lim.reset(0.0)
 
         allowed_first_second = 0
         total_allowed = 0
-        # Simulate steps spaced 1/10 s apart over 60 s → 600 steps.
+        # Simulate steps spaced 1/10 game-second apart over 60 game-seconds.
         for i in range(600):
-            t = i * 0.1
+            t = i * 0.1  # game seconds
             if lim.allow(t, fn_idx=1):
                 total_allowed += 1
                 if t < 1.0:
                     allowed_first_second += 1
 
-        # At 300 APM = 5/s, over 60 s the total should be ~300 (within 5%).
+        # At 300 APM = 5/game-s, over 60 game-s the total should be ~300 (within 5%).
         self.assertAlmostEqual(total_allowed, 300, delta=15)
-        # The first second should allow at most burst_s * refill_rate = 10.
+        # The first game-second should allow at most burst_s * refill_rate = 10.
         self.assertLessEqual(allowed_first_second, 10)
 
 
 # ---------------------------------------------------------------------------
 # SC2Env integration tests
 # ---------------------------------------------------------------------------
+
+def _base_info(game_loop: float = 0.0) -> dict:
+    return {"score": 0.0, "minerals": 50.0, "vespene": 0.0,
+            "food_used": 1.0, "food_cap": 15.0, "army_count": 0.0,
+            "game_loop": game_loop}
+
 
 def _make_mock_env(max_apm=None, apm_burst_s=2.0):
     """Return a mocked SC2Env with optional APM limiting."""
@@ -186,15 +198,12 @@ def _make_mock_env(max_apm=None, apm_burst_s=2.0):
     mock_client = mock_cls.return_value
     mock_client.reset.return_value = (
         np.zeros(BASE_OBS_DIM, dtype=np.float32),
-        {"score": 0.0, "minerals": 50.0, "vespene": 0.0,
-         "food_used": 1.0, "food_cap": 15.0, "army_count": 0.0},
+        _base_info(0.0),
     )
     mock_client.step.return_value = (
         np.zeros(BASE_OBS_DIM, dtype=np.float32),
-        0.0,
-        False,
-        {"score": 0.0, "minerals": 50.0, "vespene": 0.0,
-         "food_used": 1.0, "food_cap": 15.0, "army_count": 0.0},
+        0.0, False,
+        _base_info(0.0),
     )
     env = SC2Env(
         map_name="MoveToBeacon",
@@ -243,16 +252,22 @@ class TestSC2EnvApmLimiterEnabled(unittest.TestCase):
         )
         self.addCleanup(self.patcher.stop)
 
-    def _do_reset(self):
-        with patch("games.sc2.env.time") as mock_time:
-            mock_time.monotonic.return_value = 0.0
-            obs, info = self.env.reset()
-        return obs, info
+    def _do_reset(self, game_loop: float = 0.0):
+        self.mock_client.reset.return_value = (
+            np.zeros(BASE_OBS_DIM, dtype=np.float32),
+            _base_info(game_loop),
+        )
+        return self.env.reset()
 
-    def _do_step(self, action, now=0.0):
-        with patch("games.sc2.env.time") as mock_time:
-            mock_time.monotonic.return_value = now
-            return self.env.step(action)
+    def _do_step(self, action, game_loop: float = 0.0):
+        """Step the env; game_loop is the value PySC2 returns for this step,
+        which sets _apm_game_time_s for the *next* step's APM check."""
+        self.mock_client.step.return_value = (
+            np.zeros(BASE_OBS_DIM, dtype=np.float32),
+            0.0, False,
+            _base_info(game_loop),
+        )
+        return self.env.step(action)
 
     def test_limiter_created(self):
         self.assertIsNotNone(self.env._apm_limiter)
@@ -260,7 +275,7 @@ class TestSC2EnvApmLimiterEnabled(unittest.TestCase):
     def test_first_action_passes(self):
         self._do_reset()
         select_army = np.array([1.0, 0.5, 0.5, 0.0], dtype=np.float32)
-        _, _, _, _, info = self._do_step(select_army, now=0.0)
+        _, _, _, _, info = self._do_step(select_army)
         self.assertFalse(info["apm_throttled"])
         called = self.mock_client.step.call_args[0][0]
         # fn_idx should still be 1 (select_army).
@@ -269,10 +284,10 @@ class TestSC2EnvApmLimiterEnabled(unittest.TestCase):
     def test_second_action_throttled_to_noop(self):
         self._do_reset()
         select_army = np.array([1.0, 0.5, 0.5, 0.0], dtype=np.float32)
-        # First step at t=0 drains the token.
-        self._do_step(select_army, now=0.0)
-        # Second step at same time — bucket empty → should be replaced with no_op.
-        _, _, _, _, info = self._do_step(select_army, now=0.0)
+        # First step at game_loop=0 drains the token.
+        self._do_step(select_army)
+        # Second step — no game time advanced → bucket still empty → no_op.
+        _, _, _, _, info = self._do_step(select_army)
         self.assertTrue(info["apm_throttled"])
         called = self.mock_client.step.call_args[0][0]
         self.assertEqual(int(called[0]), 0)  # fn_idx 0 = no_op
@@ -282,53 +297,57 @@ class TestSC2EnvApmLimiterEnabled(unittest.TestCase):
         self._do_reset()
         # Drain the token.
         select_army = np.array([1.0, 0.5, 0.5, 0.0], dtype=np.float32)
-        self._do_step(select_army, now=0.0)
+        self._do_step(select_army)
         # Now issue a no_op — should not be throttled.
         no_op = np.array([0.0, 0.5, 0.5, 0.0], dtype=np.float32)
-        _, _, _, _, info = self._do_step(no_op, now=0.0)
+        _, _, _, _, info = self._do_step(no_op)
         self.assertFalse(info["apm_throttled"])
 
     def test_episode_apm_throttled_steps_accumulates(self):
         self._do_reset()
         select_army = np.array([1.0, 0.5, 0.5, 0.0], dtype=np.float32)
-        self._do_step(select_army, now=0.0)   # passes (1 token consumed)
-        self._do_step(select_army, now=0.0)   # throttled → count = 1
-        self._do_step(select_army, now=0.0)   # throttled → count = 2
-        _, _, _, _, info = self._do_step(select_army, now=0.0)
+        self._do_step(select_army)   # passes (1 token consumed)
+        self._do_step(select_army)   # throttled → count = 1
+        self._do_step(select_army)   # throttled → count = 2
+        _, _, _, _, info = self._do_step(select_army)
         self.assertEqual(info["episode_apm_throttled_steps"], 3)
 
     def test_episode_apm_throttled_steps_reset_on_new_episode(self):
         self._do_reset()
         select_army = np.array([1.0, 0.5, 0.5, 0.0], dtype=np.float32)
-        self._do_step(select_army, now=0.0)
-        self._do_step(select_army, now=0.0)
+        self._do_step(select_army)
+        self._do_step(select_army)
         # Start a new episode.
         self._do_reset()
-        _, _, _, _, info = self._do_step(select_army, now=0.0)
+        _, _, _, _, info = self._do_step(select_army)
         self.assertEqual(info["episode_apm_throttled_steps"], 0)
 
     def test_action_passes_after_refill(self):
-        self._do_reset()
+        # 60 APM, burst_s=1 → 1 token/game-second, max 1 token.
+        # Step 2 returns game_loop=22.4 (= 1 game-second) so step 3's APM
+        # check sees _apm_game_time_s=1.0 and gets the refilled token.
+        self._do_reset(game_loop=0.0)
         select_army = np.array([1.0, 0.5, 0.5, 0.0], dtype=np.float32)
-        self._do_step(select_army, now=0.0)          # drains token
-        self._do_step(select_army, now=0.0)          # throttled
-        # Advance 1 second → refill → should pass again.
-        _, _, _, _, info = self._do_step(select_army, now=1.0)
+        self._do_step(select_army, game_loop=1.0)                # drains token
+        self._do_step(select_army, game_loop=_SC2_TICKS_PER_S)  # throttled; advances to 1 game-s
+        # _apm_game_time_s is now 1.0 → 1 token refilled → should pass.
+        _, _, _, _, info = self._do_step(select_army, game_loop=_SC2_TICKS_PER_S + 1)
         self.assertFalse(info["apm_throttled"])
 
     def test_burst_budget_always_protected(self):
         env, mock_client, patcher = _make_mock_env(max_apm=300, apm_burst_s=2.0)
         self.addCleanup(patcher.stop)
 
-        with patch("games.sc2.env.time") as mock_time:
-            mock_time.monotonic.return_value = 0.0
-            env.reset()
-            select_army = np.array([1.0, 0.5, 0.5, 0.0], dtype=np.float32)
-            allowed = 0
-            for _ in range(10):
-                _, _, _, _, info = env.step(select_army)
-                if not info["apm_throttled"]:
-                    allowed += 1
+        # All steps at game_loop=0 — no time advance, no refill.
+        # protect_burst_budget reserves max_tokens - refill_rate = 10 - 5 = 5 tokens,
+        # so exactly 5 of 10 immediate actions should pass.
+        env.reset()
+        select_army = np.array([1.0, 0.5, 0.5, 0.0], dtype=np.float32)
+        allowed = 0
+        for _ in range(10):
+            _, _, _, _, info = env.step(select_army)
+            if not info["apm_throttled"]:
+                allowed += 1
 
         self.assertEqual(allowed, 5)
         called = mock_client.step.call_args[0][0]
