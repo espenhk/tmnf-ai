@@ -408,10 +408,13 @@ threading, player_relative centroid, terminal-outcome handling, ladder
 visibility tracking with fog distinction, the rich-preset extractors added
 in issue #135: enemy unit-type counts, shield/energy screen summaries, creep
 coverage fraction, and economy-pipeline features, and `save_replay` delegation
-to PySC2 including None-guard and exception safety); the SC2 env wrapper (reset /
-step / done / info / custom reward config / `save_replay` passthrough); replay
-saving on new-best events (`_try_save_replay`: no-op for non-SC2 games,
-sequential `.SC2Replay` naming, exception safety); the APM limiter (`ApmLimiter`
+to PySC2 including None-guard, makedirs-inside-try, and exception safety); the
+SC2 env wrapper (reset / step / done / info / custom reward config /
+`save_replay` passthrough); replay saving on new-best events (`_try_save_replay`
+for single-episode loops, candidate-pattern helpers `_save_candidate_replay` /
+`_finalize_candidate_replay` / `_discard_candidate_replay` for multi-episode
+loops: sequential naming, candidate-file exclusion from counts, exception
+safety throughout); the APM limiter (`ApmLimiter`
 token-bucket: construction, no-op exemption, burst cap, rolling refill,
 env integration including throttled action substitution and per-episode
 counters); the full lifecycle of
@@ -484,9 +487,12 @@ handful of iterations only).
 - end-screen analytics: series absent on mid-episode step; present on terminal step; supply_capped_fraction correct; army series value; resource series sums minerals+vespene; starting units excluded from build order; new units produce events; empty build order when no unit_counts
 
 ### test_sc2_replay.py — SC2 replay saving on new-best events (issue #210)
-- `SC2Client.save_replay`: returns None when SC2 env not running; delegates to pysc2 save_replay with correct dir and prefix keyword; swallows exceptions and returns None
+- `SC2Client.save_replay`: returns None when SC2 env not running; delegates to pysc2 save_replay with correct dir and prefix keyword; `os.makedirs` inside try block so directory creation failures are swallowed; swallows SC2 exceptions and returns None
 - `SC2Env.save_replay`: thin delegation to client
-- `_try_save_replay`: no-op for envs without save_replay (non-SC2 games); first new-best → `_best-01` prefix; second new-best → `_best-02` when one .SC2Replay exists; replay_dir always `<experiment_dir>/replays/`; only `.SC2Replay` files counted for sequential numbering (not .txt/.yaml etc.); exception from save_replay swallowed
+- `_try_save_replay` (single-episode loops): no-op for envs without save_replay (non-SC2 games); first new-best → `_best-01` prefix; second new-best → `_best-02` when one confirmed .SC2Replay exists; candidate (`_`-prefixed) files excluded from sequential count; replay_dir always `<experiment_dir>/replays/`; only `.SC2Replay` files counted; exception swallowed
+- `_save_candidate_replay`: no-op for non-SC2; calls save_replay with `_candidate` prefix; exception swallowed, returns None
+- `_finalize_candidate_replay`: no-op when path is None or file missing; renames to next sequential `_best-N.SC2Replay`; candidate files excluded from confirmed-best count; two confirmed → `_best-02`
+- `_discard_candidate_replay`: no-op on None or missing path; deletes existing file
 
 ### test_sc2_apm_limiter.py — token-bucket APM limiter + SC2Env integration
 - Construction: valid / zero/negative max_apm raises / zero/negative burst_s raises / max_tokens formula / starts full

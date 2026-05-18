@@ -335,8 +335,8 @@ class SC2Client:
         """
         if self._sc2_env is None:
             return None
-        os.makedirs(replay_dir, exist_ok=True)
         try:
+            os.makedirs(replay_dir, exist_ok=True)
             return self._sc2_env.save_replay(replay_dir, prefix=prefix)
         except Exception as exc:
             logger.warning("SC2Client.save_replay failed: %s", exc)
