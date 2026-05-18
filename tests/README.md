@@ -120,9 +120,10 @@ cross-grid family comparison tables).
 The intra-run parallel evaluator (`framework/parallel_eval.py`, issue #229)
 is unit-tested end-to-end against a picklable dummy env / policy: worker
 pool spawn (spawn context), per-individual ordering, crash isolation,
-sentinel shutdown, determinism under fixed seed, episode-time-limit
-broadcast, and the `train_rl` guard (`_maybe_build_evaluator`).  The
-underlying PySC2 binary spawn path is opt-in via `RUN_SC2_TESTS=1`.
+sentinel shutdown, determinism under fixed seed, per-candidate
+episode-time-limit dispatch, and the `train_rl` guard
+(`_maybe_build_evaluator`).  The underlying PySC2 binary spawn path is
+opt-in via `RUN_SC2_TESTS=1`.
 
 **Not tested.** Real distributed training across multiple machines (only the
 in-process HTTP loopback is exercised); actual matplotlib rendering or PNG
@@ -237,7 +238,7 @@ worker mechanics are unit-tested with a dummy env.
 - empty candidate list → empty result; `n_workers=0` raises; more candidates than workers all evaluated
 - determinism: identical `base_seed` produces identical results
 - `episode_time_limit_s` reaches workers without crashing the dispatch
-- `_maybe_build_evaluator` returns None for `n_workers=1`, raises `ValueError` for non-population policies and `q_learning` loop dispatch, caps `n_workers` at `population_size` with a warning
+- `_maybe_build_evaluator` returns None for `n_workers=1`, raises `ValueError` for non-population policies and `q_learning` loop dispatch, caps `n_workers` at `population_size` with a warning, and accepts `cmaes` loop dispatch for `sc2_cmaes` / `sc2_lstm` / `sc2_cnn`
 - SC2 binary spawn smoke test is opt-in (skipped unless `RUN_SC2_TESTS=1`); the worker mechanics are exercised entirely against the dummy env in the unit tests
 
 ### test_train_rl_signature.py — public `train_rl()` API

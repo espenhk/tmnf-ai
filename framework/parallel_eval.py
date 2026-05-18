@@ -56,12 +56,6 @@ _JOB_SENTINEL = "__shutdown__"
 
 
 @dataclasses.dataclass
-class _SetEpisodeTimeLimit:
-    """Wire message: workers should call env.set_episode_time_limit(seconds)."""
-    seconds: float
-
-
-@dataclasses.dataclass
 class _WorkerError:
     """Wire message: worker hit a fatal error and is about to exit."""
     worker_id: int
@@ -169,12 +163,6 @@ class ParallelEvaluator:
         if self._closed:
             raise RuntimeError("evaluate() called after close()")
 
-        # Optionally broadcast a per-generation episode time limit.
-        if episode_time_limit_s is not None:
-            msg = _SetEpisodeTimeLimit(seconds=episode_time_limit_s)
-            for _ in range(self.n_workers):
-                self.job_queue.put(msg)
-
         max_eps = max(c.eval_episodes for c in candidates)
         per_job_budget = (
             self.worker_warmup_timeout_s
@@ -182,7 +170,7 @@ class ParallelEvaluator:
         )
 
         for cand in candidates:
-            self.job_queue.put((cand, warmup_action, warmup_steps))
+            self.job_queue.put((cand, warmup_action, warmup_steps, episode_time_limit_s))
 
         n_active_workers = self.n_workers
         results: dict[int, EpisodeResult] = {}
@@ -311,13 +299,13 @@ def _worker_main(
             if msg == _JOB_SENTINEL:
                 logger.info("[Worker %d] sentinel received; exiting", worker_id)
                 break
-            if isinstance(msg, _SetEpisodeTimeLimit):
-                if hasattr(env, "set_episode_time_limit"):
-                    env.set_episode_time_limit(msg.seconds)
-                continue
-
-            candidate, warmup_action, warmup_steps = msg
+            candidate, warmup_action, warmup_steps, episode_time_limit_s = msg
             current_idx = candidate.individual_idx
+            if (
+                episode_time_limit_s is not None
+                and hasattr(env, "set_episode_time_limit")
+            ):
+                env.set_episode_time_limit(episode_time_limit_s)
 
             individual = template_policy.with_flat(candidate.flat_weights)
 

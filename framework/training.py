@@ -1217,7 +1217,8 @@ def _greedy_loop_genetic(
 # Intra-run parallel evaluation helpers (issue #229)
 # ---------------------------------------------------------------------------
 
-# loop_kind values that support parallel intra-run evaluation today.
+# loop_kind values that support parallel intra-run evaluation today
+# (including SC2 policies dispatched via "genetic"/"cmaes").
 _PARALLEL_EVAL_LOOPS: frozenset[str] = frozenset({"genetic", "cmaes"})
 
 
