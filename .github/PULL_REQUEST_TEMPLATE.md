@@ -12,16 +12,17 @@ Keep only the section(s) that apply to this PR and delete the rest.
 
 ## Related issues
 
-<!-- e.g. "Closes #123", "Refs #456" -->
-
-Closes #
+<!-- Add links like: "Closes #123" / "Refs #456" -->
 
 ## Validation
 
 <!-- Commands or manual checks you ran -->
 
 ```bash
-PYTHONPATH=. python -m pytest tests/ --ignore=tests/test_env_termination.py --ignore=tests/test_grid_search.py --ignore=tests/integration/
+PYTHONPATH=. poetry run python -m pytest tests/ \
+    --ignore=tests/test_env_termination.py \
+    --ignore=tests/test_grid_search.py \
+    --ignore=tests/integration/
 ```
 
 ## Bug fix details (delete this section if not a bug fix)

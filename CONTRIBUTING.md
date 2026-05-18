@@ -184,7 +184,7 @@ add `<name>` to the `--game` choices in `main.py`.
 ### Step-by-step
 
 1. **Open a new-game issue first** using the shared
-   [issue template](.github/ISSUE_TEMPLATE.md), so we can agree on scope
+   [issue template](.github/ISSUE_TEMPLATE/issue_template.md), so we can agree on scope
    before code lands. Keep the "New game proposal details" section and
    remove the rest.
 2. **Copy `games/car_racing/` to `games/<name>/`** and rename the
@@ -305,9 +305,9 @@ PR review *will* push back if any of these are out of date.
    - `Tests / test` (the unit-test workflow) runs on every PR.
    - `Integration Tests / car-racing` / `sc2` run after an approving
      review, and only if files in their watched paths changed.
-6. **Welcome AI review**. The PR template includes a checkbox asking
-   if you're happy for an automated reviewer (e.g. `/ultrareview`) to
-   run on the PR. This is opt-in.
+6. **AI review is optional**. If you want an automated reviewer
+   (e.g. `/ultrareview`) to run on your PR, request it in the PR
+   conversation.
 7. **Address review comments** in new commits (don't force-push over an
    in-progress review unless asked — it makes re-review harder).
 8. **Squash on merge** — keep `main` linear.
