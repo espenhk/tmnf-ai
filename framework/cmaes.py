@@ -135,12 +135,12 @@ class CMAESDistribution:
             self._pop_ys.append(y)
         return list(self._pop_xs)
 
-    def update(self, rewards: list[float]) -> tuple[bool, int | None]:
+    def update(self, rewards: list[float]) -> tuple[float, int]:
         """Apply (μ/μ_w, λ)-CMA-ES update.
 
-        Returns ``(improved, best_idx)`` where ``improved`` is True when the
-        best-seen reward increased and ``best_idx`` is the index of the best
-        offspring (or None if no improvement).
+        Returns ``(best_r, best_idx)`` where ``best_r`` is the highest reward
+        in this generation and ``best_idx`` is that offspring's index in the
+        population list returned by the preceding ``sample()`` call.
         """
         if len(rewards) != self._lam:
             raise ValueError(f"Expected {self._lam} rewards, got {len(rewards)}")

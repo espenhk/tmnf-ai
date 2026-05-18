@@ -103,6 +103,9 @@ class REINFORCEPolicy(BasePolicy):
         self._baseline_val   = 0.0
         self._baseline_alpha = 0.05
 
+        # Cached availability mask (None = all actions legal)
+        self._available_mask: np.ndarray | None = None
+
     # ------------------------------------------------------------------
     # Network construction
     # ------------------------------------------------------------------
@@ -154,11 +157,32 @@ class REINFORCEPolicy(BasePolicy):
     # Policy interface
     # ------------------------------------------------------------------
 
+    def on_episode_start(self, **kwargs) -> None:
+        self._ep_grads.clear()
+        self._ep_rewards.clear()
+        if self._avail_fn is not None:
+            info = kwargs.get("info") or {}
+            result = self._avail_fn(info)
+            if result is not None:
+                self._available_mask = np.asarray(result, dtype=bool)
+
     def __call__(self, obs: np.ndarray) -> np.ndarray:
         obs_norm           = obs / self._scales
         probs, l_in, pre_r = self._forward(obs_norm)
-        action_idx         = int(np.random.choice(self._output_dim, p=probs))
-        self._ep_grads.append((l_in, pre_r, probs.copy(), action_idx))
+        if self._available_mask is not None:
+            masked = probs * self._available_mask
+            total  = float(masked.sum())
+            if total > 1e-10:
+                masked = masked / total
+            else:
+                masked = self._available_mask.astype(np.float32)
+                masked = masked / float(masked.sum())
+            action_idx   = int(np.random.choice(self._output_dim, p=masked))
+            stored_probs = masked
+        else:
+            action_idx   = int(np.random.choice(self._output_dim, p=probs))
+            stored_probs = probs.copy()
+        self._ep_grads.append((l_in, pre_r, stored_probs, action_idx))
         return self._action_decoder(action_idx).copy()
 
     def update(
@@ -171,6 +195,11 @@ class REINFORCEPolicy(BasePolicy):
         **kwargs,
     ) -> None:
         self._ep_rewards.append(float(reward))
+        if self._avail_fn is not None:
+            info   = kwargs.get("info") or {}
+            result = self._avail_fn(info)
+            if result is not None:
+                self._available_mask = np.asarray(result, dtype=bool)
 
     def on_episode_end(self) -> None:
         T = min(len(self._ep_grads), len(self._ep_rewards))
@@ -260,7 +289,9 @@ class REINFORCEPolicy(BasePolicy):
         obj = cls(
             obs_spec       = obs_spec,
             action_decoder = action_decoder,
-            output_dim     = cfg.get("output_dim", len(cfg.get("weights", [[]][-1]))),
+            output_dim     = cfg.get("output_dim",
+                                     np.array(cfg["biases"][-1]).shape[0]
+                                     if "biases" in cfg else 1),
             hidden_sizes   = cfg.get("hidden_sizes",  [64, 64]),
             learning_rate  = cfg.get("learning_rate", 0.001),
             gamma          = cfg.get("gamma",         0.99),
@@ -467,8 +498,11 @@ class TwoHeadREINFORCEPolicy(BasePolicy):
     def on_episode_start(self, **kwargs) -> None:
         self._ep_grads.clear()
         self._ep_rewards.clear()
-        info      = kwargs.get("info") or {}
-        available = info.get("available_fn_ids")
+        info = kwargs.get("info") or {}
+        if self._avail_fn_ids_fn is not None:
+            available = self._avail_fn_ids_fn(info)
+        else:
+            available = info.get("available_fn_ids")
         if available is not None:
             self._available_fn_ids = set(available)
         else:
@@ -506,8 +540,11 @@ class TwoHeadREINFORCEPolicy(BasePolicy):
         **kwargs,
     ) -> None:
         self._ep_rewards.append(float(reward))
-        info      = kwargs.get("info") or {}
-        available = info.get("available_fn_ids")
+        info = kwargs.get("info") or {}
+        if self._avail_fn_ids_fn is not None:
+            available = self._avail_fn_ids_fn(info)
+        else:
+            available = info.get("available_fn_ids")
         if available is not None:
             self._available_fn_ids = set(available)
 

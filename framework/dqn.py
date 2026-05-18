@@ -387,12 +387,16 @@ class DQNPolicy(BasePolicy):
             rew_arr  = np.array([t[2] for t in buf], dtype=np.float32)
             next_arr = np.stack([t[3] for t in buf]).astype(np.float32)
             done_arr = np.array([t[4] for t in buf], dtype=np.float32)
+            if self._masked:
+                mask_arr = np.stack([t[5] for t in buf])  # (n, n_actions) bool
         else:
             obs_arr  = np.empty((0, self._obs_dim), dtype=np.float32)
             act_arr  = np.empty(0, dtype=np.int32)
             rew_arr  = np.empty(0, dtype=np.float32)
             next_arr = np.empty((0, self._obs_dim), dtype=np.float32)
             done_arr = np.empty(0, dtype=np.float32)
+            if self._masked:
+                mask_arr = np.empty((0, self._n_actions), dtype=bool)
 
         n_layers = len(self._m_w)
         arrays: dict = dict(
@@ -402,6 +406,10 @@ class DQNPolicy(BasePolicy):
             replay_next = next_arr,
             replay_done = done_arr,
             total_steps = np.int64(self._total_steps),
+        )
+        if self._masked:
+            arrays["replay_mask"] = mask_arr
+        arrays.update(
             grad_steps  = np.int64(self._grad_steps),
             adam_t      = np.int64(self._adam_t),
             epsilon     = np.float32(self._eps),
@@ -450,12 +458,21 @@ class DQNPolicy(BasePolicy):
                 self._replay = MaskedReplayBuffer(self._buf_maxlen, self._n_actions)
             else:
                 self._replay = ReplayBuffer(self._buf_maxlen)
+            has_masks = self._masked and "replay_mask" in data
             for i in range(len(data["replay_obs"])):
-                self._replay.push(
-                    data["replay_obs"][i], int(data["replay_act"][i]),
-                    float(data["replay_rew"][i]), data["replay_next"][i],
-                    bool(data["replay_done"][i]),
-                )
+                if has_masks:
+                    self._replay.push(
+                        data["replay_obs"][i], int(data["replay_act"][i]),
+                        float(data["replay_rew"][i]), data["replay_next"][i],
+                        bool(data["replay_done"][i]),
+                        mask=data["replay_mask"][i],
+                    )
+                else:
+                    self._replay.push(
+                        data["replay_obs"][i], int(data["replay_act"][i]),
+                        float(data["replay_rew"][i]), data["replay_next"][i],
+                        bool(data["replay_done"][i]),
+                    )
 
             self._total_steps = int(data["total_steps"])
             self._grad_steps  = int(data["grad_steps"])
