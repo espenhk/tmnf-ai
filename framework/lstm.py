@@ -126,6 +126,31 @@ class LSTMCore:
         self._W_o = _take((h, c_in))
         self._b_o = _take((h,))
 
+    @classmethod
+    def _empty(cls, obs_dim: int, hidden_size: int) -> "LSTMCore":
+        """Create an LSTMCore without initialising weights.
+
+        Use immediately before :meth:`from_flat` to avoid wasting random-number
+        generation that would be discarded anyway.  The hidden and cell states
+        are still zeroed.
+        """
+        obj = object.__new__(cls)
+        obj._obs_dim     = int(obs_dim)
+        obj._hidden_size = int(hidden_size)
+        h    = hidden_size
+        c_in = h + obs_dim
+        obj._W_f = np.empty((h, c_in), dtype=np.float32)
+        obj._b_f = np.empty(h, dtype=np.float32)
+        obj._W_i = np.empty((h, c_in), dtype=np.float32)
+        obj._b_i = np.empty(h, dtype=np.float32)
+        obj._W_g = np.empty((h, c_in), dtype=np.float32)
+        obj._b_g = np.empty(h, dtype=np.float32)
+        obj._W_o = np.empty((h, c_in), dtype=np.float32)
+        obj._b_o = np.empty(h, dtype=np.float32)
+        obj._h   = np.zeros(h, dtype=np.float32)
+        obj._c   = np.zeros(h, dtype=np.float32)
+        return obj
+
     def forward(self, x: np.ndarray) -> np.ndarray:
         """Run one LSTM step on normalised input *x*, return updated hidden state.
 
@@ -310,7 +335,8 @@ class LSTMEvolutionPolicy(BasePolicy):
     def _flat_to_individual(self, flat: np.ndarray) -> _LSTMIndividual:
         """Build a new :class:`_LSTMIndividual` from a flat parameter vector."""
         flat = np.asarray(flat, dtype=np.float32)
-        core = LSTMCore(
+        # Use _empty to skip weight initialisation that would be discarded.
+        core = LSTMCore._empty(
             obs_dim     = self._obs_dim,
             hidden_size = self._lstm_core_template._hidden_size,
         )
@@ -438,29 +464,47 @@ class LSTMEvolutionPolicy(BasePolicy):
         }
 
     def save(self, path: str) -> None:
-        """Save the champion's flat parameter vector to a .npz file."""
-        if self._champion is not None:
-            flat = self._champion.to_flat()
-            np.savez(
-                path,
-                flat      = flat,
-                flat_dim  = np.int64(self._flat_dim),
-                hidden_size = np.int64(self._lstm_core_template._hidden_size),
-                obs_dim   = np.int64(self._obs_dim),
-            )
+        """Save the champion's flat parameter vector to a .npz file.
 
-    def save_trainer_state(self, path: str) -> None:
-        """Persist isotropic ES distribution state (mean, sigma) to an .npz file."""
+        Logs a warning and writes nothing if no champion exists yet (i.e.
+        :meth:`sample_population` / :meth:`update_distribution` have not been
+        called).
+        """
+        if self._champion is None:
+            logger.warning(
+                "[LSTMEvolutionPolicy] save() called but no champion yet — "
+                "nothing written to %s", path,
+            )
+            return
+        flat = self._champion.to_flat()
         np.savez(
             path,
-            mean     = self._mean,
-            sigma    = np.float64(self._sigma),
-            flat_dim = np.int64(self._flat_dim),
+            flat        = flat,
+            flat_dim    = np.int64(self._flat_dim),
+            hidden_size = np.int64(self._lstm_core_template._hidden_size),
+            obs_dim     = np.int64(self._obs_dim),
         )
+
+    def save_trainer_state(self, path: str) -> None:
+        """Persist isotropic ES distribution state and champion to an .npz file.
+
+        The champion flat vector and reward are included so that a loaded policy
+        can call :meth:`__call__` immediately without running another generation.
+        """
+        arrays: dict = dict(
+            mean            = self._mean,
+            sigma           = np.float64(self._sigma),
+            flat_dim        = np.int64(self._flat_dim),
+            champion_reward = np.float64(self._champion_reward),
+            has_champion    = np.bool_(self._champion is not None),
+        )
+        if self._champion is not None:
+            arrays["champion_flat"] = self._champion.to_flat().astype(np.float32)
+        np.savez(path, **arrays)
         logger.debug("[LSTMEvolutionPolicy] trainer state saved → %s", path)
 
     def load_trainer_state(self, path: str) -> None:
-        """Restore ES distribution state from an .npz file.
+        """Restore ES distribution state (and champion, if saved) from an .npz file.
 
         Raises ValueError if the saved flat_dim does not match.
         """
@@ -475,7 +519,17 @@ class LSTMEvolutionPolicy(BasePolicy):
                 )
             self._mean  = data["mean"].astype(np.float64)
             self._sigma = float(data["sigma"])
+            if "champion_reward" in data:
+                self._champion_reward = float(data["champion_reward"])
+            if (
+                "has_champion" in data and bool(data["has_champion"])
+                and "champion_flat" in data
+            ):
+                self._champion = self._flat_to_individual(
+                    data["champion_flat"].astype(np.float32)
+                )
         logger.info(
-            "[LSTMEvolutionPolicy] trainer state loaded from %s (sigma=%.4f)",
+            "[LSTMEvolutionPolicy] trainer state loaded from %s (sigma=%.4f, champion=%s)",
             path, self._sigma,
+            f"reward={self._champion_reward:.4f}" if self._champion is not None else "none",
         )

@@ -55,7 +55,7 @@ class DQNPolicy(BasePolicy):
         obs_spec: ObsSpec,
         discrete_actions: np.ndarray,
         *,
-        hidden_sizes: list[int] = (64, 64),
+        hidden_sizes: tuple[int, ...] | list[int] = (64, 64),
         replay_buffer_size: int = 10000,
         batch_size: int = 64,
         min_replay_size: int = 500,
@@ -449,14 +449,26 @@ class DQNPolicy(BasePolicy):
                         f"Use --re-initialize to restart from scratch."
                     )
 
-            # Restore replay buffer
-            self._replay = ReplayBuffer(self._buf_maxlen)
+            # Restore replay buffer — use the same class as at construction time
+            # so that the `isinstance(self._replay, MaskedReplayBuffer)` check in
+            # update() continues to route transitions correctly after a load.
+            buf_cls = MaskedReplayBuffer if self._avail_fn is not None else ReplayBuffer
+            self._replay = buf_cls(self._buf_maxlen)
             for i in range(len(data["replay_obs"])):
-                self._replay.add(
-                    data["replay_obs"][i], int(data["replay_act"][i]),
-                    float(data["replay_rew"][i]), data["replay_next"][i],
-                    bool(data["replay_done"][i]),
-                )
+                if isinstance(self._replay, MaskedReplayBuffer):
+                    # Masks were not persisted; restore with all-True fallback.
+                    self._replay.add(
+                        data["replay_obs"][i], int(data["replay_act"][i]),
+                        float(data["replay_rew"][i]), data["replay_next"][i],
+                        bool(data["replay_done"][i]),
+                        np.ones(self._n_actions, dtype=bool),
+                    )
+                else:
+                    self._replay.add(
+                        data["replay_obs"][i], int(data["replay_act"][i]),
+                        float(data["replay_rew"][i]), data["replay_next"][i],
+                        bool(data["replay_done"][i]),
+                    )
 
             # Restore optimizer state
             self._total_steps = int(data["total_steps"])

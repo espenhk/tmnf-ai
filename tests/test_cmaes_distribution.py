@@ -99,7 +99,7 @@ class TestCMAESDistributionUpdate(unittest.TestCase):
 
     def test_update_increments_gen(self):
         d, xs = self._make_and_sample()
-        d.update(xs, np.zeros(d.lam))
+        d.update(np.zeros(d.lam))
         self.assertEqual(d.gen, 1)
 
     def test_update_shifts_mean_toward_best(self):
@@ -112,7 +112,7 @@ class TestCMAESDistributionUpdate(unittest.TestCase):
         fitnesses = np.array([
             -float(np.sum((x - target) ** 2)) for x in xs
         ])
-        d.update(xs, fitnesses)
+        d.update(fitnesses)
         # The mean should have moved closer to the target
         dist_before = float(np.linalg.norm(np.zeros(n) - target))
         dist_after  = float(np.linalg.norm(d.mean - target))
@@ -121,42 +121,42 @@ class TestCMAESDistributionUpdate(unittest.TestCase):
     def test_update_changes_sigma(self):
         d, xs    = self._make_and_sample()
         old_sigma = d.sigma
-        d.update(xs, np.arange(d.lam, dtype=float))
+        d.update(np.arange(d.lam, dtype=float))
         self.assertNotAlmostEqual(d.sigma, old_sigma)
 
     def test_update_requires_matching_lam(self):
         d, xs = self._make_and_sample(lam=10)
         with self.assertRaises(ValueError):
-            d.update(xs, np.zeros(9))  # wrong length
+            d.update(np.zeros(9))  # wrong length
 
     def test_update_requires_sample_before_call(self):
         d = CMAESDistribution(n=5, lam=10, sigma=0.3, seed=0)
         # sample() not called — _pop_xs/_pop_ys are empty
         with self.assertRaises(RuntimeError):
-            d.update([np.zeros(5)] * 10, np.zeros(10))
+            d.update(np.zeros(10))
 
     def test_update_returns_improved_flag(self):
         d, xs = self._make_and_sample()
         # first update: no prior best → always improved
-        improved = d.update(xs, np.ones(d.lam))
+        improved = d.update(np.ones(d.lam))
         self.assertTrue(improved)
 
     def test_update_returns_false_when_no_improvement(self):
         d, xs = self._make_and_sample()
-        d.update(xs, np.ones(d.lam) * 100.0)  # sets best = 100
+        d.update(np.ones(d.lam) * 100.0)  # sets best = 100
         xs2 = d.sample()
-        improved = d.update(xs2, np.ones(d.lam) * 50.0)
+        improved = d.update(np.ones(d.lam) * 50.0)
         self.assertFalse(improved)
 
     def test_sigma_adapts_down_on_bad_generation(self):
         """If no offspring beats the prior best, σ should shrink."""
         d, xs = self._make_and_sample(n=8, lam=20)
         # First generation sets best = 100
-        d.update(xs, np.ones(d.lam) * 100.0)
+        d.update(np.ones(d.lam) * 100.0)
         sigma_after_first = d.sigma
         xs2 = d.sample()
         # Second generation: all rewards worse than best
-        d.update(xs2, np.ones(d.lam) * 50.0)
+        d.update(np.ones(d.lam) * 50.0)
         # σ should differ from the post-first-gen value
         self.assertNotAlmostEqual(d.sigma, sigma_after_first)
 
@@ -174,7 +174,7 @@ class TestCMAESDistributionConvergence(unittest.TestCase):
         for _ in range(50):
             xs        = d.sample()
             fitnesses = np.array([-float(np.sum((x - target) ** 2)) for x in xs])
-            d.update(xs, fitnesses)
+            d.update(fitnesses)
 
         dist_after = float(np.linalg.norm(d.mean - target))
         self.assertLess(
@@ -190,7 +190,7 @@ class TestCMAESDistributionPersistence(unittest.TestCase):
         d = CMAESDistribution(n=n, lam=lam, sigma=0.5, seed=7)
         for _ in range(n_gens):
             xs = d.sample()
-            d.update(xs, np.arange(lam, dtype=float))
+            d.update(np.arange(lam, dtype=float))
         return d
 
     def test_save_load_roundtrip_mean(self):
@@ -233,7 +233,7 @@ class TestCMAESDistributionPersistence(unittest.TestCase):
             d2.load_state(path)
             prev_mean = d2.mean.copy()
             xs = d2.sample()
-            d2.update(xs, np.arange(d.lam, dtype=float))
+            d2.update(np.arange(d.lam, dtype=float))
             self.assertFalse(np.allclose(d2.mean, prev_mean))
         finally:
             os.unlink(path)

@@ -61,6 +61,10 @@ def _action_to_idx(action: np.ndarray) -> int:
     return int(np.argmin(diffs))
 
 
+#: Public alias — prefer this over the leading-underscore name in new code.
+action_to_idx = _action_to_idx
+
+
 def _normalize_weight_cfg(cfg: dict, names: list[str]) -> dict:
     """Return a weight config in the current steer/accel/brake format.
 

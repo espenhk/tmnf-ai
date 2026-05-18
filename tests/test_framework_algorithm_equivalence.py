@@ -270,7 +270,7 @@ class TestCMAESDistributionEquivalence(unittest.TestCase):
         mean_before_fw = fw_dist.mean.copy()
         mean_before_gm = gm._mean.copy()
 
-        fw_dist.update(fw_dist._pop_xs, np.array(rewards))
+        fw_dist.update(np.array(rewards))
         gm.update_distribution(rewards)
 
         fw_delta = fw_dist.mean - mean_before_fw

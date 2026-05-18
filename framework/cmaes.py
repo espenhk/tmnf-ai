@@ -101,9 +101,12 @@ class CMAESDistribution:
         self._eigengen = 0
         self._gen      = 0
 
-        # Populated by sample(), consumed by update()
         self._pop_xs: list[np.ndarray] = []
         self._pop_ys: list[np.ndarray] = []
+
+        # Running best-fitness tracker used by update() to compute the improved flag.
+        # Initialised here (not lazily) so save/load and standalone use are consistent.
+        self._best_fitness: float = float("-inf")
 
     # ------------------------------------------------------------------
     # Properties
@@ -167,24 +170,22 @@ class CMAESDistribution:
 
     def update(
         self,
-        thetas: list[np.ndarray],
         fitnesses: np.ndarray,
     ) -> bool:
         """Apply (μ/μ_w, λ)-CMA-ES update.
 
         Parameters
         ----------
-        thetas :
-            The *λ* candidate vectors produced by the last :meth:`sample` call.
-            Must be in the same order as the fitnesses.
         fitnesses :
-            Float array of length *λ*.  Higher = better.
+            Float array of length *λ* corresponding to the candidates returned
+            by the last :meth:`sample` call (in the same order).
+            Higher = better.
 
         Returns
         -------
         bool
             ``True`` if the best fitness this generation is a new all-time best
-            (tracked internally).
+            (tracked internally via :attr:`_best_fitness`).
         """
         if len(fitnesses) != self._lam:
             raise ValueError(f"Expected {self._lam} fitnesses, got {len(fitnesses)}")
@@ -198,10 +199,8 @@ class CMAESDistribution:
 
         order = np.argsort(fitnesses)[::-1]
 
-        # Champion tracking (delegated to caller for pure math; return improved flag)
+        # Champion tracking
         improved = False
-        if not hasattr(self, "_best_fitness"):
-            self._best_fitness = float("-inf")
         best_f = float(fitnesses[order[0]])
         if best_f > self._best_fitness:
             self._best_fitness = best_f
@@ -249,16 +248,17 @@ class CMAESDistribution:
         """Persist full CMA-ES distribution state to an .npz file."""
         np.savez(
             path,
-            mean      = self._mean,
-            sigma     = np.float64(self._sigma),
-            C         = self._C,
-            B         = self._B,
-            D         = self._D,
-            invsqrtC  = self._invsqrtC,
-            ps        = self._ps,
-            pc        = self._pc,
-            gen       = np.int64(self._gen),
-            n         = np.int64(self._n),
+            mean         = self._mean,
+            sigma        = np.float64(self._sigma),
+            C            = self._C,
+            B            = self._B,
+            D            = self._D,
+            invsqrtC     = self._invsqrtC,
+            ps           = self._ps,
+            pc           = self._pc,
+            gen          = np.int64(self._gen),
+            n            = np.int64(self._n),
+            best_fitness = np.float64(self._best_fitness),
         )
         logger.debug("[CMAESDistribution] state saved → %s", path)
 
@@ -283,6 +283,8 @@ class CMAESDistribution:
             self._ps       = data["ps"].astype(np.float64)
             self._pc       = data["pc"].astype(np.float64)
             self._gen      = int(data["gen"])
+            if "best_fitness" in data:
+                self._best_fitness = float(data["best_fitness"])
         logger.info(
             "[CMAESDistribution] state loaded from %s (gen=%d, sigma=%.4f)",
             path, self._gen, self._sigma,
@@ -506,13 +508,10 @@ class CMAESPolicy(BasePolicy):
             improved = True
 
         fitnesses = np.asarray(rewards, dtype=np.float64)
-        # Update the distribution (ignores the improved flag from _dist.update)
-        self._dist.update(
-            [self._dist._pop_xs[i] for i in range(self._dist._lam)],
-            fitnesses,
-        )
-        # Undo the _dist internal best-fitness tracking so it won't interfere
-        self._dist._best_fitness = float("-inf")
+        # Delegate the pure-math update to the distribution.  The distribution
+        # tracks its own _best_fitness for the `improved` return value; we ignore
+        # that flag here because CMAESPolicy maintains its own champion separately.
+        self._dist.update(fitnesses)
 
         return improved
 

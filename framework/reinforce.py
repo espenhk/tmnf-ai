@@ -53,7 +53,7 @@ class REINFORCEPolicy(BasePolicy):
         action_decoder: Callable[[int], np.ndarray],
         *,
         output_dim: int,
-        hidden_sizes: list[int] = (64, 64),
+        hidden_sizes: tuple[int, ...] | list[int] = (64, 64),
         learning_rate: float = 0.001,
         gamma: float = 0.99,
         entropy_coeff: float = 0.01,
@@ -136,6 +136,12 @@ class REINFORCEPolicy(BasePolicy):
         if self._avail_fn is None:
             return None
         return self._avail_fn(self._cached_info)
+
+    def on_episode_start(self, **kwargs) -> None:
+        """Clear per-episode buffers and update cached info for action masking."""
+        self._ep_grads.clear()
+        self._ep_rewards.clear()
+        self._cached_info = kwargs.get("info") or {}
 
     def __call__(self, obs: np.ndarray) -> np.ndarray:
         obs_norm              = obs / self._scales
@@ -259,7 +265,7 @@ class REINFORCEPolicy(BasePolicy):
         obj = cls(
             obs_spec      = obs_spec,
             action_decoder = action_decoder,
-            output_dim    = cfg.get("output_dim", len(cfg.get("weights", [[]])[0]) if cfg.get("weights") else 9),
+            output_dim    = cfg.get("output_dim", len(cfg["weights"][-1]) if cfg.get("weights") else 9),
             hidden_sizes  = cfg.get("hidden_sizes",  [64, 64]),
             learning_rate = cfg.get("learning_rate", 0.001),
             gamma         = cfg.get("gamma",         0.99),
@@ -343,7 +349,7 @@ class TwoHeadREINFORCEPolicy(BasePolicy):
         *,
         fn_dim: int,
         spatial_dim: int,
-        hidden_sizes: list[int] = (128, 64),
+        hidden_sizes: tuple[int, ...] | list[int] = (128, 64),
         learning_rate: float = 0.0003,
         gamma: float = 0.995,
         entropy_coeff: float = 0.05,

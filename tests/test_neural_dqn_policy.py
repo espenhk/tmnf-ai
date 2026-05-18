@@ -4,7 +4,7 @@ import unittest
 import numpy as np
 
 from games.tmnf.obs_spec import BASE_OBS_DIM, TMNF_OBS_SPEC
-from games.tmnf.actions import DISCRETE_ACTIONS as _DISCRETE_ACTIONS, _action_to_idx
+from games.tmnf.actions import DISCRETE_ACTIONS as _DISCRETE_ACTIONS, action_to_idx as _action_to_idx
 from framework.dqn import DQNPolicy
 from framework.replay import ReplayBuffer
 

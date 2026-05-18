@@ -40,7 +40,10 @@ class ReplayBuffer:
         rng=None,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         replace = batch_size > len(self._buf)
-        idxs   = np.random.choice(len(self._buf), size=batch_size, replace=replace)
+        if rng is not None:
+            idxs = rng.choice(len(self._buf), size=batch_size, replace=replace)
+        else:
+            idxs = np.random.choice(len(self._buf), size=batch_size, replace=replace)
         batch  = [self._buf[i] for i in idxs]
         obs_b  = np.stack([t[0] for t in batch]).astype(np.float32)
         act_b  = np.array([t[1] for t in batch], dtype=np.int32)
@@ -90,7 +93,10 @@ class MaskedReplayBuffer(ReplayBuffer):
         rng=None,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         replace = batch_size > len(self._buf)
-        idxs   = np.random.choice(len(self._buf), size=batch_size, replace=replace)
+        if rng is not None:
+            idxs = rng.choice(len(self._buf), size=batch_size, replace=replace)
+        else:
+            idxs = np.random.choice(len(self._buf), size=batch_size, replace=replace)
         batch  = [self._buf[i] for i in idxs]
         obs_b  = np.stack([t[0] for t in batch]).astype(np.float32)
         act_b  = np.array([t[1] for t in batch], dtype=np.int32)
