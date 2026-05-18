@@ -17,6 +17,18 @@ formatting, internal refactors with no behaviour change — can be skipped.
 
 ## [Unreleased]
 
+### Added
+- Versioning + release system. `framework/version.py` resolves a
+  runtime `code_version` string of the form
+  `<PACKAGE_VERSION>+g<sha7>[.dirty]`; the value is persisted in every
+  run's `experiment_data.json`, surfaced in the analytics summary
+  table, and logged at startup by `main.py` and `grid_search.py`.
+- `python main.py --version` prints the current code version without
+  starting a run.
+- `scripts/release.py` cuts a release: bumps `pyproject.toml` +
+  `framework/version.py`, promotes `## [Unreleased]` in `CHANGELOG.md`
+  to a dated `## [X.Y.Z]` section, commits, and tags `vX.Y.Z`.
+
 ---
 
 ## 2026-05-18
