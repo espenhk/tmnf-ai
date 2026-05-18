@@ -1,17 +1,18 @@
-"""Tests for NeuralDQNPolicy and ReplayBuffer in policies.py."""
+"""Tests for DQNPolicy and ReplayBuffer in framework.dqn / framework.replay."""
 import unittest
 
 import numpy as np
 
-from games.tmnf.obs_spec import BASE_OBS_DIM
-from games.tmnf.policies import (
-    NeuralDQNPolicy,
-    ReplayBuffer,
-    _DISCRETE_ACTIONS,
-    _action_to_idx,
-)
+from games.tmnf.obs_spec import BASE_OBS_DIM, TMNF_OBS_SPEC
+from games.tmnf.actions import DISCRETE_ACTIONS as _DISCRETE_ACTIONS, _action_to_idx
+from framework.dqn import DQNPolicy
+from framework.replay import ReplayBuffer
+
+# Convenience alias so existing test assertions on shape still read naturally.
+NeuralDQNPolicy = DQNPolicy  # noqa: N816
 
 _N = BASE_OBS_DIM
+_OBS_SPEC = TMNF_OBS_SPEC
 
 
 def _zero_obs() -> np.ndarray:
@@ -29,21 +30,21 @@ def _rand_obs() -> np.ndarray:
 class TestReplayBuffer(unittest.TestCase):
 
     def test_push_and_len(self):
-        buf = ReplayBuffer(maxlen=10)
+        buf = ReplayBuffer(max_size=10)
         self.assertEqual(len(buf), 0)
-        buf.push(_zero_obs(), 0, 1.0, _zero_obs(), False)
+        buf.add(_zero_obs(), 0, 1.0, _zero_obs(), False)
         self.assertEqual(len(buf), 1)
 
     def test_circular_eviction(self):
-        buf = ReplayBuffer(maxlen=3)
+        buf = ReplayBuffer(max_size=3)
         for i in range(5):
-            buf.push(_zero_obs(), i % 9, float(i), _zero_obs(), False)
+            buf.add(_zero_obs(), i % 9, float(i), _zero_obs(), False)
         self.assertEqual(len(buf), 3)
 
     def test_sample_shapes(self):
-        buf = ReplayBuffer(maxlen=20)
+        buf = ReplayBuffer(max_size=20)
         for _ in range(10):
-            buf.push(_rand_obs(), 0, 0.0, _rand_obs(), False)
+            buf.add(_rand_obs(), 0, 0.0, _rand_obs(), False)
         obs_b, act_b, rew_b, next_b, done_b = buf.sample(5)
         self.assertEqual(obs_b.shape,  (5, _N))
         self.assertEqual(act_b.shape,  (5,))
@@ -54,18 +55,18 @@ class TestReplayBuffer(unittest.TestCase):
 
     def test_sample_without_replacement(self):
         """sample() should never return duplicate entries when buf is large enough."""
-        buf = ReplayBuffer(maxlen=100)
+        buf = ReplayBuffer(max_size=100)
         for i in range(20):
-            buf.push(_rand_obs(), i % 9, float(i), _rand_obs(), False)
+            buf.add(_rand_obs(), i % 9, float(i), _rand_obs(), False)
         _, act_b, rew_b, _, _ = buf.sample(10)
         # rewards encode unique step indices — duplicates would repeat a reward
         self.assertEqual(len(set(rew_b.tolist())), 10)
 
     def test_sample_with_replacement_when_small(self):
         """sample() falls back to replace=True when batch_size > buffer length."""
-        buf = ReplayBuffer(maxlen=100)
+        buf = ReplayBuffer(max_size=100)
         for i in range(3):
-            buf.push(_rand_obs(), i % 9, float(i), _rand_obs(), False)
+            buf.add(_rand_obs(), i % 9, float(i), _rand_obs(), False)
         # Requesting more samples than buffer size should not raise
         obs_b, act_b, rew_b, next_b, done_b = buf.sample(10)
         self.assertEqual(obs_b.shape[0], 10)
@@ -77,7 +78,7 @@ class TestReplayBuffer(unittest.TestCase):
 
 class TestNeuralDQNPolicyStructure(unittest.TestCase):
 
-    def _make(self, **kw) -> NeuralDQNPolicy:
+    def _make(self, **kw) -> DQNPolicy:
         defaults = dict(
             hidden_sizes=[8, 8],
             replay_buffer_size=200,
@@ -89,10 +90,9 @@ class TestNeuralDQNPolicyStructure(unittest.TestCase):
             epsilon_end=0.05,
             epsilon_decay_steps=100,
             gamma=0.99,
-            n_lidar_rays=0,
         )
         defaults.update(kw)
-        return NeuralDQNPolicy(**defaults)
+        return DQNPolicy(_OBS_SPEC, _DISCRETE_ACTIONS, **defaults)
 
     def test_action_shape_and_range(self):
         p   = self._make(epsilon_start=0.0)
@@ -155,7 +155,7 @@ class TestNeuralDQNPolicyStructure(unittest.TestCase):
     def test_to_cfg_roundtrip(self):
         p   = self._make(epsilon_start=0.0)
         cfg = p.to_cfg()
-        p2  = NeuralDQNPolicy.from_cfg(cfg)
+        p2  = DQNPolicy.from_cfg(cfg, _OBS_SPEC, _DISCRETE_ACTIONS)
         obs = _rand_obs()
         # Greedy actions should match after round-trip
         p._eps  = 0.0
@@ -174,15 +174,16 @@ class TestNeuralDQNPolicyStructure(unittest.TestCase):
         """from_cfg() should raise KeyError if weight keys are incomplete."""
         cfg = {"online_weights": [[[1.0]]]}  # missing other required keys
         with self.assertRaises(KeyError):
-            NeuralDQNPolicy.from_cfg(cfg)
+            DQNPolicy.from_cfg(cfg, _OBS_SPEC, _DISCRETE_ACTIONS)
 
     def test_from_cfg_shape_mismatch_raises(self):
         """from_cfg() should raise ValueError when obs_dim doesn't match weights."""
         p   = self._make()
         cfg = p.to_cfg()
-        # Pass a different n_lidar_rays to cause shape mismatch
+        # Use an obs_spec with a different dim to cause shape mismatch
+        different_spec = _OBS_SPEC.with_lidar(5)
         with self.assertRaises(ValueError):
-            NeuralDQNPolicy.from_cfg(cfg, n_lidar_rays=5)
+            DQNPolicy.from_cfg(cfg, different_spec, _DISCRETE_ACTIONS)
 
 
 # ---------------------------------------------------------------------------
@@ -205,7 +206,9 @@ class TestNeuralDQNConvergence(unittest.TestCase):
         GOOD_R  =  1.0
         BAD_R   = -0.1
 
-        policy = NeuralDQNPolicy(
+        policy = DQNPolicy(
+            _OBS_SPEC,
+            _DISCRETE_ACTIONS,
             hidden_sizes        = [32, 32],
             replay_buffer_size  = 5000,
             batch_size          = 32,
@@ -216,7 +219,6 @@ class TestNeuralDQNConvergence(unittest.TestCase):
             epsilon_end         = 1.0,   # keep at 1; we push transitions directly
             epsilon_decay_steps = 1,
             gamma               = 0.0,   # pure bandit — no bootstrapping
-            n_lidar_rays        = 0,
         )
 
         next_obs = np.zeros(N, dtype=np.float32)
@@ -242,8 +244,10 @@ class TestNeuralDQNConvergence(unittest.TestCase):
 
 class TestNeuralDQNTrainerState(unittest.TestCase):
 
-    def _make_trained_policy(self) -> NeuralDQNPolicy:
-        policy = NeuralDQNPolicy(
+    def _make_trained_policy(self) -> DQNPolicy:
+        policy = DQNPolicy(
+            _OBS_SPEC,
+            _DISCRETE_ACTIONS,
             hidden_sizes        = [16, 16],
             replay_buffer_size  = 200,
             batch_size          = 16,
@@ -253,7 +257,6 @@ class TestNeuralDQNTrainerState(unittest.TestCase):
             epsilon_start       = 1.0,
             epsilon_end         = 0.05,
             epsilon_decay_steps = 100,
-            n_lidar_rays        = 0,
         )
         obs  = np.zeros(_N, dtype=np.float32)
         next_obs = np.zeros(_N, dtype=np.float32)
@@ -275,11 +278,12 @@ class TestNeuralDQNTrainerState(unittest.TestCase):
         try:
             policy.save_trainer_state(path)
 
-            policy2 = NeuralDQNPolicy(
+            policy2 = DQNPolicy(
+                _OBS_SPEC,
+                _DISCRETE_ACTIONS,
                 hidden_sizes        = [16, 16],
                 replay_buffer_size  = 200,
                 min_replay_size     = 32,
-                n_lidar_rays        = 0,
             )
             policy2.load_trainer_state(path)
 
@@ -306,11 +310,12 @@ class TestNeuralDQNTrainerState(unittest.TestCase):
         try:
             policy.save_trainer_state(path)
 
-            policy2 = NeuralDQNPolicy(
+            policy2 = DQNPolicy(
+                _OBS_SPEC,
+                _DISCRETE_ACTIONS,
                 hidden_sizes        = [16, 16],
                 replay_buffer_size  = 200,
                 min_replay_size     = 32,
-                n_lidar_rays        = 0,
             )
             policy2.load_trainer_state(path)
 
@@ -326,12 +331,15 @@ class TestNeuralDQNTrainerState(unittest.TestCase):
     def test_load_wrong_obs_dim_raises(self):
         """Loading state with mismatched obs_dim raises ValueError."""
         import tempfile, os
-        policy1 = NeuralDQNPolicy(hidden_sizes=[16], replay_buffer_size=10, n_lidar_rays=0)
+        policy1 = DQNPolicy(_OBS_SPEC, _DISCRETE_ACTIONS, hidden_sizes=[16], replay_buffer_size=10)
         with tempfile.NamedTemporaryFile(suffix=".npz", delete=False) as f:
             path = f.name
         try:
             policy1.save_trainer_state(path)
-            policy2 = NeuralDQNPolicy(hidden_sizes=[16], replay_buffer_size=10, n_lidar_rays=4)
+            policy2 = DQNPolicy(
+                _OBS_SPEC.with_lidar(4), _DISCRETE_ACTIONS,
+                hidden_sizes=[16], replay_buffer_size=10,
+            )
             with self.assertRaises(ValueError):
                 policy2.load_trainer_state(path)
         finally:

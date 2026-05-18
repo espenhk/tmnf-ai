@@ -1,4 +1,4 @@
-"""Tests for CMAESPolicy in policies.py."""
+"""Tests for CMAESPolicy in framework/cmaes.py."""
 import os
 import tempfile
 import unittest
@@ -6,34 +6,78 @@ from unittest.mock import patch
 
 import numpy as np
 
-from games.tmnf.policies import CMAESPolicy, WeightedLinearPolicy
+from framework.cmaes import CMAESPolicy
+from games.tmnf.policies import WeightedLinearPolicy
+from games.tmnf.obs_spec import TMNF_OBS_SPEC, OBS_NAMES
+
+# ---------------------------------------------------------------------------
+# TMNF-specific helpers (decoder + constructor helper)
+# ---------------------------------------------------------------------------
+
+_OBS_SPEC   = TMNF_OBS_SPEC
+_OBS_NAMES  = list(OBS_NAMES)
+_FLAT_DIM   = len(_OBS_NAMES) * 3   # steer + accel + brake
+
+
+def _tmnf_decoder(flat: np.ndarray) -> WeightedLinearPolicy:
+    """Convert flat vector [steer|accel|brake] → TMNF WeightedLinearPolicy."""
+    n   = len(_OBS_NAMES)
+    cfg = {
+        "steer_weights": {_OBS_NAMES[i]: float(flat[i])         for i in range(n)},
+        "accel_weights": {_OBS_NAMES[i]: float(flat[n + i])     for i in range(n)},
+        "brake_weights": {_OBS_NAMES[i]: float(flat[2 * n + i]) for i in range(n)},
+    }
+    return WeightedLinearPolicy.from_cfg(cfg)
+
+
+def _make(pop=10, initial_sigma=0.3, n_lidar_rays=0, **kw) -> CMAESPolicy:
+    """Construct a CMAESPolicy configured for the TMNF observation space."""
+    if n_lidar_rays:
+        obs_spec  = _OBS_SPEC.with_lidar(n_lidar_rays)
+        obs_names = obs_spec.names
+        flat_dim  = len(obs_names) * 3
+
+        def decoder(flat):
+            cfg = {
+                "steer_weights": {obs_names[i]: float(flat[i])                  for i in range(len(obs_names))},
+                "accel_weights": {obs_names[i]: float(flat[len(obs_names) + i]) for i in range(len(obs_names))},
+                "brake_weights": {obs_names[i]: float(flat[2 * len(obs_names) + i]) for i in range(len(obs_names))},
+            }
+            return WeightedLinearPolicy.from_cfg(cfg, n_lidar_rays=n_lidar_rays)
+    else:
+        obs_spec  = _OBS_SPEC
+        flat_dim  = _FLAT_DIM
+        decoder   = _tmnf_decoder
+
+    return CMAESPolicy(obs_spec, decoder, flat_dim,
+                       population_size=pop, initial_sigma=initial_sigma, **kw)
 
 
 class TestCMAESPolicyInit(unittest.TestCase):
 
     def test_default_population_size(self):
-        policy = CMAESPolicy(population_size=10, initial_sigma=0.3)
+        policy = _make(pop=10, initial_sigma=0.3)
         self.assertEqual(policy._lam, 10)
 
     def test_mu_is_half_lambda(self):
-        policy = CMAESPolicy(population_size=20)
+        policy = _make(pop=20)
         self.assertEqual(policy._mu, 10)
 
     def test_weights_sum_to_one(self):
-        policy = CMAESPolicy(population_size=16)
+        policy = _make(pop=16)
         self.assertAlmostEqual(float(policy._weights.sum()), 1.0, places=10)
 
     def test_covariance_is_identity_at_init(self):
-        policy = CMAESPolicy(population_size=10)
+        policy = _make(pop=10)
         np.testing.assert_array_almost_equal(policy._C, np.eye(policy._n))
 
     def test_initialize_random_sets_zero_mean(self):
-        policy = CMAESPolicy(population_size=10)
+        policy = _make(pop=10)
         policy.initialize_random()
         np.testing.assert_array_equal(policy._mean, np.zeros(policy._n))
 
     def test_initialize_from_champion_seeds_mean(self):
-        policy    = CMAESPolicy(population_size=10, n_lidar_rays=0)
+        policy    = _make(pop=10, n_lidar_rays=0)
         names     = WeightedLinearPolicy.get_obs_names(0)
         cfg       = {
             "steer_weights": {n: 1.0 for n in names},
@@ -46,7 +90,7 @@ class TestCMAESPolicyInit(unittest.TestCase):
         np.testing.assert_array_almost_equal(policy._mean, expected)
 
     def test_initialize_from_champion_sets_champion(self):
-        policy   = CMAESPolicy(population_size=10)
+        policy   = _make(pop=10)
         names    = WeightedLinearPolicy.get_obs_names(0)
         cfg      = {
             "steer_weights": {n: 0.5 for n in names},
@@ -61,20 +105,20 @@ class TestCMAESPolicyInit(unittest.TestCase):
 class TestCMAESPolicySampling(unittest.TestCase):
 
     def test_sample_population_returns_correct_count(self):
-        policy = CMAESPolicy(population_size=12)
+        policy = _make(pop=12)
         policy.initialize_random()
         population = policy.sample_population()
         self.assertEqual(len(population), 12)
 
     def test_sample_population_returns_weighted_linear_policies(self):
-        policy = CMAESPolicy(population_size=8)
+        policy = _make(pop=8)
         policy.initialize_random()
         population = policy.sample_population()
         for ind in population:
             self.assertIsInstance(ind, WeightedLinearPolicy)
 
     def test_pop_xs_and_ys_filled_after_sample(self):
-        policy = CMAESPolicy(population_size=6)
+        policy = _make(pop=6)
         policy.initialize_random()
         policy.sample_population()
         self.assertEqual(len(policy._pop_xs), 6)
@@ -84,7 +128,7 @@ class TestCMAESPolicySampling(unittest.TestCase):
 class TestCMAESPolicyUpdate(unittest.TestCase):
 
     def _make_and_sample(self, pop=10):
-        policy = CMAESPolicy(population_size=pop, initial_sigma=0.5)
+        policy = _make(pop=pop, initial_sigma=0.5)
         policy.initialize_random()
         policy.sample_population()
         return policy
@@ -127,14 +171,14 @@ class TestCMAESPolicyUpdate(unittest.TestCase):
             policy.update_distribution([0.0] * (policy._lam - 1))
 
     def test_update_without_sample_raises(self):
-        policy = CMAESPolicy(population_size=6)
+        policy = _make(pop=6)
         policy.initialize_random()
         # Never called sample_population() — _pop_xs/_pop_ys are empty
         with self.assertRaises(RuntimeError):
             policy.update_distribution([0.0] * 6)
 
     def test_mean_moves_after_update(self):
-        policy = CMAESPolicy(population_size=10, initial_sigma=0.5)
+        policy = _make(pop=10, initial_sigma=0.5)
         policy.initialize_random()
         old_mean = policy._mean.copy()
         policy.sample_population()
@@ -147,14 +191,14 @@ class TestCMAESPolicyUpdate(unittest.TestCase):
 class TestCMAESPolicyCallable(unittest.TestCase):
 
     def test_call_raises_before_any_update(self):
-        policy = CMAESPolicy(population_size=6)
+        policy = _make(pop=6)
         policy.initialize_random()
         obs = np.zeros(21, dtype=np.float32)
         with self.assertRaises(RuntimeError):
             policy(obs)
 
     def test_call_returns_valid_action_after_update(self):
-        policy = CMAESPolicy(population_size=6, initial_sigma=0.3)
+        policy = _make(pop=6, initial_sigma=0.3)
         policy.initialize_random()
         policy.sample_population()
         policy.update_distribution([float(i) for i in range(6)])
@@ -172,19 +216,19 @@ class TestCMAESPolicyCallable(unittest.TestCase):
 class TestCMAESPolicySerialisation(unittest.TestCase):
 
     def test_to_cfg_contains_required_keys(self):
-        policy = CMAESPolicy(population_size=10, initial_sigma=0.3)
+        policy = _make(pop=10, initial_sigma=0.3)
         cfg    = policy.to_cfg()
         for key in ("policy_type", "population_size", "sigma",
-                    "n_lidar_rays", "champion_reward", "eval_episodes"):
+                    "flat_dim", "champion_reward", "eval_episodes"):
             self.assertIn(key, cfg)
 
     def test_to_cfg_policy_type(self):
-        policy = CMAESPolicy(population_size=10)
+        policy = _make(pop=10)
         self.assertEqual(policy.to_cfg()["policy_type"], "cmaes")
 
     def test_save_writes_weighted_linear_yaml(self, tmp_path=None):
         import tempfile, os
-        policy = CMAESPolicy(population_size=6, initial_sigma=0.3)
+        policy = _make(pop=6, initial_sigma=0.3)
         policy.initialize_random()
         policy.sample_population()
         policy.update_distribution([float(i) for i in range(6)])
@@ -211,21 +255,21 @@ class TestCMAESPolicySerialisation(unittest.TestCase):
 class TestCMAESEvalEpisodes(unittest.TestCase):
 
     def test_eval_episodes_default_is_one(self):
-        policy = CMAESPolicy(population_size=10)
+        policy = _make(pop=10)
         self.assertEqual(policy._eval_episodes, 1)
 
     def test_eval_episodes_stored(self):
-        policy = CMAESPolicy(population_size=10, eval_episodes=3)
+        policy = _make(pop=10, eval_episodes=3)
         self.assertEqual(policy._eval_episodes, 3)
 
     def test_eval_episodes_in_to_cfg(self):
-        policy = CMAESPolicy(population_size=10, eval_episodes=4)
+        policy = _make(pop=10, eval_episodes=4)
         cfg = policy.to_cfg()
         self.assertIn("eval_episodes", cfg)
         self.assertEqual(cfg["eval_episodes"], 4)
 
     def test_eval_episodes_clamped_to_at_least_one(self):
-        policy = CMAESPolicy(population_size=10, eval_episodes=0)
+        policy = _make(pop=10, eval_episodes=0)
         self.assertEqual(policy._eval_episodes, 1)
 
     def _run_one_gen_and_capture(self, pop_size, eval_episodes, rewards_seq):
@@ -233,8 +277,7 @@ class TestCMAESEvalEpisodes(unittest.TestCase):
         from framework.training import _greedy_loop_cmaes
         from games.tmnf.obs_spec import BASE_OBS_DIM
 
-        policy = CMAESPolicy(population_size=pop_size, initial_sigma=0.3,
-                             eval_episodes=eval_episodes)
+        policy = _make(pop=pop_size, initial_sigma=0.3, eval_episodes=eval_episodes)
         policy.initialize_random()
 
         rewards_iter = iter(rewards_seq)
@@ -301,8 +344,7 @@ class TestCMAESEvalEpisodes(unittest.TestCase):
 
         pop_size = 3
         eval_episodes = 2
-        policy = CMAESPolicy(population_size=pop_size, initial_sigma=0.3,
-                             eval_episodes=eval_episodes)
+        policy = _make(pop=pop_size, initial_sigma=0.3, eval_episodes=eval_episodes)
         policy.initialize_random()
 
         reset_count = [0]
@@ -342,7 +384,7 @@ class TestCMAESConvergence(unittest.TestCase):
         """CMA-ES mean should move toward the maximizer of a quadratic in <=50 generations."""
         from games.tmnf.obs_spec import BASE_OBS_DIM
 
-        policy  = CMAESPolicy(population_size=20, initial_sigma=1.0, n_lidar_rays=0, seed=42)
+        policy  = _make(pop=20, initial_sigma=1.0, n_lidar_rays=0, seed=42)
         policy.initialize_random()
 
         n_weights = BASE_OBS_DIM * 3
@@ -369,7 +411,7 @@ class TestCMAESConvergence(unittest.TestCase):
 class TestCMAESTrainerState(unittest.TestCase):
 
     def _make_trained_policy(self, n_gens: int = 3) -> CMAESPolicy:
-        policy = CMAESPolicy(population_size=10, initial_sigma=0.5, seed=42)
+        policy = _make(pop=10, initial_sigma=0.5, seed=42)
         policy.initialize_random()
         for _ in range(n_gens):
             policy.sample_population()
@@ -387,7 +429,7 @@ class TestCMAESTrainerState(unittest.TestCase):
         try:
             policy.save_trainer_state(path)
 
-            policy2 = CMAESPolicy(population_size=10, initial_sigma=0.99, seed=99)
+            policy2 = _make(pop=10, initial_sigma=0.99, seed=99)
             policy2.initialize_random()
             policy2.load_trainer_state(path)
 
@@ -414,7 +456,7 @@ class TestCMAESTrainerState(unittest.TestCase):
     def test_load_wrong_dimension_raises(self):
         """Loading state whose n differs from current obs space raises ValueError."""
         import tempfile
-        policy1 = CMAESPolicy(population_size=6, n_lidar_rays=0)
+        policy1 = _make(pop=6, n_lidar_rays=0)
         policy1.initialize_random()
         policy1.sample_population()
         policy1.update_distribution([float(i) for i in range(6)])
@@ -423,7 +465,7 @@ class TestCMAESTrainerState(unittest.TestCase):
             path = f.name
         try:
             policy1.save_trainer_state(path)
-            policy2 = CMAESPolicy(population_size=6, n_lidar_rays=4)  # different n
+            policy2 = _make(pop=6, n_lidar_rays=4)  # different n
             with self.assertRaises(ValueError):
                 policy2.load_trainer_state(path)
         finally:

@@ -32,6 +32,9 @@
   - [test\_neural\_dqn\_policy.py — DQN (replay + target net)](#test_neural_dqn_policypy--dqn-replay--target-net)
   - [test\_reinforce\_policy.py — Monte-Carlo policy gradient](#test_reinforce_policypy--monte-carlo-policy-gradient)
   - [test\_lstm\_policy.py — LSTM evolution policy](#test_lstm_policypy--lstm-evolution-policy)
+- [Framework algorithm modules](#framework-algorithm-modules)
+  - [test\_cmaes\_distribution.py — pure-math CMAESDistribution unit tests](#test_cmaes_distributionpy--pure-math-cmaesdistribution-unit-tests)
+  - [test\_framework\_algorithm\_equivalence.py — numeric equivalence between framework and game implementations](#test_framework_algorithm_equivalencepy--numeric-equivalence-between-framework-and-game-implementations)
 - [TMNF I/O](#tmnf-io)
   - [test\_rl\_client.py — `RLClient` (game-thread bridge, action windowing)](#test_rl_clientpy--rlclient-game-thread-bridge-action-windowing)
 - [TORCS](#torcs)
@@ -288,6 +291,8 @@ real driving on the `a03_centerline` track.
 - eval_episodes: default 1 / stored / in to_cfg / clamped ≥ 1 / single reward / 3-ep average / reset count
 - convergence: quadratic max / save+load roundtrip all arrays / wrong dim raises
 
+Now imports `CMAESPolicy` from `framework.cmaes` and uses a TMNF parameter_decoder; the underlying math, convergence, and persistence are exercised identically to the prior TMNF-only version.
+
 ### test_epsilon_greedy_policy.py — tabular Q-learning
 - action in range; greedy picks best; update +/- reward; Bellman backup; ε decays per episode; ε floored
 
@@ -295,10 +300,12 @@ real driving on the `a03_centerline` track.
 - action in range; unseen state random; visit count increments; Q changes; exploitation prefers high Q; visits accumulate
 
 ### test_neural_dqn_policy.py — DQN (replay + target net)
-- ReplayBuffer: push+len / circular eviction / sample shapes / w/o replacement / with replacement when small
+- ReplayBuffer: add+len / circular eviction / sample shapes / w/o replacement / with replacement when small
 - Policy: action shape+range / greedy discrete / random when ε=1 / buffer fills on update / ε decays / floored / target sync / weight shapes
 - Cfg: roundtrip / policy_type key / on_episode_end no-op / missing keys raise / shape mismatch raises
 - Bandit convergence; save/load replay buffer + Adam moments; wrong obs_dim raises
+
+Now imports `DQNPolicy` from `framework.dqn` and `ReplayBuffer` from `framework.replay`, parameterised with `TMNF_OBS_SPEC` and `DISCRETE_ACTIONS`; the buffer and network maths are exercised identically to the prior TMNF-only version.
 
 ### test_reinforce_policy.py — Monte-Carlo policy gradient
 - action shape; steer range; accel/brake binary; discrete
@@ -306,19 +313,61 @@ real driving on the `a03_centerline` track.
 - weights match hidden_sizes; buffer lengths match; weights change after update; gradient direction
 - entropy_coeff = 0 vs nonzero; cfg required keys / policy_type / restore weights+hyperparams; save+reload; lidar; baseline roundtrip; wrong obs dim raises
 
+Now imports `REINFORCEPolicy` from `framework.reinforce`, parameterised with `TMNF_OBS_SPEC` and an action_decoder callable; policy mathematics are unchanged.
+
 ### test_lstm_policy.py — LSTM evolution policy
 - Forward: action shape / steer range / accel+brake binary / hidden updates / episode reset zeros / update no-op / different history → different action
 - Flat encoding: dim correct / to_flat shape / roundtrip / zeros hidden / preserves weights / wrong size raises / mutated differs / same hidden_size / lidar roundtrip
 - Cfg: required keys / policy_type / from_cfg roundtrip / save+reload
-- Trainer: pop size / σ property / champion = -inf / flat dim matches template / μ=λ/2 / recomb sum=1
-- Sample: count / LSTM type / fills buffer / distinct individuals
+- Trainer: pop size / σ property / champion = -inf / flat dim matches core+head / μ=λ/2 / recomb sum=1
+- Sample: count / `_LSTMIndividual` type / fills buffer / distinct individuals
 - Update: true first time / sets champion / tracks best / false on no improve / mean shifts / wrong count raises / no sample raises / σ adapts
 - Call: raises before update / valid after; on_episode_end resets champion hidden state
-- to_cfg keys / policy_type / save yaml / init from champion / mean→target / save+load roundtrip / wrong flat dim raises
+- to_cfg keys / policy_type / save creates file / init from champion / mean→target / save+load roundtrip / wrong flat dim raises
+
+The `LSTMPolicy` forward/flat/cfg section continues to test `games.tmnf.policies.LSTMPolicy`.  The `LSTMEvolutionPolicy` section now imports from `framework.lstm`, using a TMNF head_decoder and `_LSTMIndividual`; convergence and trainer-state tests are unchanged.
+
+## Framework algorithm modules
+
+Game-agnostic algorithm implementations in `framework/replay.py`,
+`framework/dqn.py`, `framework/reinforce.py`, `framework/cmaes.py`, and
+`framework/lstm.py`.  These are ports of the duplicated algorithm code
+currently in `games/tmnf/policies.py` and `games/sc2/policies.py`.  The
+TMNF-flavoured tests have been migrated to import from the framework versions;
+the SC2-flavoured tests remain in place and still test the un-migrated SC2
+copies.
+
+**Tested.** `ReplayBuffer` add/sample/eviction; `MaskedReplayBuffer`
+mask-aware sampling; `DQNPolicy` He-initialisation, ε-greedy exploration,
+Adam gradient steps, target-network sync, save/load (.npz round-trip for
+replay buffer + Adam moments); `REINFORCEPolicy` single-head softmax,
+discounted-return gradient updates, entropy regularisation, running-mean
+baseline, save/load; `CMAESDistribution` pure-math seeded sampling, mean-shift
+toward elite, σ adaptation, save/load (.npz); `CMAESPolicy` wrapper
+(sample_population / update_distribution, champion tracking, save/load);
+`LSTMCore` gate computation, flat serialisation, reset; `LSTMEvolutionPolicy`
+isotropic-σ ES, weighted-mean recombination, 1/5 success-rule σ adaptation,
+save/load.
+
+**Not tested.** Available-action masking path of `DQNPolicy` /
+`TwoHeadREINFORCEPolicy` (covered by SC2 policy tests); CNN integration
+(`games/sc2/cnn_policy.py` is out of scope for Phase A); Phase B registry
+hookup or Phase C game-file deletions.
+
+### test_cmaes_distribution.py — pure-math CMAESDistribution unit tests
+- Init: n/lam/σ stored / μ=λ/2 / weights sum=1 / C=I / default mean=0 / seeded mean / gen=0
+- Sample: returns λ vectors / correct length / reproducible with seed / different seeds differ / fills pop_xs/ys
+- Update: gen increments / mean shifts toward best / σ changes / wrong reward count raises / no sample raises / improved flag true/false / σ adapts down on bad gen
+- Convergence: quadratic optimum reached in ≤50 gens
+- Persistence: save/load mean / all arrays / loaded state continues evolving / wrong n raises
+
+### test_framework_algorithm_equivalence.py — numeric equivalence between framework and game implementations
+- DQNPolicy: initial online weights identical to NeuralDQNPolicy with same seed; ε identical after N steps; weights almost-equal after 150 steps of identical (seeded) training
+- REINFORCEPolicy: initial weights identical to TMNF REINFORCEPolicy with same seed; actions identical step-by-step; weights almost-equal after one episode
+- CMAESDistribution vs TMNF CMAESPolicy: adaptation constants (cs, ds, cc, c1, cmu, chin) identical; mean shifts in same direction given same samples
+- LSTMCore: flat_dim matches TMNF LSTMPolicy (core + head); to_flat/from_flat roundtrip; reset zeros state; forward output shape; non-zero output on non-zero input
 
 ## TMNF I/O
-
-Split out from the TMNF policy section because it covers the
 client/threading boundary rather than learning algorithms.
 
 **Tested.** The `RLClient` bridge: that `set_input_state` is called with the

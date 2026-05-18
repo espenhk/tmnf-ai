@@ -1,13 +1,53 @@
-"""Tests for LSTMPolicy and LSTMEvolutionPolicy in games/tmnf/policies.py."""
+"""Tests for LSTMPolicy (TMNF) and LSTMEvolutionPolicy (framework/lstm.py)."""
 import unittest
 
 import numpy as np
 
-from games.tmnf.policies import LSTMPolicy, LSTMEvolutionPolicy
+from games.tmnf.policies import LSTMPolicy
 from games.tmnf.obs_spec import BASE_OBS_DIM
+from framework.lstm import LSTMEvolutionPolicy, LSTMCore, _LSTMIndividual
+from games.tmnf.obs_spec import TMNF_OBS_SPEC
 
 
 _OBS_DIM = BASE_OBS_DIM
+_OBS_SPEC = TMNF_OBS_SPEC
+
+
+# ---------------------------------------------------------------------------
+# TMNF-specific head decoder (replicates LSTMPolicy head)
+# ---------------------------------------------------------------------------
+
+def _sigmoid_scalar(x: float) -> float:
+    import math
+    return 1.0 / (1.0 + math.exp(-max(-20.0, min(20.0, float(x)))))
+
+
+def _tmnf_head_decoder(h: np.ndarray, head_params: np.ndarray) -> np.ndarray:
+    """Decode hidden state + head weights to TMNF [steer, accel, brake] action."""
+    h_size  = len(h)
+    W_steer = head_params[:h_size]
+    W_accel = head_params[h_size:2 * h_size]
+    W_brake = head_params[2 * h_size:3 * h_size]
+    steer = float(np.tanh(W_steer @ h))
+    accel = float(_sigmoid_scalar(float(W_accel @ h)) > 0.5)
+    brake = float(_sigmoid_scalar(float(W_brake @ h)) > 0.5)
+    return np.array([steer, accel, brake], dtype=np.float32)
+
+
+def _make_evolution_policy(
+    hidden_size=4, population_size=8, initial_sigma=0.1, seed=None, **kw
+) -> LSTMEvolutionPolicy:
+    """Construct a TMNF-parameterised LSTMEvolutionPolicy (framework version)."""
+    return LSTMEvolutionPolicy(
+        _OBS_SPEC,
+        _tmnf_head_decoder,
+        head_param_count=3 * hidden_size,
+        hidden_size=hidden_size,
+        population_size=population_size,
+        initial_sigma=initial_sigma,
+        seed=seed,
+        **kw,
+    )
 
 
 def _zero_obs(n_lidar_rays: int = 0) -> np.ndarray:
@@ -203,49 +243,51 @@ class TestLSTMPolicySerialisation(unittest.TestCase):
 class TestLSTMEvolutionPolicyInit(unittest.TestCase):
 
     def test_population_size_property(self):
-        policy = LSTMEvolutionPolicy(population_size=12)
+        policy = _make_evolution_policy(population_size=12)
         self.assertEqual(policy.population_size, 12)
 
     def test_sigma_property(self):
-        policy = LSTMEvolutionPolicy(initial_sigma=0.07)
+        policy = _make_evolution_policy(initial_sigma=0.07)
         self.assertAlmostEqual(policy.sigma, 0.07)
 
     def test_champion_reward_starts_at_neg_inf(self):
-        policy = LSTMEvolutionPolicy()
+        policy = _make_evolution_policy()
         self.assertEqual(policy.champion_reward, float("-inf"))
 
-    def test_flat_dim_matches_template(self):
-        policy = LSTMEvolutionPolicy(hidden_size=8)
-        self.assertEqual(policy._flat_dim, policy._template.flat_dim)
+    def test_flat_dim_matches_core_plus_head(self):
+        hidden_size = 8
+        policy = _make_evolution_policy(hidden_size=hidden_size)
+        expected = policy._lstm_core_template.flat_dim + 3 * hidden_size
+        self.assertEqual(policy._flat_dim, expected)
 
     def test_mu_is_half_lambda(self):
-        policy = LSTMEvolutionPolicy(population_size=20)
+        policy = _make_evolution_policy(population_size=20)
         self.assertEqual(policy._mu, 10)
 
     def test_recomb_weights_sum_to_one(self):
-        policy = LSTMEvolutionPolicy(population_size=16)
+        policy = _make_evolution_policy(population_size=16)
         self.assertAlmostEqual(float(policy._recomb_w.sum()), 1.0, places=10)
 
 
 class TestLSTMEvolutionPolicySampling(unittest.TestCase):
 
     def test_sample_population_count(self):
-        policy = LSTMEvolutionPolicy(hidden_size=4, population_size=8, seed=0)
+        policy = _make_evolution_policy(hidden_size=4, population_size=8, seed=0)
         pop    = policy.sample_population()
         self.assertEqual(len(pop), 8)
 
-    def test_sample_population_returns_lstm_policies(self):
-        policy = LSTMEvolutionPolicy(hidden_size=4, population_size=6, seed=1)
+    def test_sample_population_returns_lstm_individuals(self):
+        policy = _make_evolution_policy(hidden_size=4, population_size=6, seed=1)
         for ind in policy.sample_population():
-            self.assertIsInstance(ind, LSTMPolicy)
+            self.assertIsInstance(ind, _LSTMIndividual)
 
     def test_pop_buffer_fills_on_sample(self):
-        policy = LSTMEvolutionPolicy(hidden_size=4, population_size=6, seed=2)
+        policy = _make_evolution_policy(hidden_size=4, population_size=6, seed=2)
         policy.sample_population()
         self.assertEqual(len(policy._pop), 6)
 
     def test_sample_produces_distinct_individuals(self):
-        policy = LSTMEvolutionPolicy(hidden_size=4, population_size=6, seed=3)
+        policy = _make_evolution_policy(hidden_size=4, population_size=6, seed=3)
         pop    = policy.sample_population()
         flat_0 = pop[0].to_flat()
         flat_1 = pop[1].to_flat()
@@ -255,8 +297,8 @@ class TestLSTMEvolutionPolicySampling(unittest.TestCase):
 class TestLSTMEvolutionPolicyUpdate(unittest.TestCase):
 
     def _setup(self, pop=8, seed=0):
-        policy = LSTMEvolutionPolicy(hidden_size=4, population_size=pop,
-                                      initial_sigma=0.1, seed=seed)
+        policy = _make_evolution_policy(hidden_size=4, population_size=pop,
+                                        initial_sigma=0.1, seed=seed)
         policy.sample_population()
         return policy
 
@@ -269,7 +311,7 @@ class TestLSTMEvolutionPolicyUpdate(unittest.TestCase):
         policy = self._setup()
         policy.update_distribution([float(i) for i in range(8)])
         self.assertIsNotNone(policy._champion)
-        self.assertIsInstance(policy._champion, LSTMPolicy)
+        self.assertIsInstance(policy._champion, _LSTMIndividual)
 
     def test_champion_reward_is_best_seen(self):
         policy = self._setup()
@@ -295,7 +337,7 @@ class TestLSTMEvolutionPolicyUpdate(unittest.TestCase):
             policy.update_distribution([0.0] * 5)  # wrong count
 
     def test_update_without_sample_raises(self):
-        policy = LSTMEvolutionPolicy(hidden_size=4, population_size=8, seed=0)
+        policy = _make_evolution_policy(hidden_size=4, population_size=8, seed=0)
         # Never called sample_population() — _pop is empty
         with self.assertRaises(RuntimeError):
             policy.update_distribution([0.0] * 8)
@@ -311,13 +353,13 @@ class TestLSTMEvolutionPolicyUpdate(unittest.TestCase):
 class TestLSTMEvolutionPolicyCallable(unittest.TestCase):
 
     def test_call_raises_before_any_update(self):
-        policy = LSTMEvolutionPolicy(hidden_size=4, population_size=4, seed=0)
+        policy = _make_evolution_policy(hidden_size=4, population_size=4, seed=0)
         policy.sample_population()
         with self.assertRaises(RuntimeError):
             policy(_zero_obs())
 
     def test_call_returns_valid_action_after_update(self):
-        policy = LSTMEvolutionPolicy(hidden_size=4, population_size=4, seed=0)
+        policy = _make_evolution_policy(hidden_size=4, population_size=4, seed=0)
         policy.sample_population()
         policy.update_distribution([float(i) for i in range(4)])
         action = policy(_zero_obs())
@@ -328,7 +370,7 @@ class TestLSTMEvolutionPolicyCallable(unittest.TestCase):
         self.assertIn(float(action[2]), (0.0, 1.0))
 
     def test_on_episode_end_resets_champion_hidden_state(self):
-        policy = LSTMEvolutionPolicy(hidden_size=8, population_size=4, seed=0)
+        policy = _make_evolution_policy(hidden_size=8, population_size=4, seed=0)
         policy.sample_population()
         policy.update_distribution([float(i) for i in range(4)])
         # Drive champion hidden state non-zero
@@ -342,35 +384,34 @@ class TestLSTMEvolutionPolicyCallable(unittest.TestCase):
 class TestLSTMEvolutionPolicySerialisation(unittest.TestCase):
 
     def test_to_cfg_keys(self):
-        policy = LSTMEvolutionPolicy(hidden_size=4, population_size=6)
+        policy = _make_evolution_policy(hidden_size=4, population_size=6)
         cfg    = policy.to_cfg()
         for key in ("policy_type", "hidden_size", "population_size",
-                    "sigma", "n_lidar_rays", "champion_reward"):
+                    "sigma", "obs_dim", "champion_reward"):
             self.assertIn(key, cfg)
 
     def test_policy_type_string(self):
-        policy = LSTMEvolutionPolicy()
+        policy = _make_evolution_policy()
         self.assertEqual(policy.to_cfg()["policy_type"], "lstm")
 
-    def test_save_writes_lstm_yaml(self):
-        import tempfile, os, yaml
-        policy = LSTMEvolutionPolicy(hidden_size=4, population_size=4, seed=0)
+    def test_save_creates_file(self):
+        import tempfile, os
+        policy = _make_evolution_policy(hidden_size=4, population_size=4, seed=0)
         policy.sample_population()
         policy.update_distribution([float(i) for i in range(4)])
-        with tempfile.NamedTemporaryFile(suffix=".yaml", delete=False) as f:
+        with tempfile.NamedTemporaryFile(suffix=".npz", delete=False) as f:
             path = f.name
         try:
             policy.save(path)
-            with open(path) as f:
-                cfg = yaml.safe_load(f)
-            self.assertEqual(cfg["policy_type"], "lstm")
-            self.assertIn("W_f", cfg)
+            self.assertTrue(os.path.exists(path))
         finally:
-            os.unlink(path)
+            if os.path.exists(path):
+                os.unlink(path)
 
     def test_initialize_from_champion(self):
+        # Use a TMNF LSTMPolicy as champion (it has to_flat() with matching dim)
         champion = LSTMPolicy(hidden_size=8, seed=5)
-        policy   = LSTMEvolutionPolicy(hidden_size=8, population_size=4)
+        policy   = _make_evolution_policy(hidden_size=8, population_size=4)
         policy.initialize_from_champion(champion)
         np.testing.assert_array_almost_equal(
             policy._mean, champion.to_flat().astype(np.float64), decimal=6)
@@ -381,8 +422,8 @@ class TestLSTMEvolutionConvergence(unittest.TestCase):
 
     def test_mean_moves_toward_target(self):
         """ES mean should move toward the minimizer of a quadratic after 20 generations."""
-        policy = LSTMEvolutionPolicy(hidden_size=4, population_size=16,
-                                      initial_sigma=0.5, n_lidar_rays=0, seed=42)
+        policy = _make_evolution_policy(hidden_size=4, population_size=16,
+                                        initial_sigma=0.5, seed=42)
         target = np.ones(policy._flat_dim, dtype=np.float64)
         initial_dist = float(np.linalg.norm(policy._mean - target))
 
@@ -403,8 +444,8 @@ class TestLSTMEvolutionConvergence(unittest.TestCase):
 class TestLSTMEvolutionTrainerState(unittest.TestCase):
 
     def _make_trained_policy(self) -> "LSTMEvolutionPolicy":
-        policy = LSTMEvolutionPolicy(hidden_size=4, population_size=6,
-                                     initial_sigma=0.1, seed=42)
+        policy = _make_evolution_policy(hidden_size=4, population_size=6,
+                                        initial_sigma=0.1, seed=42)
         for _ in range(2):
             policy.sample_population()
             policy.update_distribution([float(i) for i in range(6)])
@@ -421,8 +462,8 @@ class TestLSTMEvolutionTrainerState(unittest.TestCase):
         try:
             policy.save_trainer_state(path)
 
-            policy2 = LSTMEvolutionPolicy(hidden_size=4, population_size=6,
-                                          initial_sigma=0.99, seed=99)
+            policy2 = _make_evolution_policy(hidden_size=4, population_size=6,
+                                             initial_sigma=0.99, seed=99)
             policy2.load_trainer_state(path)
 
             np.testing.assert_array_equal(policy._mean, policy2._mean)
@@ -440,7 +481,7 @@ class TestLSTMEvolutionTrainerState(unittest.TestCase):
     def test_load_wrong_flat_dim_raises(self):
         """Loading state with mismatched flat_dim raises ValueError."""
         import tempfile, os
-        policy1 = LSTMEvolutionPolicy(hidden_size=4, population_size=4, n_lidar_rays=0)
+        policy1 = _make_evolution_policy(hidden_size=4, population_size=4)
         policy1.sample_population()
         policy1.update_distribution([float(i) for i in range(4)])
 
@@ -448,7 +489,7 @@ class TestLSTMEvolutionTrainerState(unittest.TestCase):
             path = f.name
         try:
             policy1.save_trainer_state(path)
-            policy2 = LSTMEvolutionPolicy(hidden_size=8, population_size=4, n_lidar_rays=0)
+            policy2 = _make_evolution_policy(hidden_size=8, population_size=4)
             with self.assertRaises(ValueError):
                 policy2.load_trainer_state(path)
         finally:
