@@ -101,7 +101,8 @@ and RND, factory dispatch); fog-of-war belief encoder; staleness-based
 info-gain; `TaskMetrics` aggregation and summary-table formatting;
 discretisation, frame-stacking and obs-memory wrappers; centreline geometry
 and the `tracks/registry.json` builder; grid-search Cartesian expansion +
-naming + nested `policy_params` promotion; the early-stop streak logic in
+naming + nested `policy_params` promotion + local-worker process orchestration;
+the early-stop streak logic in
 both greedy and Q loops; the distributed coordinator/worker JSON protocol and
 the in-process HTTP server (work queue, heartbeat re-queue, auth);
 `train_rl()`'s public signature; the new-best log helpers
@@ -194,6 +195,7 @@ behaviour of the actual `train_rl()` loop end-to-end on a real env.
 - expansion: no variation / single training axis / single reward axis / cartesian product / fixed params preserved
 - flat dict: contains varied / no-flat-key when not varied
 - naming: no varied / single varied / negative-float `n` prefix / multiple varied / unknown key passthrough
+- local distributed helpers: launching expected `distributed.worker` subprocess commands / launch-failure cleanup for already-started workers / best-effort worker shutdown (graceful terminate + timeout kill) / non-negative integer parsing used for `--local-workers` and `distribute.local_workers`
 - abbreviation coverage: every default game `training_params.yaml` + `reward_config.yaml` key has a short folder-name abbreviation; all promoted top-level policy params do too
 - nested policy_params: passthrough / top-level promoted / top-level overrides nested / all keys mapped / correct names
 - promoted-keys: no params returns empty / lstm hidden_size / reinforce baseline / genetic mutation_scale + mutation_share / keys in map with correct names
@@ -434,23 +436,24 @@ handful of iterations only).
 - defaults; from_yaml; unknown raises; loads bundled config
 - score delta; step penalty only; step penalty n_ticks scaling; win bonus; loss penalty; no-outcome no bonus; economy weight; idle penalty when idle / not when busy
 - idle bonus: uses unit-aware max attack range when available and only fires at 95% inside that range (e.g. 19/20 fires, 20/20 skips); skipped for non-no_op / far enemy / no enemy / no self; disabled by default; n_ticks scaling
-- attack_move_bonus: fires when Attack_screen target is on empty ground with enemies visible; skipped for Move_screen / no enemy; disabled by default; n_ticks scaling
-- click_attack_bonus: fires when Attack_screen target is on/near enemy centroid; skipped when target far from enemy / no enemy; disabled by default; n_ticks scaling
+- attack_move_bonus: fires when Attack_screen target is on empty ground with enemies visible; skipped for Move_screen / no enemy; disabled by default; n_ticks scaling; persists across consecutive no_op steps until another non-no_op action is issued
+- click_attack_bonus: fires when Attack_screen target is on/near enemy centroid; skipped when target far from enemy / no enemy; disabled by default; n_ticks scaling; persists across consecutive no_op steps until another non-no_op action is issued
 - cooldown: default=8; same target always fires; rapid switch withheld; fires again after cooldown elapsed; reset() clears state; both bonuses mutually exclusive
 - movement shaping: exploration bonus for varied `Move_screen` targets above the minimum-distance threshold; stutter-step below threshold earns no bonus and triggers the repeat penalty instead; move exactly at threshold gets bonus but not penalty; repeat-target penalty; penalty for moving to friendly centroid; self-penalty skipped when no friendly units are visible
 - attack_friendly_penalty: fires when Attack_screen targets near friendly centroid; skipped for target far from friendly / no friendly on screen / Move_screen; disabled when zero; n_ticks scaling; appears in components dict; default is strongly negative
 - unit_loss_penalty: fires per unit lost (army_count drop); zero when no loss / army grows; disabled by default; appears in components dict
 - damage_taken_penalty: fires per HP+shield point lost across visible friendlies; zero when unchanged / healing; safe default when info keys absent; disabled by default; appears in components dict
 - passive_under_fire_penalty: fires on no_op or Move_screen when enemies within attack range; suppressed by Attack_screen; skipped when enemy out of range / no enemy / no self; respects explicit self_attack_range_px; n_ticks scaling; disabled by default; appears in components dict
+- small_selection_bonus: fires on unit-targeted commands when selection is a single unit or less than half of visible friendly units; skipped for non-unit-targeted actions and exactly-half selections; appears in components dict
 - components sum: new terms included in total (extended sum test)
 
 ### test_sc2_client.py — PySC2 client wrapper
 - minigame flat obs shape; score-delta threading; player_relative centroid; terminal outcome recorded
 - ladder flat obs shape; visibility tracking; fogged ≠ visible; ladder terminal outcome; non-terminal = None
 - info dict includes unit-aware `self_attack_range_px` derived from visible friendly `feature_units` (uses max friendly range from curated PySC2 unit-range table)
-- `total_self_hp`: info dict sums visible friendly health+shield from `feature_units`; helper returns 0 for no-self / missing `feature_units` / short rows
+- `total_self_hp`: info dict sums visible friendly health+shield from `feature_units`; also exposes `visible_self_unit_count`; helper returns 0 for no-self / missing `feature_units` / short rows
 - rich extractors (#135): enemy unit-type counts (owner==4 only; neutral owner==3 excluded; ally owner==2 excluded; missing field; unknown type); shield/energy (self shield mean, no units, None screen); creep (half coverage, no creep, None minimap); economy pipeline (upgrade count, build queue, cargo, all missing); rich spec contains new names; ladder spec unchanged
-- selected-unit extras: shields + energy from cols 3/4 of single/multi_select; empty selection → zeros; short rows don't crash
+- selected-unit extras: `selected_count` and shields + energy from cols 3/4 of single/multi_select; empty selection → zeros; short rows don't crash
 - screen_visibility_frac: all visible → 1.0; half visible → 0.25; fogged not counted; None screen / missing layer → 0
 - screen_unit_density_aa_mean: mean of unit_density_aa layer; zero layer; None screen / missing layer → 0
 - self_weapon_cooldown_mean: mean for alliance==1 from col 25; all ready → 0; no self units → 0; missing feature_units → 0; too few cols → 0
