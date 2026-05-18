@@ -70,6 +70,18 @@ unit-tested logic and mocked integration shifts.
 
 ---
 
+## Changelog
+
+`CHANGELOG.md` is the project's running log of user- and
+developer-visible changes (new features, new config keys, breaking
+changes, bug fixes, dependency changes, doc-only changes to public
+files). **Every PR that introduces such a change must add an entry
+under `## [Unreleased]`.** Trivial commits — experiment dumps,
+formatting, internal refactors with no behaviour change — can be
+skipped. The PR template's Documentation checklist enforces this.
+
+---
+
 ## Policies
 
 All policies live in `policies.py`, inherit `BasePolicy`. Active policy set via `policy_type` in `training_params.yaml`.

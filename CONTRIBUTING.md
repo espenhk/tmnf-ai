@@ -272,6 +272,7 @@ When you change code, ask which of these need to follow:
 
 | Change | Update |
 |---|---|
+| Any user- or developer-visible change (new feature, new config key, breaking change, bug fix, dependency change) | `CHANGELOG.md` — add a bullet under `## [Unreleased]` |
 | New / changed CLI flag, config key, or install step | `README.md` + relevant `games/<name>/README.md` |
 | New training-loop semantics, observation features, or policy | `CLAUDE.md` |
 | New / removed / substantially-changed tests | `tests/README.md` |

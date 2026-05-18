@@ -69,6 +69,7 @@ python main.py smoke_test --game car_racing --no-interrupt
 - [ ] Updated `CLAUDE.md` if architecture, config knobs, or training-loop semantics changed
 - [ ] Updated the relevant `games/<name>/README.md` for per-game changes
 - [ ] Updated `tests/README.md` if tests were added, removed, or substantially changed (required by the repo's test-suite contract)
+- [ ] Added an entry under `## [Unreleased]` in `CHANGELOG.md` for any user- or developer-visible change (new feature, new config key, breaking change, bug fix, dependency change). Trivial commits — experiment dumps, formatting, no-op refactors — can be skipped.
 - [ ] New config keys appear in the relevant `config/*.yaml` master file with a sensible default
 
 ### Review
