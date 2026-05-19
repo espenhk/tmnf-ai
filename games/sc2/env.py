@@ -530,10 +530,6 @@ class SC2Env(BaseGameEnv):
     def close(self) -> None:
         self._client.close()
 
-    def save_replay(self, replay_dir: str, prefix: str) -> str | None:
-        """Save the most recently played episode as an SC2 replay file."""
-        return self._client.save_replay(replay_dir, prefix=prefix)
-
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
