@@ -75,7 +75,7 @@ click_attack_bonus: 1.0
 #   attack) or open ground (A-move).  A simpler alternative to enabling both
 #   attack_move_bonus and click_attack_bonus separately; all three can be
 #   active simultaneously.  Set to 0.0 to disable.
-attack_bonus: 0.0
+attack_bonus: 0.5
 
 # Minimum env steps between rewarded target switches for click_attack_bonus.
 # Clicking repeatedly on the same unit passes immediately; changing target
