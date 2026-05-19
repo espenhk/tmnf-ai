@@ -41,7 +41,10 @@ class DummyEnv:
 
     def reset(self, *, seed: int | None = None, options: dict | None = None):
         self._steps = 0
-        return np.zeros(self.obs_dim, dtype=np.float32), {}
+        # Surface the most recent time-limit so it ends up in the result info
+        # dict — lets tests verify that the per-job time limit propagated.
+        info = {"time_limit_seen": self._time_limit}
+        return np.zeros(self.obs_dim, dtype=np.float32), info
 
     def step(self, action):
         a = np.asarray(action, dtype=np.float32)
@@ -52,7 +55,10 @@ class DummyEnv:
         reward = float(a[0]) if len(a) > 0 else 0.0
         terminated = False
         truncated = self._steps >= self.max_steps
-        info = {"track_progress": self._steps / self.max_steps}
+        info = {
+            "track_progress": self._steps / self.max_steps,
+            "time_limit_seen": self._time_limit,
+        }
         obs = np.zeros(self.obs_dim, dtype=np.float32)
         return obs, reward, terminated, truncated, info
 

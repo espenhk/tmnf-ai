@@ -571,9 +571,10 @@ asynchronous ES is deferred — see `plans/issue-229-...md` §9.
 
 **Sizing.** One headless SC2 binary on Linux uses ≈1 CPU + ≈1.5 GB RSS;
 a 16-core / 32 GB box sustains roughly 8 binaries with overhead for the
-trainer process.  Workers each open their own binary, so total binaries =
-`n_workers` (the main process holds an extra env for episode-time-limit
-queries today; this is single-digit MB of overhead).
+trainer process.  Total binaries = `n_workers + 1`: each worker holds
+its own SC2 env, plus the main process keeps one extra env so the
+greedy loop can call `env.get_episode_time_limit()` / scale episode
+length per generation.  Budget your `n_workers` accordingly.
 
 **Scope.**  Only the four population-based SC2 policies are eligible.
 Setting `n_workers > 1` for tabular / gradient-based policies

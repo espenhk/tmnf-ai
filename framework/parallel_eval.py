@@ -56,12 +56,6 @@ _JOB_SENTINEL = "__shutdown__"
 
 
 @dataclasses.dataclass
-class _SetEpisodeTimeLimit:
-    """Wire message: workers should call env.set_episode_time_limit(seconds)."""
-    seconds: float
-
-
-@dataclasses.dataclass
 class _WorkerError:
     """Wire message: worker hit a fatal error and is about to exit."""
     worker_id: int
@@ -169,20 +163,20 @@ class ParallelEvaluator:
         if self._closed:
             raise RuntimeError("evaluate() called after close()")
 
-        # Optionally broadcast a per-generation episode time limit.
-        if episode_time_limit_s is not None:
-            msg = _SetEpisodeTimeLimit(seconds=episode_time_limit_s)
-            for _ in range(self.n_workers):
-                self.job_queue.put(msg)
-
         max_eps = max(c.eval_episodes for c in candidates)
         per_job_budget = (
             self.worker_warmup_timeout_s
             + self.per_episode_timeout_s * max_eps * 2.0
         )
 
+        # Attach the per-generation episode_time_limit_s to every job rather
+        # than broadcasting N copies of a control message on the shared
+        # queue: mp.Queue is multi-consumer, so a fast worker can drain
+        # several copies and leave another worker un-updated for this
+        # generation.  Each worker applies the limit before each candidate.
         for cand in candidates:
-            self.job_queue.put((cand, warmup_action, warmup_steps))
+            self.job_queue.put((cand, warmup_action, warmup_steps,
+                                episode_time_limit_s))
 
         n_active_workers = self.n_workers
         results: dict[int, EpisodeResult] = {}
@@ -306,18 +300,26 @@ def _worker_main(
         env = make_env_fn()
         logger.info("[Worker %d] ready", worker_id)
 
+        last_time_limit_s: float | None = None
         while True:
             msg = job_queue.get()
             if msg == _JOB_SENTINEL:
                 logger.info("[Worker %d] sentinel received; exiting", worker_id)
                 break
-            if isinstance(msg, _SetEpisodeTimeLimit):
-                if hasattr(env, "set_episode_time_limit"):
-                    env.set_episode_time_limit(msg.seconds)
-                continue
 
-            candidate, warmup_action, warmup_steps = msg
+            candidate, warmup_action, warmup_steps, episode_time_limit_s = msg
             current_idx = candidate.individual_idx
+
+            # Apply per-job episode time limit before episodes start.  We
+            # only re-apply when the value actually changed to spare
+            # otherwise-redundant calls on long generations.
+            if (
+                episode_time_limit_s is not None
+                and episode_time_limit_s != last_time_limit_s
+                and hasattr(env, "set_episode_time_limit")
+            ):
+                env.set_episode_time_limit(episode_time_limit_s)
+                last_time_limit_s = episode_time_limit_s
 
             individual = template_policy.with_flat(candidate.flat_weights)
 

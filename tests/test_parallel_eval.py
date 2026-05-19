@@ -287,27 +287,42 @@ class TestParallelEvaluator:
         for a, b in zip(r1, r2):
             assert a.reward == pytest.approx(b.reward)
 
-    def test_episode_time_limit_broadcast(self):
-        """Passing episode_time_limit_s reaches workers' set_episode_time_limit hook."""
-        # We can't easily inspect a child's env state from the parent.
-        # Instead, just verify the call path doesn't crash and results still
-        # come back — the underlying DummyEnv accepts set_episode_time_limit.
+    def test_episode_time_limit_reaches_every_worker(self):
+        """Per-job episode_time_limit_s reaches every worker, not just the first.
+
+        Regression guard for the original multi-consumer-queue race: when the
+        time-limit was sent as N separate broadcast messages on the shared
+        job queue, a fast worker could drain all of them and leave another
+        worker without the update.  Now it rides on each Candidate job, so
+        every worker sees it before running that candidate.
+
+        We submit 6 candidates on 3 workers; with steady-state pickup
+        each worker handles 2 jobs.  DummyEnv records the most recent
+        time_limit_seen in its step info, so we check that the last-episode
+        info on every result reflects the requested limit.
+        """
         template = DummyPolicy()
         evaluator = ParallelEvaluator(
-            n_workers=2, make_env_fn=make_dummy_env, template_policy=template,
+            n_workers=3, make_env_fn=make_dummy_env, template_policy=template,
             **_FAST_KW,
         )
         try:
             candidates = [
                 Candidate(individual_idx=i, flat_weights=np.array([1.0]),
                           eval_episodes=1)
-                for i in range(2)
+                for i in range(6)
             ]
-            results = evaluator.evaluate(candidates, episode_time_limit_s=30.0)
+            results = evaluator.evaluate(candidates, episode_time_limit_s=42.0)
         finally:
             evaluator.close()
-        assert len(results) == 2
+
+        assert len(results) == 6
         assert all(not r.failed for r in results)
+        for r in results:
+            assert r.info.get("time_limit_seen") == pytest.approx(42.0), (
+                f"individual {r.individual_idx} did not see the per-job time "
+                f"limit (got {r.info.get('time_limit_seen')!r})"
+            )
 
 
 class TestMaybeBuildEvaluator:
@@ -339,6 +354,59 @@ class TestMaybeBuildEvaluator:
                 policy=object(), make_env_fn=make_dummy_env,
                 training_params={}, in_game_episode_s=10.0,
             )
+
+    @pytest.mark.parametrize("policy_type", [
+        "sc2_genetic", "sc2_cmaes", "sc2_lstm", "sc2_cnn",
+    ])
+    def test_accepts_all_advertised_sc2_policy_types(self, policy_type):
+        """All four SC2 population policies advertised in CLAUDE.md / CHANGELOG
+        successfully construct a ParallelEvaluator.
+
+        Regression guard for the docs-vs-code drift the Copilot reviewer
+        flagged on PR #250: CLAUDE.md and CHANGELOG promise that
+        sc2_genetic / sc2_cmaes / sc2_lstm / sc2_cnn all benefit from
+        ``n_workers > 1``.  All four route through `_extra_dispatch.get(...)
+        == "cmaes"` (sc2_cmaes / sc2_lstm / sc2_cnn) or `"genetic"`
+        (sc2_genetic), both of which `_PARALLEL_EVAL_LOOPS` accepts.
+        """
+        from framework.training import _maybe_build_evaluator
+        from games.sc2.adapter import make_adapter
+
+        # SC2 adapter is the source of truth for which loop_kind each
+        # policy_type uses.  This way the assertion below stays in sync
+        # with the adapter's loop_dispatch table.
+        adapter = make_adapter()
+        extras = adapter.build_extras(
+            weights_file="/tmp/__noop__.yaml",
+            training_params={"policy_type": policy_type,
+                             "in_game_episode_s": 1.0,
+                             "map_name": "MoveToBeacon"},
+            re_initialize=True,
+        )
+        loop_kind = (
+            "genetic" if policy_type == "genetic"
+            else (extras.loop_dispatch if extras else {}).get(policy_type)
+        )
+        assert loop_kind is not None, (
+            f"adapter has no loop_dispatch entry for {policy_type!r}"
+        )
+
+        class _FakePop:
+            population_size = 4
+            _template = DummyPolicy()
+
+        evaluator = _maybe_build_evaluator(
+            n_workers=2, policy_type=policy_type, loop_kind=loop_kind,
+            policy=_FakePop(), make_env_fn=make_dummy_env,
+            training_params={"worker_start_stagger_s": 0.0,
+                             "worker_warmup_timeout_s": 5.0},
+            in_game_episode_s=2.0,
+        )
+        try:
+            assert evaluator is not None
+            assert evaluator.n_workers == 2
+        finally:
+            evaluator.close()
 
     def test_caps_n_workers_at_population_size(self, caplog):
         """n_workers=8 with population_size=4 should cap at 4 and warn."""
