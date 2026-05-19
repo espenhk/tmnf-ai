@@ -791,8 +791,9 @@ def plot_gs_reward_component_breakdown(
     """Cross-experiment diverging horizontal bar chart of mean reward components.
 
     One row per experiment: positive components extend right of zero, negative
-    components extend left.  Contributions are the mean per-sim value for each
-    component across all greedy sims in that experiment.  Written to
+    components extend left.  Contributions are the mean value per component
+    across greedy sims that have component data (sims without ``reward_components``
+    are excluded from both numerator and denominator).  Written to
     ``comparison_reward_breakdown.png``.
     """
     if not _HAS_MPL:

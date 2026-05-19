@@ -36,6 +36,12 @@ formatting, internal refactors with no behaviour change — can be skipped.
     diverging horizontal bar chart (one row per experiment, showing mean per-sim
     component contributions) written to `comparison_reward_breakdown.png` in the
     grid-search summary directory and linked from `summary.md`.
+- **SC2 periodic stats logging** (issue #240).  Training now logs reward
+  component totals and action-frequency ratios every `log_stats_every_n_sims`
+  sims (default `10`, set to `0` to disable).  Covers all four SC2 greedy
+  loops (`_greedy_loop`, `_greedy_loop_cmaes`, `_greedy_loop_genetic`,
+  `_greedy_loop_q_learning`).  New training param: `log_stats_every_n_sims`
+  (integer, default `10`, stored in `training_params.yaml`).
 
 ### Fixed
 - `move_exploration_bonus` exploit: bonus now tracks actual unit centroid

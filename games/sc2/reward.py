@@ -121,6 +121,13 @@ class SC2RewardConfig:
         of ``visible_self_unit_count``).  Encourages micro-style control of one
         or a few units rather than always commanding the full visible army.
         Default ``0.0`` — opt-in.
+    attack_bonus :
+        Per-step bonus awarded whenever the agent issues ``Attack_screen``
+        (fn_idx 3), regardless of whether the target is on an enemy unit
+        (click-to-attack) or on open ground (A-move).  A simpler alternative
+        to enabling both ``attack_move_bonus`` and ``click_attack_bonus``
+        separately; all three can be active at once.
+        Default ``0.0`` — opt-in.
     """
 
     score_weight: float = 1.0
@@ -142,13 +149,6 @@ class SC2RewardConfig:
     passive_under_fire_penalty: float = 0.0
     small_selection_bonus: float = 0.0
     attack_bonus: float = 0.0
-    """Per-step bonus awarded whenever the agent issues ``Attack_screen``
-    (fn_idx 3), regardless of whether the target is on an enemy unit
-    (click-to-attack) or on open ground (A-move).  This is a simpler
-    alternative to enabling both ``attack_move_bonus`` and
-    ``click_attack_bonus`` separately; all three can be active at once.
-    Default ``0.0`` — opt-in.
-    """
 
     @classmethod
     def from_yaml(cls, path: str) -> SC2RewardConfig:

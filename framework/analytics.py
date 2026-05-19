@@ -440,9 +440,11 @@ def plot_reward_components(data: ExperimentData, results_dir: str) -> None:
 def plot_reward_component_breakdown(data: ExperimentData, results_dir: str) -> None:
     """Diverging stacked bar chart of reward components per greedy sim.
 
-    Each sim gets one vertical bar stack: positive components rise above zero
-    (green-family colours), negative components descend below zero (red-family
-    colours).  Components whose total is zero in every sim are omitted.
+    Each sim gets one vertical bar stack: positive contributions for a
+    component rise above zero, negative contributions descend below zero.
+    Each component gets a consistent colour from the tab10 palette across
+    both the positive and negative portions of its stack.  Components whose
+    total is zero in every sim are omitted.
 
     Written to ``reward_component_breakdown.png``.  Complements the line chart
     in ``reward_components.png`` by showing how the *mix* of contributions
