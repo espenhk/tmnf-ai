@@ -431,6 +431,31 @@ class TestMaybeBuildEvaluator:
         finally:
             evaluator.close()
 
+    @pytest.mark.parametrize("policy_type", ["sc2_cmaes", "sc2_lstm", "sc2_cnn"])
+    def test_accepts_sc2_cmaes_family_dispatch(self, policy_type):
+        """SC2 ES policies share the CMA-ES loop dispatch and should be accepted."""
+        from framework.training import _maybe_build_evaluator
+
+        class _FakePop:
+            population_size = 2
+            _template = DummyPolicy()
+
+        evaluator = _maybe_build_evaluator(
+            n_workers=2,
+            policy_type=policy_type,
+            loop_kind="cmaes",
+            policy=_FakePop(),
+            make_env_fn=make_dummy_env,
+            training_params={"worker_start_stagger_s": 0.0,
+                             "worker_warmup_timeout_s": 5.0},
+            in_game_episode_s=2.0,
+        )
+        try:
+            assert evaluator is not None
+            assert evaluator.n_workers == 2
+        finally:
+            evaluator.close()
+
 
 def test_smoke_sc2_parallel_evaluator():
     """Opt-in integration smoke test for SC2 binary spawn path (issue #229).

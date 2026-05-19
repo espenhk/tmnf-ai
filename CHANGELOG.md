@@ -24,7 +24,8 @@ formatting, internal refactors with no behaviour change — can be skipped.
   local SC2 binaries.  Set `n_workers > 1` in `training_params.yaml`
   to spawn a persistent worker pool (one SC2 env per worker, spawn
   start method) — each generation's offspring are scored in parallel
-  while the distribution update remains generation-synchronous.
+  while the distribution update remains generation-synchronous (genetic
+  and cmaes loop dispatch).
   New config keys: `n_workers` (default `1`),
   `worker_start_stagger_s` (default `5.0`),
   `worker_warmup_timeout_s` (default `90.0`),
