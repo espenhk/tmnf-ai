@@ -139,6 +139,7 @@ _ABBREV = {
     "damage_taken_penalty": "dtp",
     "passive_under_fire_penalty": "pufp",
     "small_selection_bonus": "ssb",
+    "attack_bonus": "atb",
     "airborne_penalty": "ap",
     "crash_threshold_m": "ct",
     "lidar_wall_weight": "lww",
