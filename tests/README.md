@@ -45,7 +45,7 @@
   - [test\_torcs\_analytics.py — TORCS plots/report](#test_torcs_analyticspy--torcs-plotsreport)
 - [SC2](#sc2)
   - [test\_sc2\_obs\_spec.py — SC2 obs spec](#test_sc2_obs_specpy--sc2-obs-spec)
-  - [test\_sc2\_actions.py — discrete action grid](#test_sc2_actionspy--discrete-action-grid)
+  - [test\_sc2\_actions.py — discrete action grid + race gating](#test_sc2_actionspy--discrete-action-grid--race-gating)
   - [test\_sc2\_reward.py — SC2 reward calc](#test_sc2_rewardpy--sc2-reward-calc)
   - [test\_sc2\_client.py — PySC2 client wrapper](#test_sc2_clientpy--pysc2-client-wrapper)
   - [test\_sc2\_env.py — SC2 env wrapper](#test_sc2_envpy--sc2-env-wrapper)
@@ -148,7 +148,6 @@ worker mechanics are unit-tested with a dummy env.
 - summary table: progress / finish-time / dash-on-no-finish / lateral-offset columns
 - `plot_gs_reward_trajectories`: chart written by `save_grid_summary` / referenced in summary.md / no crash with empty sims
 - `save_grid_summary` task-metric plugin: default uses track progress with `.4f` format; custom fn replaces label+value; custom fn drives ranking; explicit `task_metric_fmt` overrides format independently of fn
-- version visibility: `_summary_md` writes a dedicated `Code Version` block for single-run reports; `save_grid_summary` writes a `Code Versions` section and per-experiment `Code version` stat row
 - `plot_reward_component_breakdown`: renders to file / skips when no component data / skips when no sims / skips when all-zero / positive-only / negative-only / partial-None sims use zero for missing keys
 
 ### test_belief.py — fog-of-war belief encoder
@@ -433,13 +432,16 @@ section because both the minigame and Simple64 ladder paths,
 plus six policy variants and three obs encodings (flat / dict / spatial),
 have to be covered.
 
-**Tested.** All three observation specs (15-dim minigame, 45-dim ladder,
-97-dim rich) and the get-spec dispatch; the minimap enemy centroid
+**Tested.** All three observation specs (15-dim minigame, 46-dim ladder,
+103-dim rich) and the get-spec dispatch; the minimap enemy centroid
 (`minimap_enemy_cx/cy`) that enables the policy to locate the beacon even
 when it is off the current camera view (beacon-idling fix); the `_action_to_call`
 no-spam fix (blocked Move_screen issues select_army once, then no_op on
-consecutive blocked steps); the 9-cell discrete action grid
-(centre = `select_army`, others = `Move_screen`); the SC2 reward calculator
+consecutive blocked steps); the 118-entry `FUNCTION_IDS` table and the
+`DISCRETE_ACTIONS` uniform `[command × location]` grid (3 583 rows: every
+spatial fn_id gets a full 8×8 = 64-cell block, every non-spatial fn_id gets 1
+row); `SPATIAL_FN_IDS` derivation; race gating (`RACE_FUNCTION_IDS`,
+`fn_ids_for_race()`, pairwise-disjoint race-specific sets); the SC2 reward calculator
 (score delta, win bonus, loss penalty, economy weight, idle penalty, step
 penalty); the SC2 client wrapper (flat-obs construction, score-delta
 threading, player_relative centroid, terminal-outcome handling, ladder
@@ -481,9 +483,14 @@ handful of iterations only).
 - rich spec contains new rich-only feature names (selected_avg_shields/energy, screen_visibility_frac, screen_unit_density_aa_mean, self_weapon_cooldown_mean); not present in ladder
 - alert_count present in ladder and rich; absent from minigame
 
-### test_sc2_actions.py — discrete action grid
-- shape / dtype / xy in unit square; centre = select_army; others = move_screen
-- probe actions count / shape; warmup shape / select_army; function_ids table complete
+### test_sc2_actions.py — discrete action grid + race gating
+- `TestSC2Actions`: shape (`_N_SPATIAL × N² + _N_NON_SPATIAL` rows, 4 cols) / dtype float32 / x+y in unit square
+- row 0 = no_op; row 1 = select_army; fn_idx_row_layout — each fn_id has N² rows if spatial, 1 row otherwise, in ascending fn_idx order
+- spatial actions span unit square (x and y both reach near 0 and near 1) for every spatial fn_id
+- Move_screen cells unique (scoped to the Move_screen N² block, not all of DISCRETE_ACTIONS)
+- probe actions count=5 / shape (4,) / include no_op; warmup shape (4,) / is select_army; function_ids table complete
+- SPATIAL_FN_IDS contains exactly the fn_ids whose names end in `_screen` or `_minimap`
+- `TestRaceGating` (9 tests): all four race keys exist in RACE_FUNCTION_IDS; each race's ids are a subset of FUNCTION_IDS; random race = all fn_ids; race-specific sets (_TERRAN / _PROTOSS / _ZERG) are pairwise disjoint; unknown race falls back to all fn_ids; Terran has Build_Barracks_screen (8) not Build_Nexus_screen (50); Protoss has Build_Nexus_screen (50) not Build_Barracks_screen (8); Zerg has Build_Hatchery_screen (82) not Build_Barracks_screen (8); all three named races include Move_screen (2) and no_op (0)
 
 ### test_sc2_reward.py — SC2 reward calc
 - defaults; from_yaml; unknown raises; loads bundled config
