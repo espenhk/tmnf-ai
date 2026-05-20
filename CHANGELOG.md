@@ -37,6 +37,15 @@ formatting, internal refactors with no behaviour change — can be skipped.
   `N_FUNCTION_IDS` grows from 6 to 118 automatically; existing weight files
   migrate cleanly via the zero-default path.  (Closes #276)
 
+
+---
+
+## [0.1.2] - 2026-05-20
+
+---
+
+## [0.1.1] - 2026-05-20
+
 ### Documentation
 - PR template (`.github/PULL_REQUEST_TEMPLATE.md`) now carries a
   `Closes #<issue>` line near the top so PRs auto-close their issue on
@@ -94,6 +103,11 @@ formatting, internal refactors with no behaviour change — can be skipped.
   (integer, default `10`, stored in `training_params.yaml`).
 
 ### Changed
+- Experiment output directories now use nested folders instead of encoding
+  policy/grid params into one long experiment folder name:
+  `experiments/<game>/<policy>/<map>/<experiment_name>/<param_1>__<param_2>...`.
+  Single runs now live at `experiments/<game>/<policy>/<map>/<experiment_name>/`,
+  and grid-search runs place the varied-parameter suffix in the final folder.
 - Distributed grid-search coordinator now supports LAN-focused multi-machine
   home setups out of the box:
   - New `--bind-host` / `distribute.bind_host` to select the interface/IP the

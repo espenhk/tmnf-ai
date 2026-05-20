@@ -13,12 +13,16 @@ class TorcsAdapter:
         self, experiment_name: str, training_params: dict,
         track_override: str | None,
     ) -> str:
-        return f"experiments/torcs/{experiment_name}"
+        policy = training_params.get("policy_type", "hill_climbing")
+        track = self.track_label(training_params, track_override)
+        return f"experiments/torcs/{policy}/{track}/{experiment_name}"
 
     def experiment_dir_root(
         self, training_params: dict, track_override: str | None,
     ) -> str:
-        return "experiments/torcs"
+        policy = training_params.get("policy_type", "hill_climbing")
+        track = self.track_label(training_params, track_override)
+        return f"experiments/torcs/{policy}/{track}"
 
     def track_label(
         self, training_params: dict, track_override: str | None,
