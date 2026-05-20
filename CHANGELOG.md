@@ -67,6 +67,33 @@ formatting, internal refactors with no behaviour change — can be skipped.
   `_greedy_loop_q_learning`).  New training param: `log_stats_every_n_sims`
   (integer, default `10`, stored in `training_params.yaml`).
 
+### Changed
+- **SC2 `move_exploration_bonus` now decays explored cells** (issue #262).
+  The grid-cell visit tracking added in #253 marked a cell explored *once per
+  episode*, which (a) paid the agent to blanket-roam the whole screen to
+  collect every per-cell bonus and (b) went permanently silent once the screen
+  was covered, making *freezing in place* optimal — observed in training as
+  units spamming moves everywhere and then hyperfixating in a small area. A
+  cell now **expires** `move_exploration_decay_steps` env steps after the
+  friendly-unit centroid last left it, so returning to a stale area is
+  rewarded again and the bonus never goes silent. A stationary centroid keeps
+  refreshing its own cell every step, so the anti-command-spam guarantee from
+  #253 is preserved. Two new reward-config keys (both with sensible defaults,
+  so existing configs keep working):
+  - `move_exploration_grid_size` (int, default `8`) — cells per axis of the
+    screen grid, replacing the previously hard-coded 8×8.
+  - `move_exploration_decay_steps` (int, default `50`) — env steps before an
+    explored cell may be rewarded again; `0` restores the previous permanent
+    once-per-episode behaviour. Because the default is non-zero, the bonus can
+    now pay more than `grid_size²` times per episode, increasing its effective
+    magnitude versus pre-#262 runs — retune `move_exploration_bonus` if needed.
+
+  The bundled `games/sc2/config/reward_config.yaml` is retuned to match: the
+  `move_exploration_bonus` is lowered (`1.0` → `0.15`) and
+  `move_exploration_decay_steps` raised (`50` → `120`) so the term re-rewards
+  only genuine relocation and stays a minority contributor, and `score_weight`
+  is raised (`10.0` → `100.0`) so task score dominates the shaping terms.
+
 ### Fixed
 - SC2 `.SC2Map` file race when multiple PySC2 binaries boot on the same
   host (issue #254). `games.sc2.client.SC2Client._make_sc2_env` now
