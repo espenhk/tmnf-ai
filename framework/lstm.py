@@ -275,13 +275,15 @@ class LSTMEvolutionPolicy(BasePolicy):
         population_size: int = 20,
         initial_sigma: float = 0.05,
         seed: int | None = None,
+        *,
+        _template: "LSTMCore | None" = None,
     ) -> None:
         self._obs_spec = obs_spec
         self._lam      = int(population_size)
         self._sigma    = float(initial_sigma)
         self._rng      = np.random.default_rng(seed)
 
-        self._template = LSTMCore(obs_spec=obs_spec, hidden_size=hidden_size)
+        self._template = _template if _template is not None else LSTMCore(obs_spec=obs_spec, hidden_size=hidden_size)
         self._flat_dim = self._template.flat_dim
         self._mean     = self._template.to_flat().astype(np.float64)
 
