@@ -119,6 +119,20 @@ class GreedySimResult:
                     normalized_action_counts[key] = value
             self.action_counts = normalized_action_counts
 
+    def slim(self) -> "GreedySimResult":
+        """Return a copy with large nested fields stripped (for summary use)."""
+        import dataclasses
+        return dataclasses.replace(
+            self,
+            trace=None,
+            weights=None,
+            army_count_series=None,
+            resource_series=None,
+            build_order=None,
+            obs_averages=None,
+            xy_hist=None,
+        )
+
     @classmethod
     def from_dict(cls, data: dict) -> "GreedySimResult":
         data = dict(data)
@@ -168,6 +182,20 @@ class ExperimentData:
     early_stopped: bool = False          # True if patience-based early stopping fired
     early_stop_sim: int | None = None    # sim index where early stopping fired
     code_version: str = ""               # framework.version.code_version() at run time
+
+    def slim_for_summary(self) -> "ExperimentData":
+        """Return a copy with per-sim bulk data stripped, suitable for summary generation.
+
+        Drops probe_results and cold_start_restarts (unused by summary functions)
+        and strips each GreedySimResult down to its scalar fields via slim().
+        """
+        import dataclasses
+        return dataclasses.replace(
+            self,
+            probe_results=[],
+            cold_start_restarts=[],
+            greedy_sims=[s.slim() for s in self.greedy_sims],
+        )
 
 
 # ---------------------------------------------------------------------------
