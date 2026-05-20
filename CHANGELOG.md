@@ -48,6 +48,10 @@ formatting, internal refactors with no behaviour change — can be skipped.
   computes the next SemVer, and runs `scripts/release.py --no-tag` to bump
   `pyproject.toml` + `framework/version.py` and roll `## [Unreleased]` into
   a dated version section.
+- Analytics reports now surface code version tags more prominently:
+  single-run `results.md` includes a dedicated **Code Version** block, and
+  grid-search `summary.md` includes a **Code Versions** section plus a
+  per-experiment `Code version` stat row.
 - Optional live training GUI (`--live-gui`) for both `main.py` and
   `grid_search.py`. The window updates during training (not post-run only):
   - reward-component bar chart per step with a 5-step rolling average, plus
