@@ -91,10 +91,11 @@ def _assert_policy_compatible(
     """Raise ValueError if *cls* declares itself incompatible with *game_name*."""
     ok, hint = cls.compatible_with(game_name)
     if not ok:
-        raise ValueError(
-            f"policy_type={policy_type!r} is not compatible with "
-            f"game={game_name!r}. {hint}"
-        )
+        msg = (f"policy_type={policy_type!r} is not compatible with "
+               f"game={game_name!r}.")
+        if hint:
+            msg += f" {hint}"
+        raise ValueError(msg)
 
 
 def _make_policy(
@@ -1157,14 +1158,15 @@ def train_rl(
         and len(probe_actions) > 0
     )
 
-    # Fail fast on an unknown or game-incompatible policy_type *before*
-    # connecting to the game (which can be slow, e.g. launching an SC2 binary).
-    # The cold-start path always builds a hill_climbing WeightedLinearPolicy
-    # (TMNF-only, always compatible), so it needs no pre-flight check.
+    # Fail fast on an unknown / game-incompatible policy_type or a mistyped
+    # policy_params key *before* connecting to the game (which can be slow,
+    # e.g. launching an SC2 binary).  The cold-start path always builds a
+    # hill_climbing WeightedLinearPolicy (TMNF-only, always compatible), so it
+    # needs no pre-flight check.
     if not cold_start:
-        _assert_policy_compatible(
-            _resolve_policy_class(policy_type), policy_type, game_name,
-        )
+        _preflight_cls = _resolve_policy_class(policy_type)
+        _assert_policy_compatible(_preflight_cls, policy_type, game_name)
+        _preflight_cls._validate_params(policy_params)
 
     _will_pretrain = (
         do_pretrain

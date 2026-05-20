@@ -349,8 +349,11 @@ class SC2GeneticPolicy(GeneticPolicy):
 
     @classmethod
     def compatible_with(cls, game_name: str) -> tuple[bool, str | None]:
-        # SC2-native variant: re-enable for SC2 (the framework GeneticPolicy
-        # base class rejects it).
+        # Cancel the parent GeneticPolicy's blanket SC2 rejection: this
+        # SC2-native variant uses the multi-head action encoding and is
+        # allow-all (like the other registered policies).  Cross-game misuse
+        # is already prevented by per-game registration imports — sc2_genetic
+        # is only in POLICY_REGISTRY during an SC2 run.
         return True, None
 
     def __init__(

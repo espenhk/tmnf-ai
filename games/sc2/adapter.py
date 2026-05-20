@@ -85,6 +85,14 @@ class SC2Adapter:
         if policy_type == "sc2_cnn":
             screen_layers  = training_params.get("screen_layers") or []
             minimap_layers = training_params.get("minimap_layers") or []
+            n_channels = len(screen_layers) + len(minimap_layers)
+            # Fail fast here (before the SC2 env is launched) on a misconfigured
+            # sc2_cnn run with no spatial layers.
+            if n_channels == 0:
+                raise ValueError(
+                    "sc2_cnn requires at least one spatial layer.  "
+                    "Set screen_layers in training_params.yaml."
+                )
             # The CNN policy needs the spatial channel count at construction
             # time, but train_rl only forwards policy_params to the registry's
             # make().  Inject it under a private key (ignored by param
@@ -93,7 +101,7 @@ class SC2Adapter:
             if not isinstance(pp, dict):
                 pp = {}
                 training_params["policy_params"] = pp
-            pp["_n_channels"] = len(screen_layers) + len(minimap_layers)
+            pp["_n_channels"] = n_channels
         else:
             screen_layers  = []
             minimap_layers = []
