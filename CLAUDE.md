@@ -502,7 +502,9 @@ and thresholds `x`/`y` to binary — use `sc2_genetic` instead.
 | `step_penalty` | `-0.001` | Per-tick time cost. |
 | `idle_penalty` | `0.0` | Per-step penalty when `army_count == 0 and food_used < food_cap` (BuildMarines / economy maps). |
 | `idle_bonus` | `0.0` | Per-step bonus when the agent issues `no_op` AND friendly units are within combat range of an enemy on screen.  Issue #127 — opt-in, default `0.0`.  Useful for combat minigames (DefeatRoaches, DefeatZerglingsAndBanelings) where standing still lets units shoot. |
-| `move_exploration_bonus` | `0.01` | Bonus for `Move_screen` targets that are at least `_MOVE_MIN_MEANINGFUL_FRAC` (6/64 ≈ 9% of screen) away from the previous move target. Sub-threshold moves receive no bonus, preventing stutter-stepping. |
+| `move_exploration_bonus` | `0.01` | Bonus when a `Move_screen` is issued and the friendly-unit centroid is in a currently-unexplored cell of a `move_exploration_grid_size`² screen grid (default 8×8). A cell stays explored while the centroid keeps refreshing it and expires `move_exploration_decay_steps` env steps after the centroid leaves. A stationary centroid never re-triggers (blocks command spam); the decay stops the bonus going permanently silent once the screen is covered (which otherwise makes freezing optimal). |
+| `move_exploration_grid_size` | `8` | Cells per axis of the move-exploration screen grid (higher = finer cells / smaller meaningful relocation). |
+| `move_exploration_decay_steps` | `50` | Env steps before an explored cell may be rewarded again on a return visit. `0` = never expire (once per cell per episode); larger keeps an area "explored" longer. |
 | `move_repeat_penalty` | `-0.02` | Penalty when a `Move_screen` command is less than `_MOVE_MIN_MEANINGFUL_FRAC` from the previous move target (covers both exact repeats and tiny stutter steps). |
 | `move_self_penalty` | `-0.01` | Penalty for issuing `Move_screen` to the centroid of currently-visible friendly units. |
 | `attack_move_bonus` | `0.0` | Per-step bonus when the agent issues `Attack_screen` (fn_idx 3) with the target on empty ground while enemies are visible (A-move). Opt-in. |

@@ -84,6 +84,7 @@ _ABBREV = {
     "obs_spec_preset": "osp",
     "enable_belief": "eb",
     "max_apm": "apm",
+    "log_stats_every_n_sims": "lsens",
     # neural_net policy params
     "hidden_sizes": "hs",
     "hidden_size": "hsize",
@@ -126,6 +127,8 @@ _ABBREV = {
     "idle_penalty": "ip",
     "idle_bonus": "ib",
     "move_exploration_bonus": "meb",
+    "move_exploration_grid_size": "megs",
+    "move_exploration_decay_steps": "meds",
     "move_repeat_penalty": "mrp",
     "move_self_penalty": "msp",
     "attack_move_bonus": "amb",
