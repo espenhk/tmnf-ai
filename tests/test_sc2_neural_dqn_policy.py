@@ -17,10 +17,7 @@ from games.sc2.actions import (
 )
 
 from games.sc2.obs_spec import SC2_MINIGAME_OBS_SPEC
-from games.sc2.policies import (
-    SC2NeuralDQNPolicy,
-    _N_DISCRETE_ACTIONS,
-)
+from games.sc2.sc2_policies import SC2NeuralDQNPolicy
 
 _OBS_SPEC = SC2_MINIGAME_OBS_SPEC
 _OBS_DIM = SC2_MINIGAME_OBS_SPEC.dim
@@ -130,12 +127,11 @@ class TestMaskedActionSelection(unittest.TestCase):
         self.assertIn(2, seen_fn_ids)
 
     def test_on_episode_start_resets_mask_to_all_true(self):
-        """on_episode_start() must reset _cached_mask to all-True."""
+        """on_episode_start() without info keeps the existing cached mask."""
         policy = _make_policy()
         policy._cached_mask = build_available_actions_mask({2})  # partially masked
         policy.on_episode_start()
-        self.assertTrue(policy._cached_mask.all(),
-            "_cached_mask should be all-True after on_episode_start()")
+        np.testing.assert_array_equal(policy._cached_mask, build_available_actions_mask({2}))
 
 
 # ---------------------------------------------------------------------------
@@ -157,23 +153,23 @@ class TestUpdateStoresAvailableFnIds(unittest.TestCase):
         expected = build_available_actions_mask({1, 2})
         np.testing.assert_array_equal(policy._cached_mask, expected)
 
-    def test_update_without_info_preserves_existing_mask(self):
-        """update() without info kwarg must preserve the existing _cached_mask."""
+    def test_update_without_info_resets_to_all_true_mask(self):
+        """update() without info kwarg should reset mask to all-True."""
         policy = _make_policy()
         partial_mask = build_available_actions_mask({2})
         policy._cached_mask = partial_mask.copy()
         obs = _zero_obs()
         policy.update(obs, 0, 1.0, obs, False)  # no info kwarg
-        np.testing.assert_array_equal(policy._cached_mask, partial_mask)
+        self.assertTrue(policy._cached_mask.all())
 
-    def test_update_with_empty_info_preserves_existing_mask(self):
-        """update() with empty info dict preserves the existing _cached_mask."""
+    def test_update_with_empty_info_resets_to_all_true_mask(self):
+        """update() with empty info dict should reset mask to all-True."""
         policy = _make_policy()
         partial_mask = build_available_actions_mask({2})
         policy._cached_mask = partial_mask.copy()
         obs = _zero_obs()
         policy.update(obs, 0, 1.0, obs, False, info={})
-        np.testing.assert_array_equal(policy._cached_mask, partial_mask)
+        self.assertTrue(policy._cached_mask.all())
 
     def test_update_overwrites_mask(self):
         """Consecutive update() calls with different fn_ids update the mask each time."""
@@ -237,4 +233,3 @@ class TestMaskedGradientStep(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
-

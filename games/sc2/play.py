@@ -200,7 +200,7 @@ def _load_champion_policy(
         return SC2LSTMPolicy.from_cfg(cfg, obs_spec)
 
     if policy_type == "sc2_neural_dqn":
-        from games.sc2.policies import SC2NeuralDQNPolicy
+        from games.sc2.sc2_policies import SC2NeuralDQNPolicy
         return SC2NeuralDQNPolicy.from_cfg(cfg, obs_spec)
 
     if policy_type == "sc2_cnn":
@@ -221,16 +221,18 @@ def _load_champion_policy(
         return policy
 
     if policy_type == "neural_dqn":
-        from games.sc2.policies import NeuralDQNPolicy
-        return NeuralDQNPolicy.from_cfg(cfg, obs_spec)
+        from games.sc2.sc2_policies import SC2NeuralDQNPolicy
+        return SC2NeuralDQNPolicy.from_cfg(cfg, obs_spec)
 
     if policy_type == "reinforce":
-        from games.sc2.policies import REINFORCEPolicy
-        return REINFORCEPolicy.from_cfg(cfg, obs_spec)
+        from games.sc2.sc2_policies import SC2REINFORCEPolicy
+        return SC2REINFORCEPolicy.from_cfg(cfg, obs_spec)
 
     if policy_type == "lstm":
-        from games.sc2.policies import LSTMPolicy
-        return LSTMPolicy.from_cfg(cfg, obs_spec)
+        from games.sc2.sc2_policies import SC2LSTMPolicy
+        if "W_out" in cfg:
+            return SC2LSTMPolicy.from_cfg(cfg, obs_spec)
+        return SC2LSTMPolicy(obs_spec=obs_spec, hidden_size=int(cfg.get("hidden_size", 64)))
 
     # No explicit policy_type — detect format by key structure.
     # SC2GeneticPolicy / SC2CMAESPolicy save via SC2MultiHeadLinearPolicy.save() →
