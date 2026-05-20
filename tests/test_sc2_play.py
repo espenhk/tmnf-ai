@@ -151,6 +151,50 @@ class TestLoadChampionPolicy(unittest.TestCase):
         finally:
             os.unlink(tmp)
 
+    def test_bare_reinforce_with_legacy_weights_raises(self):
+        from games.sc2.play import _load_champion_policy
+
+        cfg = {
+            "policy_type": "reinforce",
+            "hidden_sizes": [16],
+            "weights": [[0.0]],
+            "biases": [[0.0]],
+        }
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yaml", delete=False
+        ) as f:
+            yaml.dump(cfg, f)
+            tmp = f.name
+
+        try:
+            with self.assertRaises(SystemExit):
+                _load_champion_policy(tmp, "MoveToBeacon")
+        finally:
+            os.unlink(tmp)
+
+    def test_bare_lstm_with_legacy_weights_raises(self):
+        from games.sc2.play import _load_champion_policy
+
+        cfg = {
+            "policy_type": "lstm",
+            "hidden_size": 8,
+            "W_fn": [0.0],
+            "W_x": [0.0],
+            "W_y": [0.0],
+            "W_queue": [0.0],
+        }
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yaml", delete=False
+        ) as f:
+            yaml.dump(cfg, f)
+            tmp = f.name
+
+        try:
+            with self.assertRaises(SystemExit):
+                _load_champion_policy(tmp, "MoveToBeacon")
+        finally:
+            os.unlink(tmp)
+
     def test_cmaes_no_policy_type_key_loads_sc2_linear_policy(self):
         """CMA-ES champion files have no policy_type key — detected by key structure."""
         from games.sc2.play import _load_champion_policy

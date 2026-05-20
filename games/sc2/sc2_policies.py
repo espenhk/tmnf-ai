@@ -622,6 +622,16 @@ def _sc2_available_actions_mask(info: dict) -> np.ndarray:
     return build_available_actions_mask(set(available), len(DISCRETE_ACTIONS))
 
 
+def _sc2_available_actions_mask_for_n_actions(n_actions: int):
+    def _mask_fn(info: dict) -> np.ndarray:
+        available = info.get("available_fn_ids")
+        if available is None:
+            return np.ones(n_actions, dtype=bool)
+        return build_available_actions_mask(set(available), n_actions)
+
+    return _mask_fn
+
+
 @register_policy
 class SC2NeuralDQNPolicy(_FrameworkDQN):
     """SC2 DQN wrapper with available-actions masking and registry metadata."""
@@ -670,7 +680,13 @@ class SC2NeuralDQNPolicy(_FrameworkDQN):
             epsilon_end=epsilon_end,
             epsilon_decay_steps=epsilon_decay_steps,
             gamma=gamma,
-            available_actions_fn=_sc2_available_actions_mask if available_actions_fn is None else available_actions_fn,
+            available_actions_fn=(
+                _sc2_available_actions_mask_for_n_actions(
+                    len(DISCRETE_ACTIONS if discrete_actions is None else discrete_actions)
+                )
+                if available_actions_fn is None
+                else available_actions_fn
+            ),
             seed=seed,
         )
 
@@ -687,6 +703,14 @@ class SC2NeuralDQNPolicy(_FrameworkDQN):
             discrete_actions=DISCRETE_ACTIONS,
             available_actions_fn=_sc2_available_actions_mask,
         )
+
+    def on_episode_start(self, **kwargs) -> None:
+        info = kwargs.get("info") or {}
+        if self._masked:
+            self._cached_mask = np.asarray(
+                self._avail_fn(info),
+                dtype=bool,
+            )
 
     @classmethod
     def _construct_or_resume(cls, *, obs_spec, head_names, discrete_actions,

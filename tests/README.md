@@ -283,8 +283,8 @@ behaviour of the actual `train_rl()` loop end-to-end on a real env.
 - SC2 policies (after importing every game's policy module): the three Phase-D-migrated types (`sc2_cnn`, `sc2_neural_net`, `sc2_neural_dqn`) are registered with the expected `LOOP_TYPE`; per-type `VALID_POLICY_PARAMS` rejects unknown keys (sc2_genetic/sc2_neural_net/sc2_cmaes/sc2_lstm/sc2_reinforce/sc2_neural_dqn/cmaes) and accepts valid + empty params — replaces the SC2 `build_extras` validation cases removed from test_game_adapter.py
 
 ### test_sc2_legacy_names_rejected.py — SC2 bare legacy policy names rejected
-- `_make_policy(..., game_name=\"sc2\")` rejects SC2 bare-name `cmaes` with the generic unknown-policy error
-- Error message includes registered `sc2_*` alternatives (including `sc2_cmaes`)
+- `_make_policy(..., game_name=\"sc2\")` rejects SC2 bare-name `cmaes`/`reinforce`/`lstm`/`neural_dqn` with the generic unknown-policy error
+- Error message includes registered `sc2_*` alternatives (including each expected replacement)
 
 ## TMNF policies
 
@@ -579,7 +579,7 @@ handful of iterations only).
 ### test_sc2_neural_dqn_policy.py — masked DQN for SC2
 - fn_idx_for_cell: centre=select_army / others=move_screen / consistent / int
 - Available mask: all fn_ids / empty / select_army only / move_screen only / both / dtype bool
-- Policy: illegal never picked greedy / random respects mask / all-true mask allows all fn_idx values / mask cached from update info / missing info preserves prior mask
+- Policy: illegal never picked greedy / random respects mask / all-true mask allows all fn_idx values / mask cached from update info / missing info resets to all-true / on_episode_start primes from reset info
 - Cfg + trainer state: policy_type / from_cfg roundtrip / trainer-state roundtrip / shape mismatch raises
 - available_fn_ids: None when missing / key always present
 
@@ -604,7 +604,7 @@ handful of iterations only).
 - _run_episode: policy called each step; step count matches env steps; on_episode_start(info=<dict>) — info kwarg present with available_fn_ids; update(prev_obs, action, reward, next_obs, done, info=info) — shapes, available_fn_ids, done=True on last step; outcome from terminal info; substitution counted when executed≠requested; no substitution when match; cumulative reward summed
 
 ### test_sc2_play.py — `play_sc2.py` script
-- Missing weights raises; loads sc2_multi_head for sc2_genetic / correct weights / sc2_neural_dqn / sc2_reinforce / sc2_lstm; cmaes no policy_type → SC2Linear; unknown → SC2Linear
+- Missing weights raises; loads sc2_multi_head for sc2_genetic / correct weights / sc2_neural_dqn / sc2_reinforce / sc2_lstm; legacy bare-name reinforce/lstm weight formats fail fast; cmaes no policy_type → SC2Linear; unknown → SC2Linear
 - Outcome handling: win / loss / draw / none
 - Episode loop: calls policy each step / client until done / on_episode_start(info=<dict>)+end / works without lifecycle hooks
 - Play-mode flag: stored / default false; `make_sc2_env` lazy on reset

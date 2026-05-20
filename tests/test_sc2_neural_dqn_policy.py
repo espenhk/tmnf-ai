@@ -118,7 +118,7 @@ class TestMaskedActionSelection(unittest.TestCase):
         policy._cached_mask = np.ones(_N, dtype=bool)
         seen_fn_ids = set()
         obs = _zero_obs()
-        for _ in range(200):
+        for _ in range(5000):
             action = policy(obs)
             seen_fn_ids.add(int(action[0]))
         # Should see fn_idx 0 (no_op), 1 (select_army), and 2 (Move_screen)
@@ -126,11 +126,17 @@ class TestMaskedActionSelection(unittest.TestCase):
         self.assertIn(1, seen_fn_ids)
         self.assertIn(2, seen_fn_ids)
 
-    def test_on_episode_start_resets_mask_to_all_true(self):
-        """on_episode_start() without info keeps the existing cached mask."""
+    def test_on_episode_start_without_info_resets_to_all_true(self):
+        """on_episode_start() without info should reset to an all-True mask."""
         policy = _make_policy()
         policy._cached_mask = build_available_actions_mask({2})  # partially masked
         policy.on_episode_start()
+        self.assertTrue(policy._cached_mask.all())
+
+    def test_on_episode_start_with_info_primes_mask(self):
+        """on_episode_start(info=...) should prime cached mask from available_fn_ids."""
+        policy = _make_policy()
+        policy.on_episode_start(info={"available_fn_ids": {2}})
         np.testing.assert_array_equal(policy._cached_mask, build_available_actions_mask({2}))
 
 

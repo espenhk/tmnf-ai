@@ -225,14 +225,30 @@ def _load_champion_policy(
         return SC2NeuralDQNPolicy.from_cfg(cfg, obs_spec)
 
     if policy_type == "reinforce":
+        if (
+            any(k in cfg for k in ("weights", "biases", "baseline_value"))
+            and "trunk_weights" not in cfg
+        ):
+            raise SystemExit(
+                "Unsupported legacy SC2 bare-name 'reinforce' weights format detected. "
+                "This format was removed; retrain/save with policy_type 'sc2_reinforce'."
+            )
         from games.sc2.sc2_policies import SC2REINFORCEPolicy
         return SC2REINFORCEPolicy.from_cfg(cfg, obs_spec)
 
     if policy_type == "lstm":
+        if any(k in cfg for k in ("W_fn", "W_x", "W_y", "W_queue")):
+            raise SystemExit(
+                "Unsupported legacy SC2 bare-name 'lstm' weights format detected. "
+                "This format was removed; retrain/save with policy_type 'sc2_lstm'."
+            )
         from games.sc2.sc2_policies import SC2LSTMPolicy
         if "W_out" in cfg:
             return SC2LSTMPolicy.from_cfg(cfg, obs_spec)
-        return SC2LSTMPolicy(obs_spec=obs_spec, hidden_size=int(cfg.get("hidden_size", 64)))
+        raise SystemExit(
+            "Unsupported SC2 bare-name 'lstm' weights format. "
+            "Use a champion saved with policy_type 'sc2_lstm'."
+        )
 
     # No explicit policy_type — detect format by key structure.
     # SC2GeneticPolicy / SC2CMAESPolicy save via SC2MultiHeadLinearPolicy.save() →
