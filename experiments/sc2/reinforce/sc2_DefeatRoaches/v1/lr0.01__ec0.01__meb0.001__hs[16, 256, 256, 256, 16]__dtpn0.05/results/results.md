@@ -573,6 +573,9 @@ Best reward: **+7.7**
 ![Reward components](reward_components.png)
 
 
+![Reward component breakdown](reward_component_breakdown.png)
+
+
 ![Action frequency](action_frequency.png)
 
 
