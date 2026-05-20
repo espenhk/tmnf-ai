@@ -17,6 +17,16 @@ formatting, internal refactors with no behaviour change — can be skipped.
 
 ## [Unreleased]
 
+### Documentation
+- PR template (`.github/PULL_REQUEST_TEMPLATE.md`) now carries a
+  `Closes #<issue>` line near the top so PRs auto-close their issue on
+  merge.  `CLAUDE.md` gains a **Pull requests** section requiring every
+  PR description to be filled in from the template with that
+  `Closes #<issue>` link.
+- `CLAUDE.md` now documents the `sc2_neural_net` policy, the
+  `log_stats_every_n_sims` SC2 training param, and the SC2 `--eval`
+  evaluation mode.
+
 ### Added
 - **SC2 `attack_bonus` reward component** (issue #251).  New opt-in reward
   config key `attack_bonus` (default `0.0`) awards a flat bonus whenever the

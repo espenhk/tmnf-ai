@@ -82,6 +82,25 @@ skipped. The PR template's Documentation checklist enforces this.
 
 ---
 
+## Pull requests
+
+Every PR description **must** be filled in using the repo's PR template
+(`.github/PULL_REQUEST_TEMPLATE.md`) — keep the section(s) that apply to
+the change and delete the rest.
+
+- **Link the issue at the top.** Put `Closes #<issue>` near the top of
+  the description (above the `## Summary` section) so the PR
+  auto-closes its issue on merge. Use `Refs #<issue>` for related
+  issues the PR should *not* close.
+- Fill in `## Summary` with 1–3 bullets on what changed and why, plus
+  the bug-fix / feature / refactor detail section that matches the
+  change.
+- Record validation commands and complete the template's checklist —
+  including the `CHANGELOG.md`, `README.md`, `CLAUDE.md`, and
+  `tests/README.md` items where they apply.
+
+---
+
 ## Versioning & releases
 
 `gamer-ai` does not (yet) ship to PyPI, but it has a version number so
@@ -446,11 +465,17 @@ python main.py myrun --game sc2 --no-interrupt
 
 # Interactive human-vs-AI play (loads champion from a completed experiment):
 python main.py myrun --game sc2 --play
+
+# Evaluation: replay the champion against the bot for N episodes and report
+# aggregate win rate / avg score / avg game length (no weight updates):
+python main.py myrun --game sc2 --eval --num-episodes 10
 ```
 
 The first run creates `experiments/sc2_<map>/<name>/` and copies both master configs in. Edit the experiment-local copies to tune without affecting other runs.
 
 `--play` launches a two-player PySC2 session; you control one side via the SC2 UI while the trained champion policy drives the other. No weight updates occur.
+
+`--eval` (SC2 only) loads the champion and runs it against the AI bot for `--num-episodes` episodes, reporting aggregate statistics. `--bot-difficulty` overrides the opponent difficulty and `--eval-speed` overrides `step_mul` for the eval run.
 
 ### Config knobs
 
@@ -467,6 +492,7 @@ The first run creates `experiments/sc2_<map>/<name>/` and copies both master con
 | `minimap_layers` | `[]` | Minimap channel names to concatenate with screen channels for `sc2_cnn`. |
 | `adaptive_mutation` | `true` | Apply the 1/5 success rule to adapt `mutation_scale` during the greedy phase. |
 | `patience` | `0` | Stop the greedy loop early if no improvement for this many consecutive sims (0 = run all). |
+| `log_stats_every_n_sims` | `10` | Log reward-component totals and action-frequency ratios every N sims/generations across all SC2 greedy loops (`0` = disable). |
 | `max_apm` | *(null)* | APM cap using a rolling token-bucket limiter measured in **game time** (`game_loop / 22.4`). `max_apm=300` means exactly 300 in-game actions per in-game minute regardless of training speed. Leave unset for no limit. |
 | `apm_burst_s` | `2.0` | Token-bucket burst window in seconds. |
 | `enable_belief` | `false` | Activate the fog-of-war belief + info-gain observation extension (adds ~192 dims for an 8×8 grid). |
@@ -486,6 +512,7 @@ and thresholds `x`/`y` to binary — use `sc2_genetic` instead.
 | `sc2_cmaes` | (μ/μ_w, λ)-CMA-ES over `SC2MultiHeadLinearPolicy` flat weights | `games/sc2/sc2_policies.py` |
 | `sc2_lstm` | LSTM with SC2-native action encoding, trained by isotropic ES | `games/sc2/sc2_policies.py` |
 | `sc2_cnn` | CNN (two conv layers + FC) + isotropic ES; spatial pixel obs | `games/sc2/cnn_policy.py`; requires non-empty `screen_layers` |
+| `sc2_neural_net` | TMNF-style MLP (pure numpy) with SC2-native multi-head action encoding; mutate-and-keep evolutionary search | `games/sc2/sc2_policies.py`; hyperparam `hidden_sizes` |
 | `epsilon_greedy` | Tabular Q-learning over `DISCRETE_ACTIONS` | Framework tabular policy |
 | `mcts` | UCT-style Q-learning over `DISCRETE_ACTIONS` | Framework tabular policy |
 | `cmaes` | (μ/μ_w, λ)-CMA-ES over `SC2LinearPolicy` weights *(legacy)* | `games/sc2/policies.py`; prefer `sc2_cmaes` |
