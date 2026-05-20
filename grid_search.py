@@ -19,7 +19,7 @@ Config format (YAML):
 
 Any param set to a list becomes a search axis; all others are fixed.
 One experiment is run per unique combination. Names encode only the varied params.
-Results are written to experiments/<track>/<name>/.
+Results are written to experiments/<game>/<policy>/<map>/<base_name>/<params>/.
 """
 
 from __future__ import annotations
@@ -260,6 +260,14 @@ def _make_experiment_name(
     return "__".join(parts)
 
 
+def _split_grid_run_name(name: str) -> tuple[str, str | None]:
+    """Split ``<base>__<param1>__...`` into (base, ``param1__...``)."""
+    if "__" not in name:
+        return name, None
+    base, suffix = name.split("__", 1)
+    return base, suffix
+
+
 # ---------------------------------------------------------------------------
 # Config loading and grid expansion
 # ---------------------------------------------------------------------------
@@ -362,7 +370,10 @@ def _setup_experiment_dir(
     track_override: str | None,
 ) -> tuple[str, str, str]:
     """Create experiment dir, write config files. Returns (experiment_dir, weights_file, reward_cfg_file)."""
-    experiment_dir = adapter.experiment_dir(name, t, track_override)
+    base_name, param_suffix = _split_grid_run_name(name)
+    experiment_dir = adapter.experiment_dir(base_name, t, track_override)
+    if param_suffix:
+        experiment_dir = f"{experiment_dir}/{param_suffix}"
     weights_file = f"{experiment_dir}/policy_weights.yaml"
     reward_cfg_file = f"{experiment_dir}/reward_config.yaml"
     training_params_file = f"{experiment_dir}/training_params.yaml"
@@ -509,9 +520,12 @@ def _run_distributed(
     # Override reward_config_file to the local path written above, then save results.
     all_runs = []
     for name, data in raw_runs:
+        base_name, param_suffix = _split_grid_run_name(name)
         experiment_dir = adapter.experiment_dir(
-            name, data.training_params, track_override
+            base_name, data.training_params, track_override
         )
+        if param_suffix:
+            experiment_dir = f"{experiment_dir}/{param_suffix}"
         data.reward_config_file = f"{experiment_dir}/reward_config.yaml"
         data.weights_file = f"{experiment_dir}/policy_weights.yaml"
         game_spec = adapter.build_game_spec(
@@ -718,8 +732,10 @@ def main() -> None:
         help="Consolidate previous grid-search experiment folders into one "
         "summary. Each DIR is a path to an experiment directory containing "
         "results/experiment_data.json. Example: "
-        "python grid_search.py --consolidate experiments/a03/gs__ms0.05 "
-        "experiments/a03/gs__ms0.1 --summary-name my_summary",
+        "python grid_search.py --consolidate "
+        "experiments/tmnf/genetic/a03_centerline/gs/ms0.05 "
+        "experiments/tmnf/genetic/a03_centerline/gs/ms0.1 "
+        "--summary-name my_summary",
     )
     parser.add_argument(
         "--summary-name",

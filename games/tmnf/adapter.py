@@ -30,13 +30,15 @@ class TMNFAdapter:
         track_override: str | None,
     ) -> str:
         track = self.track_label(training_params, track_override)
-        return f"experiments/{track}/{experiment_name}"
+        policy = training_params.get("policy_type", "hill_climbing")
+        return f"experiments/tmnf/{policy}/{track}/{experiment_name}"
 
     def experiment_dir_root(
         self, training_params: dict, track_override: str | None,
     ) -> str:
         track = self.track_label(training_params, track_override)
-        return f"experiments/{track}"
+        policy = training_params.get("policy_type", "hill_climbing")
+        return f"experiments/tmnf/{policy}/{track}"
 
     def track_label(
         self, training_params: dict, track_override: str | None,

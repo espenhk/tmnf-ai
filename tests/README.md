@@ -200,9 +200,9 @@ worker mechanics are unit-tested with a dummy env.
 
 ### test_game_adapter.py — TMNF/TORCS/SC2/BeamNG adapter abstractions
 - registry: all games registered; adapter instantiable
-- TMNF: experiment_dir includes track / track override / track_label default+override / build_probe / build_warmup / build_extras / decorate_reward_cfg
-- TORCS: experiment_dir root / dir / track_label default+override / build_probe/warmup/extras = None
-- SC2: experiment_dir includes map_name / track override / track_label / build_probe/warmup = None
+- TMNF: experiment_dir includes game/policy/track hierarchy, track override, track_label default+override, build_probe/build_warmup/build_extras, decorate_reward_cfg
+- TORCS: experiment_dir root/dir includes game/policy/map hierarchy, track_label default+override, build_probe/warmup/extras = None
+- SC2: experiment_dir includes game/policy/map hierarchy, track override, track_label, build_probe/warmup = None
 - SC2 policy validation: hill_climbing/genetic/neural_net rejected with ValueError; error contains migration hint (sc2_genetic); unknown policy_params keys rejected per type (sc2_genetic, cmaes, sc2_cmaes, sc2_lstm, sc2_reinforce); valid params accepted without error; empty policy_params never raises
 - BeamNG: experiment_dir / build_probe = None
 - AssettoCorsa: experiment_dir / build_probe = None
@@ -216,7 +216,7 @@ worker mechanics are unit-tested with a dummy env.
 ### test_grid_search.py — Cartesian-product expansion + naming
 - expansion: no variation / single training axis / single reward axis / cartesian product / fixed params preserved
 - flat dict: contains varied / no-flat-key when not varied
-- naming: no varied / single varied / negative-float `n` prefix / multiple varied / unknown key passthrough
+- naming: no varied / single varied / negative-float `n` prefix / multiple varied / unknown key passthrough / split `<base>__<params>` into nested folder components
 - local distributed helpers: launching expected `distributed.worker` subprocess commands (including custom coordinator host wiring) / cascading start-stagger between consecutive worker spawns (issue #254; first immediate, subsequent wait `start_stagger_s` each) / no stagger sleep when `start_stagger_s=0` / launch-failure cleanup for already-started workers / best-effort worker shutdown (graceful terminate + timeout kill) / non-negative integer parsing used for `--local-workers` and `distribute.local_workers`
 - abbreviation coverage: every default game `training_params.yaml` + `reward_config.yaml` key has a short folder-name abbreviation; all promoted top-level policy params do too
 - nested policy_params: passthrough / top-level promoted / top-level overrides nested / all keys mapped / correct names
