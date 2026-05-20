@@ -956,7 +956,7 @@ def _normalised_reward_for_sim(sim, reward_cfg: dict[str, float | int]) -> float
 def _normalised_reward_components_for_sim(
     sim, reward_cfg: dict[str, float | int]
 ) -> dict[str, float] | None:
-    """Return config-normalized per-component contributions for one greedy sim."""
+    """Return normalized per-component contributions, or ``None`` if unavailable."""
     if not sim.reward_components:
         return None
 
@@ -992,7 +992,7 @@ def _normalised_reward_components_for_sim(
 
 
 def _normalise_rewards_for_summary(data: ExperimentData) -> ExperimentData:
-    """Return a copy of *data* with greedy rewards normalized for comparisons."""
+    """Return a copy with greedy rewards and reward components normalized."""
     if not data.greedy_sims:
         return data
     reward_cfg: dict[str, float | int] = dict(_DEFAULT_REWARD_CFG)
@@ -1031,11 +1031,7 @@ def _normalise_rewards_for_summary(data: ExperimentData) -> ExperimentData:
     sims = []
     for sim in data.greedy_sims:
         normalised_components = _normalised_reward_components_for_sim(sim, reward_cfg)
-        normalised_reward = (
-            float(sum(normalised_components.values()))
-            if normalised_components is not None
-            else float(sim.reward)
-        )
+        normalised_reward = _normalised_reward_for_sim(sim, reward_cfg)
         sims.append(
             dataclasses.replace(
                 sim,
