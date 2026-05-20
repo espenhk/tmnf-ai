@@ -64,6 +64,12 @@ formatting, internal refactors with no behaviour change — can be skipped.
     now pay more than `grid_size²` times per episode, increasing its effective
     magnitude versus pre-#262 runs — retune `move_exploration_bonus` if needed.
 
+  The bundled `games/sc2/config/reward_config.yaml` is retuned to match: the
+  `move_exploration_bonus` is lowered (`1.0` → `0.15`) and
+  `move_exploration_decay_steps` raised (`50` → `120`) so the term re-rewards
+  only genuine relocation and stays a minority contributor, and `score_weight`
+  is raised (`10.0` → `100.0`) so task score dominates the shaping terms.
+
 ### Fixed
 - SC2 `.SC2Map` file race when multiple PySC2 binaries boot on the same
   host (issue #254). `games.sc2.client.SC2Client._make_sc2_env` now

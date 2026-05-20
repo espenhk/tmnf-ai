@@ -19,7 +19,9 @@
 #   maps regardless of score_weight.
 
 # --- Primary signal ---
-score_weight: 10.0
+# Kept large relative to the shaping terms below so task score dominates the
+# reward and movement/attack bonuses only nudge exploration.
+score_weight: 100.0
 
 # --- Terminal outcome (ladder maps) ---
 # These are applied whenever player_outcome != None (terminal ladder step).
@@ -61,9 +63,9 @@ idle_bonus: 0.5
 # move_self_penalty: per-step penalty when a Move_screen command targets the
 #   centroid of currently-visible friendly units (discourages "move where we
 #   already are").
-move_exploration_bonus: 1.0
+move_exploration_bonus: 0.15
 move_exploration_grid_size: 8
-move_exploration_decay_steps: 50
+move_exploration_decay_steps: 120
 move_repeat_penalty: -0.05
 move_self_penalty: -0.1
 
