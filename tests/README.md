@@ -278,6 +278,7 @@ behaviour of the actual `train_rl()` loop end-to-end on a real env.
 - `_make_policy` raises on an unknown `policy_type`
 - compatibility hook (Phase D): `hill_climbing`/`genetic`/`neural_net` rejected on the `sc2` game via `_make_policy(game_name="sc2")` with a ValueError naming the bad type, the `sc2_`-prefixed migration hint, and CLAUDE.md; the same policies are accepted on non-SC2 games; `BasePolicy.compatible_with` defaults to allow-all
 - every registered policy with a non-empty `VALID_POLICY_PARAMS` rejects a bogus key
+- SC2 policies (after importing every game's policy module): the three Phase-D-migrated types (`sc2_cnn`, `sc2_neural_net`, `sc2_neural_dqn`) are registered with the expected `LOOP_TYPE`; per-type `VALID_POLICY_PARAMS` rejects unknown keys (sc2_genetic/sc2_neural_net/sc2_cmaes/sc2_lstm/sc2_reinforce/sc2_neural_dqn/cmaes) and accepts valid + empty params — replaces the SC2 `build_extras` validation cases removed from test_game_adapter.py
 
 ## TMNF policies
 
