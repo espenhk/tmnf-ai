@@ -7,6 +7,9 @@ from __future__ import annotations
 
 import inspect
 
+import pytest
+
+from framework.run_config import GameSpec
 from framework.training import train_rl
 
 
@@ -43,3 +46,16 @@ class TestTrainRLSignature:
         expected = {"game", "config", "probe", "warmup",
                     "no_interrupt", "re_initialize"}
         assert param_names == expected
+
+    def test_gamespec_requires_game_name(self):
+        with pytest.raises(TypeError, match="game_name"):
+            GameSpec(
+                experiment_name="e",
+                track="t",
+                make_env_fn=lambda: None,
+                obs_spec=None,
+                head_names=["a"],
+                discrete_actions=[],
+                weights_file="w.yaml",
+                reward_config_file="r.yaml",
+            )

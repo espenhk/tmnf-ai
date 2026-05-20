@@ -349,11 +349,11 @@ class SC2GeneticPolicy(GeneticPolicy):
 
     @classmethod
     def compatible_with(cls, game_name: str) -> tuple[bool, str | None]:
-        # Cancel the parent GeneticPolicy's blanket SC2 rejection: this
-        # SC2-native variant uses the multi-head action encoding and is
-        # allow-all (like the other registered policies).  Cross-game misuse
-        # is already prevented by per-game registration imports — sc2_genetic
-        # is only in POLICY_REGISTRY during an SC2 run.
+        # Cancel the parent GeneticPolicy's blanket SC2 rejection while still
+        # rejecting non-SC2 games: this SC2-native variant emits the SC2
+        # [fn_idx, x, y, queue] action encoding.
+        if game_name != "sc2":
+            return False, "This policy is SC2-specific; use game='sc2'."
         return True, None
 
     def __init__(
@@ -481,6 +481,12 @@ class SC2NeuralNetPolicy(BasePolicy):
     POLICY_TYPE = "sc2_neural_net"
     LOOP_TYPE   = "hill_climbing"
     VALID_POLICY_PARAMS = frozenset({"hidden_sizes"})
+
+    @classmethod
+    def compatible_with(cls, game_name: str) -> tuple[bool, str | None]:
+        if game_name != "sc2":
+            return False, "This policy is SC2-specific; use game='sc2'."
+        return True, None
 
     def __init__(
         self,

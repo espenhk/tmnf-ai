@@ -28,8 +28,8 @@ class GameSpec:
     discrete_actions: Any                        # np.ndarray
     weights_file: str
     reward_config_file: str
+    game_name: str                               # adapter.name; used for policy/game compatibility checks
     save_results_fn: Callable | None = None     # optional callable(data, results_dir)
-    game_name: str = ""                          # adapter.name; used for policy/game compatibility checks
 
 
 # ---------------------------------------------------------------------------

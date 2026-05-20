@@ -236,6 +236,22 @@ def test_migrated_sc2_policies_registered(policy_type, loop_type):
     assert POLICY_REGISTRY[policy_type].LOOP_TYPE == loop_type
 
 
+@pytest.mark.parametrize("policy_type", [
+    "sc2_genetic",
+    "sc2_neural_net",
+    "sc2_neural_dqn",
+    "sc2_cnn",
+])
+def test_sc2_native_policies_require_sc2_game(policy_type):
+    """SC2-native policy classes must reject non-SC2 game names."""
+    _import_all_game_policies()
+    cls = POLICY_REGISTRY[policy_type]
+    assert cls.compatible_with("sc2") == (True, None)
+    ok, hint = cls.compatible_with("tmnf")
+    assert ok is False
+    assert hint is not None and "SC2-specific" in hint
+
+
 @pytest.mark.parametrize("policy_type,bad_param", [
     ("sc2_genetic",    "hidden_sizes"),
     ("sc2_neural_net", "population_size"),

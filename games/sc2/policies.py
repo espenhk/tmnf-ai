@@ -617,6 +617,12 @@ class SC2NeuralDQNPolicy(NeuralDQNPolicy):
         "epsilon_decay_steps", "gamma",
     })
 
+    @classmethod
+    def compatible_with(cls, game_name: str) -> tuple[bool, str | None]:
+        if game_name != "sc2":
+            return False, "This policy is SC2-specific; use game='sc2'."
+        return True, None
+
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         # Replace base _ReplayBuffer with mask-aware variant.

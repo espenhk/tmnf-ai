@@ -236,7 +236,7 @@ behaviour of the actual `train_rl()` loop end-to-end on a real env.
 - `compute_with_components`: scalar matches / sum=total / keys present / progress / centerline / finish-bonus / finish-time over-par / no-finish / step-penalty / accel-bonus / curiosity zero w/o module
 
 ### test_train_rl_signature.py — public `train_rl()` API
-- accepts game+config params; accepts optional specs (probe/warmup); `extras` param removed (Phase D); accepts control flags; no legacy flat params
+- accepts game+config params; accepts optional specs (probe/warmup); `extras` param removed (Phase D); accepts control flags; no legacy flat params; `GameSpec` requires explicit `game_name` (no empty-default bypass)
 
 ### test_new_best_logging.py — `_log_new_best_details` + `_print_episode_summary`
 - `_print_episode_summary`: terminated/finished/truncated one-liner; `r=` and `steps=` present; laps and progress omitted
@@ -277,6 +277,7 @@ behaviour of the actual `train_rl()` loop end-to-end on a real env.
 - `_make_policy("hill_climbing", ...)` returns a `WeightedLinearPolicy` via the registry path
 - `_make_policy` raises on an unknown `policy_type`
 - compatibility hook (Phase D): `hill_climbing`/`genetic`/`neural_net` rejected on the `sc2` game via `_make_policy(game_name="sc2")` with a ValueError naming the bad type, the `sc2_`-prefixed migration hint, and CLAUDE.md; the same policies are accepted on non-SC2 games; `BasePolicy.compatible_with` defaults to allow-all
+- SC2-native registry policies (`sc2_genetic`/`sc2_neural_net`/`sc2_neural_dqn`/`sc2_cnn`) require `game_name=="sc2"` and reject non-SC2 game names with an explicit hint
 - every registered policy with a non-empty `VALID_POLICY_PARAMS` rejects a bogus key
 - SC2 policies (after importing every game's policy module): the three Phase-D-migrated types (`sc2_cnn`, `sc2_neural_net`, `sc2_neural_dqn`) are registered with the expected `LOOP_TYPE`; per-type `VALID_POLICY_PARAMS` rejects unknown keys (sc2_genetic/sc2_neural_net/sc2_cmaes/sc2_lstm/sc2_reinforce/sc2_neural_dqn/cmaes) and accepts valid + empty params — replaces the SC2 `build_extras` validation cases removed from test_game_adapter.py
 

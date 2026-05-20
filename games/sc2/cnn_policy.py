@@ -328,6 +328,12 @@ class SC2CNNEvolutionPolicy(BasePolicy):
     LOOP_TYPE   = "cmaes"
     VALID_POLICY_PARAMS = frozenset({"population_size", "initial_sigma", "eval_episodes"})
 
+    @classmethod
+    def compatible_with(cls, game_name: str) -> tuple[bool, str | None]:
+        if game_name != "sc2":
+            return False, "This policy is SC2-specific; use game='sc2'."
+        return True, None
+
     def __init__(
         self,
         n_channels: int,
