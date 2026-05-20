@@ -23,6 +23,10 @@ class SC2LinearPolicy(WeightedLinearPolicy):
 
     _N_FUNCS: int = _N_FUNCS
 
+    @staticmethod
+    def _sigmoid(score: float) -> float:
+        return float(1.0 / (1.0 + np.exp(-np.clip(score, -20.0, 20.0))))
+
     def __call__(self, obs: np.ndarray) -> np.ndarray:
         norm_obs = obs / self._obs_spec.scales
         fn_score = float(np.dot(self._weights["fn_idx"], norm_obs))
@@ -30,10 +34,10 @@ class SC2LinearPolicy(WeightedLinearPolicy):
         y_score = float(np.dot(self._weights["y"], norm_obs))
         q_score = float(np.dot(self._weights["queue"], norm_obs))
 
-        fn_idx = (1.0 / (1.0 + np.exp(-np.clip(fn_score, -20.0, 20.0)))) * (self._N_FUNCS - 1)
-        x = 1.0 / (1.0 + np.exp(-np.clip(x_score, -20.0, 20.0)))
-        y = 1.0 / (1.0 + np.exp(-np.clip(y_score, -20.0, 20.0)))
-        queue = float(int((1.0 / (1.0 + np.exp(-np.clip(q_score, -20.0, 20.0)))) > 0.5))
+        fn_idx = self._sigmoid(fn_score) * (self._N_FUNCS - 1)
+        x = self._sigmoid(x_score)
+        y = self._sigmoid(y_score)
+        queue = float(int(self._sigmoid(q_score) > 0.5))
         return np.array([fn_idx, x, y, queue], dtype=np.float32)
 
 

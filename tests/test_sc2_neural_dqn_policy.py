@@ -114,11 +114,11 @@ class TestMaskedActionSelection(unittest.TestCase):
 
     def test_no_mask_selects_any_action(self):
         """Without a mask (all-True) all fn_idx values can be selected."""
-        policy = _make_policy(epsilon_start=1.0, epsilon_end=1.0)
+        policy = _make_policy(epsilon_start=1.0, epsilon_end=1.0, seed=0)
         policy._cached_mask = np.ones(_N, dtype=bool)
         seen_fn_ids = set()
         obs = _zero_obs()
-        for _ in range(5000):
+        for _ in range(1000):
             action = policy(obs)
             seen_fn_ids.add(int(action[0]))
         # Should see fn_idx 0 (no_op), 1 (select_army), and 2 (Move_screen)

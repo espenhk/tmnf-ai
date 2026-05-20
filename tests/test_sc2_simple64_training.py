@@ -270,7 +270,7 @@ class TestSC2LinearPolicyActionEncoding(unittest.TestCase):
         for member in policy.population:
             self.assertIsInstance(member, SC2LinearPolicy)
 
-    def test_cmaes_offspring_use_sc2_linear(self):
+    def test_cmaes_offspring_emit_valid_sc2_actions(self):
         """SC2CMAESPolicy offspring must emit valid SC2 action vectors."""
         policy = SC2CMAESPolicy(obs_spec=_OBS_SPEC, population_size=4)
         offspring = policy.sample_population()
