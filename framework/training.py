@@ -42,6 +42,7 @@ from framework.policies import (
 from framework.obs_spec import ObsSpec
 from framework.run_config import GameSpec, RunConfig, ProbeSpec, WarmupSpec, PolicyExtras
 from framework.version import code_version
+from framework.live_monitor import make_live_monitor
 
 logger = logging.getLogger(__name__)
 
@@ -192,6 +193,7 @@ def _run_episode(
     warmup_action: np.ndarray | None = None,
     warmup_steps: int = 0,
     reset_info: dict | None = None,
+    live_monitor: Any = None,
 ) -> tuple[float, dict, list[int], int, RunTrace]:
     """Run one episode from *obs* until terminated/truncated.
 
@@ -228,6 +230,8 @@ def _run_episode(
         next_obs, reward, terminated, truncated, info = env.step(action)
         total_reward += reward
         steps += 1
+        if live_monitor is not None:
+            live_monitor.on_step(next_obs, reward, info)
 
         if not in_warmup:
             policy.update(prev_obs, action, reward, next_obs, terminated or truncated,
@@ -491,6 +495,7 @@ def _run_probes(
     speed: float,
     warmup_action: np.ndarray | None = None,
     warmup_steps: int = 0,
+    live_monitor: Any = None,
 ) -> tuple[float, list[ProbeResult]]:
     saved_limit = env.get_episode_time_limit()
     env.set_episode_time_limit(probe_in_game_s / speed)
@@ -511,6 +516,7 @@ def _run_probes(
                 env, _ConstantPolicy(action_arr), obs,
                 warmup_action=warmup_action, warmup_steps=warmup_steps,
                 reset_info=reset_info,
+                live_monitor=live_monitor,
             )
             results[i] = reward
             probe_results.append(
@@ -547,6 +553,7 @@ def _cold_start_search(
     sims_per_restart: int = 10,
     warmup_action: np.ndarray | None = None,
     warmup_steps: int = 0,
+    live_monitor: Any = None,
 ) -> tuple[WeightedLinearPolicy, float, list[ColdStartRestartResult]]:
     overall_best_policy = None
     overall_best_reward = float("-inf")
@@ -577,6 +584,7 @@ def _cold_start_search(
                 env, candidate, obs,
                 warmup_action=warmup_action, warmup_steps=warmup_steps,
                 reset_info=reset_info,
+                live_monitor=live_monitor,
             )
             sim_results.append(ColdStartSimResult(
                 sim=sim, reward=reward,
@@ -719,6 +727,7 @@ def _greedy_loop(
     adaptive_mutation: bool = True,
     warmup_action: np.ndarray | None = None,
     warmup_steps: int = 0,
+    live_monitor: Any = None,
     patience: int = 0,
     log_stats_every_n_sims: int = 0,
 ) -> tuple[BasePolicy, float, list[GreedySimResult], bool, int | None]:
@@ -754,6 +763,7 @@ def _greedy_loop(
                     env, candidate, obs,
                     warmup_action=warmup_action, warmup_steps=warmup_steps,
                     reset_info=reset_info,
+                    live_monitor=live_monitor,
                 )
                 improved = reward > best_reward
                 if improved:
@@ -844,6 +854,7 @@ def _greedy_loop(
                 env, policy_plus, obs,
                 warmup_action=warmup_action, warmup_steps=warmup_steps,
                 reset_info=reset_info,
+                live_monitor=live_monitor,
             )
             # Capture the plus replay before env.reset() starts the minus episode
             # and overwrites it in the SC2 process.
@@ -856,6 +867,7 @@ def _greedy_loop(
                 env, policy_minus, obs,
                 warmup_action=warmup_action, warmup_steps=warmup_steps,
                 reset_info=reset_info,
+                live_monitor=live_monitor,
             )
 
             theta += learning_rate * (r_plus - r_minus) * eps
@@ -1009,6 +1021,7 @@ def _greedy_loop_cmaes(
     weights_file: str,
     warmup_action: np.ndarray | None = None,
     warmup_steps: int = 0,
+    live_monitor: Any = None,
     patience: int = 0,
     evaluator: Any = None,
     log_stats_every_n_sims: int = 0,
@@ -1078,6 +1091,7 @@ def _greedy_loop_cmaes(
                             env, individual, obs,
                             warmup_action=warmup_action, warmup_steps=warmup_steps,
                             reset_info=reset_info,
+                            live_monitor=live_monitor,
                         )
                         ep_rewards.append(reward)
                         total_steps += steps
@@ -1155,6 +1169,7 @@ def _greedy_loop_q_learning(
     weights_file: str,
     warmup_action: np.ndarray | None = None,
     warmup_steps: int = 0,
+    live_monitor: Any = None,
     patience: int = 0,
     log_stats_every_n_sims: int = 0,
 ) -> tuple[BasePolicy, float, list[GreedySimResult], bool, int | None]:
@@ -1178,6 +1193,7 @@ def _greedy_loop_q_learning(
                 env, policy, obs,
                 warmup_action=warmup_action, warmup_steps=warmup_steps,
                 reset_info=reset_info,
+                live_monitor=live_monitor,
             )
             policy.on_episode_end()
 
@@ -1242,6 +1258,7 @@ def _greedy_loop_genetic(
     weights_file: str,
     warmup_action: np.ndarray | None = None,
     warmup_steps: int = 0,
+    live_monitor: Any = None,
     patience: int = 0,
     adaptive_mutation: bool = True,
     evaluator: Any = None,
@@ -1319,6 +1336,7 @@ def _greedy_loop_genetic(
                             env, individual, obs,
                             warmup_action=warmup_action, warmup_steps=warmup_steps,
                             reset_info=reset_info,
+                            live_monitor=live_monitor,
                         )
                         ep_rewards.append(reward)
                         total_steps += steps
@@ -1596,6 +1614,7 @@ def train_rl(
 
     logger.info("Connecting to game...")
     env = make_env_fn()
+    live_monitor = make_live_monitor(training_params, obs_spec)
 
     pretrained = False
     if _will_pretrain:
@@ -1612,6 +1631,7 @@ def train_rl(
         probe_best, probe_results = _run_probes(
             env, probe_actions, probe_in_game_s, speed,
             warmup_action=warmup_action, warmup_steps=warmup_steps,
+            live_monitor=live_monitor,
         )
         t_after_probe = datetime.datetime.now()
 
@@ -1623,6 +1643,7 @@ def train_rl(
             mutation_scale, mutation_share=mutation_share,
             n_restarts=cold_start_restarts, sims_per_restart=cold_start_sims,
             warmup_action=warmup_action, warmup_steps=warmup_steps,
+            live_monitor=live_monitor,
         )
         t_after_cold = datetime.datetime.now()
     else:
@@ -1651,7 +1672,11 @@ def train_rl(
     time.sleep(1)
     t_greedy_start = datetime.datetime.now()
 
-    kw = dict(warmup_action=warmup_action, warmup_steps=warmup_steps)
+    kw = dict(
+        warmup_action=warmup_action,
+        warmup_steps=warmup_steps,
+        live_monitor=live_monitor,
+    )
     log_stats_every_n_sims = int(training_params.get("log_stats_every_n_sims", 10) or 0)
 
     _extra_dispatch = extra_loop_dispatch or {}
@@ -1728,6 +1753,8 @@ def train_rl(
             evaluator.close()
 
     env.close()
+    if live_monitor is not None:
+        live_monitor.close()
 
     logger.info("=== Training complete — best total reward: %+.1f ===", best_reward)
 
