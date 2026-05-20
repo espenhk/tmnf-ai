@@ -42,6 +42,12 @@ formatting, internal refactors with no behaviour change — can be skipped.
     descriptions to match the issue #253 unit-position tracking fix.
 
 ### Added
+- New post-merge workflow `.github/workflows/auto-version-bump.yml` that
+  automatically runs after a PR is merged into `main`, infers release bump
+  type from PR-template checkboxes (`Patch` default, `Minor`, `Major`),
+  computes the next SemVer, and runs `scripts/release.py --no-tag` to bump
+  `pyproject.toml` + `framework/version.py` and roll `## [Unreleased]` into
+  a dated version section.
 - Optional live training GUI (`--live-gui`) for both `main.py` and
   `grid_search.py`. The window updates during training (not post-run only):
   - reward-component bar chart per step with a 5-step rolling average, plus
