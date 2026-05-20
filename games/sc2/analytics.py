@@ -947,10 +947,20 @@ def _normalised_reward_for_sim(sim, reward_cfg: dict[str, float | int]) -> float
 
     Falls back to the stored reward when reward-components are unavailable.
     """
-    if not sim.reward_components:
+    normalised_components = _normalised_reward_components_for_sim(sim, reward_cfg)
+    if normalised_components is None:
         return float(sim.reward)
+    return float(sum(normalised_components.values()))
 
-    total = 0.0
+
+def _normalised_reward_components_for_sim(
+    sim, reward_cfg: dict[str, float | int]
+) -> dict[str, float] | None:
+    """Return config-normalized per-component contributions for one greedy sim."""
+    if not sim.reward_components:
+        return None
+
+    normalised: dict[str, float] = {}
     unknown_keys: set[str] = set()
     for key, value in sim.reward_components.items():
         v = float(value)
@@ -964,7 +974,7 @@ def _normalised_reward_for_sim(sim, reward_cfg: dict[str, float | int]) -> float
                 scale = 1.0
         else:
             if key in _NO_SCALE_COMPONENT_KEYS:
-                total += v
+                normalised[key] = v
                 continue
             cfg_key = _REWARD_COMPONENT_TO_CFG_KEY.get(key)
             if cfg_key:
@@ -972,13 +982,13 @@ def _normalised_reward_for_sim(sim, reward_cfg: dict[str, float | int]) -> float
             else:
                 scale = 1.0
                 unknown_keys.add(key)
-        total += v / scale
+        normalised[key] = v / scale
     if unknown_keys:
         logger.warning(
             "SC2 reward normalisation: unmapped reward component key(s): %s",
             sorted(unknown_keys),
         )
-    return float(total)
+    return normalised
 
 
 def _normalise_rewards_for_summary(data: ExperimentData) -> ExperimentData:
@@ -1018,10 +1028,21 @@ def _normalise_rewards_for_summary(data: ExperimentData) -> ExperimentData:
                 data.reward_config_file,
                 exc,
             )
-    sims = [
-        dataclasses.replace(sim, reward=_normalised_reward_for_sim(sim, reward_cfg))
-        for sim in data.greedy_sims
-    ]
+    sims = []
+    for sim in data.greedy_sims:
+        normalised_components = _normalised_reward_components_for_sim(sim, reward_cfg)
+        normalised_reward = (
+            float(sum(normalised_components.values()))
+            if normalised_components is not None
+            else float(sim.reward)
+        )
+        sims.append(
+            dataclasses.replace(
+                sim,
+                reward=normalised_reward,
+                reward_components=normalised_components,
+            )
+        )
     return dataclasses.replace(data, greedy_sims=sims)
 
 
