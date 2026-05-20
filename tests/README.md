@@ -16,6 +16,7 @@
   - [test\_game\_adapter.py — TMNF/TORCS/SC2/BeamNG adapter abstractions](#test_game_adapterpy--tmnftorcssc2beamng-adapter-abstractions)
   - [test\_grid\_search.py — Cartesian-product expansion + naming](#test_grid_searchpy--cartesian-product-expansion--naming)
   - [test\_info\_gain.py — staleness-based intrinsic reward](#test_info_gainpy--staleness-based-intrinsic-reward)
+  - [test\_live\_monitor.py — live GUI monitor helpers](#test_live_monitorpy--live-gui-monitor-helpers)
   - [test\_obs\_memory.py — frame-stacking observation wrapper](#test_obs_memorypy--frame-stacking-observation-wrapper)
   - [test\_parallel\_eval.py — intra-run parallel evaluator (issue #229)](#test_parallel_evalpy--intra-run-parallel-evaluator-issue-229)
   - [test\_reward.py — TMNF reward calculator + curiosity glue](#test_rewardpy--tmnf-reward-calculator--curiosity-glue)
@@ -226,6 +227,11 @@ worker mechanics are unit-tested with a dummy env.
 ### test_info_gain.py — staleness-based intrinsic reward
 - initial staleness all 1; never-observed = max; just-observed near zero; grows linearly
 - reward fires stale→fresh; zero when weight=0; reset restores
+
+### test_live_monitor.py — live GUI monitor helpers
+- reward-component extraction prefers per-step components and falls back to differencing cumulative episode totals
+- rolling-average values are computed from the latest 5 steps
+- observation grouping detects x/y pairs, indexed vectors, quadrant grids, and scalar fallbacks
 
 ### test_obs_memory.py — frame-stacking observation wrapper
 - shape; reset fills initial; step shifts frames; k=1 passthrough; invalid k raises; most-recent zero-padded; clear

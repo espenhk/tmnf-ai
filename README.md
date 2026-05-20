@@ -84,7 +84,7 @@ If you'd rather install the prerequisites yourself:
 
 ```bash
 # Single experiment (default game: TMNF)
-python main.py <experiment_name> [--no-interrupt] [--re-initialize]
+python main.py <experiment_name> [--no-interrupt] [--re-initialize] [--live-gui]
 
 # Select a different simulator with --game
 python main.py my_experiment --game tmnf        # Trackmania Nations Forever (default)
@@ -97,12 +97,14 @@ python main.py my_experiment --game car_racing  # gymnasium CarRacing-v2 (requir
 python main.py --help
 
 # Grid search over multiple param combinations
-python grid_search.py config/my_grid.yaml [--no-interrupt]
+python grid_search.py config/my_grid.yaml [--no-interrupt] [--live-gui]
 ```
 
 Results land in `experiments/<game>/<name>/results/` (TMNF uses `experiments/<track>/<name>/results/`).
 
 `--re-initialize` ignores any existing weights file and reruns probe + cold-start from scratch.
+`--live-gui` opens a live telemetry window that updates every step with reward-component bars
+(rolling average over the last 5 steps) and observation-value visualizations.
 
 ---
 

@@ -42,6 +42,12 @@ formatting, internal refactors with no behaviour change — can be skipped.
     descriptions to match the issue #253 unit-position tracking fix.
 
 ### Added
+- Optional live training GUI (`--live-gui`) for both `main.py` and
+  `grid_search.py`. The window updates during training (not post-run only):
+  - reward-component bar chart per step with a 5-step rolling average, plus
+    total step reward;
+  - live observation visualizations using feature-aware layouts (scalar bars,
+    x/y pair vectors, indexed strips, and quadrant grids when detected).
 - **SC2 `attack_bonus` reward component** (issue #251).  New opt-in reward
   config key `attack_bonus` (default `0.0`) awards a flat bonus whenever the
   agent issues `Attack_screen` (fn_idx 3), regardless of whether the target

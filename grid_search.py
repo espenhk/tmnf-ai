@@ -698,6 +698,14 @@ def main() -> None:
         "ignoring any existing weights file. Skips probe and cold-start.",
     )
     parser.add_argument(
+        "--live-gui",
+        action="store_true",
+        help=(
+            "Show a live GUI window with per-step reward components (rolling avg "
+            "of 5 steps) and observation values while each run trains."
+        ),
+    )
+    parser.add_argument(
         "--distribute",
         action="store_true",
         help="Act as coordinator: serve work items over HTTP and wait for "
@@ -818,6 +826,9 @@ def main() -> None:
 
     adapter = GAME_ADAPTERS[game_name]()
     combos, varied_keys = _expand_grid(training_spec, reward_spec)
+    if args.live_gui:
+        for combo in combos:
+            combo["training_params"]["live_gui"] = True
 
     n = len(combos)
     logger.info("  Grid search:       %d combination(s)", n)

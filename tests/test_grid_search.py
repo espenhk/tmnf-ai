@@ -483,3 +483,15 @@ class TestLocalWorkerParsing:
     def test_parse_non_negative_int_rejects_non_integer(self):
         with pytest.raises(ValueError, match="must be an integer >= 0"):
             _parse_non_negative_int("abc", "x")
+
+
+class TestGridSearchCliFlags:
+    def test_help_includes_live_gui_flag(self):
+        proc = subprocess.run(
+            ["python", "grid_search.py", "--help"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert proc.returncode == 0
+        assert "--live-gui" in proc.stdout
