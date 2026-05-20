@@ -13,6 +13,7 @@ from grid_search import (
     _ABBREV,
     _expand_grid,
     _make_experiment_name,
+    _split_grid_run_name,
     _fmt_value,
     _build_policy_params,
     _POLICY_PARAM_MAP,
@@ -99,6 +100,18 @@ class TestMakeExperimentName:
     def test_unknown_key_uses_key_itself(self):
         name = _make_experiment_name("gs", {"my_custom_param": 42}, ["my_custom_param"])
         assert "my_custom_param42" in name
+
+
+class TestSplitGridRunName:
+    def test_name_without_param_suffix(self):
+        base, suffix = _split_grid_run_name("gs_v1")
+        assert base == "gs_v1"
+        assert suffix is None
+
+    def test_name_with_param_suffix(self):
+        base, suffix = _split_grid_run_name("gs_v1__ms0.1__cwn0.5")
+        assert base == "gs_v1"
+        assert suffix == "ms0.1__cwn0.5"
 
 
 class TestBuildPolicyParams:

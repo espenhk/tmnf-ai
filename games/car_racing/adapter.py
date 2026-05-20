@@ -13,12 +13,16 @@ class CarRacingAdapter:
         self, experiment_name: str, training_params: dict,
         track_override: str | None,
     ) -> str:
-        return f"experiments/car_racing/{experiment_name}"
+        policy = training_params.get("policy_type", "hill_climbing")
+        track = self.track_label(training_params, track_override)
+        return f"experiments/car_racing/{policy}/{track}/{experiment_name}"
 
     def experiment_dir_root(
         self, training_params: dict, track_override: str | None,
     ) -> str:
-        return "experiments/car_racing"
+        policy = training_params.get("policy_type", "hill_climbing")
+        track = self.track_label(training_params, track_override)
+        return f"experiments/car_racing/{policy}/{track}"
 
     def track_label(
         self, training_params: dict, track_override: str | None,

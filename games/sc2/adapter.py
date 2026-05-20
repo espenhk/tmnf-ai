@@ -153,13 +153,15 @@ class SC2Adapter:
         track_override: str | None,
     ) -> str:
         map_name = self._map_name(training_params, track_override)
-        return f"experiments/sc2_{map_name}/{experiment_name}"
+        policy = training_params.get("policy_type", "sc2_genetic")
+        return f"experiments/sc2/{policy}/{map_name}/{experiment_name}"
 
     def experiment_dir_root(
         self, training_params: dict, track_override: str | None,
     ) -> str:
         map_name = self._map_name(training_params, track_override)
-        return f"experiments/sc2_{map_name}"
+        policy = training_params.get("policy_type", "sc2_genetic")
+        return f"experiments/sc2/{policy}/{map_name}"
 
     def track_label(
         self, training_params: dict, track_override: str | None,
