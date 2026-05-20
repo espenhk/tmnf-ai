@@ -283,6 +283,19 @@ class TestSC2LSTMPolicySerialisation(unittest.TestCase):
         cfg = p.to_cfg()
         self.assertEqual(cfg["policy_type"], "sc2_lstm")
 
+    def test_from_cfg_uses_explicit_race_over_cfg_race(self):
+        p = SC2LSTMPolicy(
+            obs_spec=SC2_MINIGAME_OBS_SPEC,
+            hidden_size=16,
+            reset_on_episode=True,
+            race="terran",
+            seed=0,
+        )
+        cfg = p.to_cfg()
+        cfg["race"] = "terran"
+        p2 = SC2LSTMPolicy.from_cfg(cfg, SC2_MINIGAME_OBS_SPEC, race="protoss")
+        self.assertEqual(p2._race, "protoss")
+
 
 # ---------------------------------------------------------------------------
 # SC2LSTMEvolutionPolicy
