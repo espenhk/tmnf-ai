@@ -10,7 +10,7 @@ TwoHeadREINFORCEPolicy — shared trunk + fn_idx softmax head + spatial sigmoid
 from __future__ import annotations
 
 import logging
-from typing import Callable
+from typing import Callable, NamedTuple
 
 import numpy as np
 
@@ -18,6 +18,26 @@ from framework.obs_spec import ObsSpec
 from framework.policies import BasePolicy
 
 logger = logging.getLogger(__name__)
+
+
+# --------------------------------------------------------------------------- #
+# Shared gradient-entry namedtuple for TwoHeadREINFORCEPolicy                 #
+# --------------------------------------------------------------------------- #
+
+class _GradEntry(NamedTuple):
+    """Per-step trajectory entry stored by :class:`TwoHeadREINFORCEPolicy`.
+
+    Fields match the tuple layout that the gradient-accumulation loop in
+    ``on_episode_end`` unpacks, so the namedtuple can be used with
+    ``_replace(fn_idx=...)`` in tests without any extra plumbing.
+    """
+    trunk_layer_inputs: list       # input to each trunk layer (for backprop)
+    trunk_pre_relu:     list       # pre-activation values (for ReLU mask)
+    h_last:             np.ndarray # shared trunk output, shape (h_dim,)
+    fn_probs:           np.ndarray # masked softmax probabilities, shape (n_fn_ids,)
+    fn_idx:             int        # sampled function index
+    sp_sig:             np.ndarray # sigmoid spatial outputs, shape (n_spatial,)
+    fn_mask:            np.ndarray # bool availability mask, shape (n_fn_ids,)
 
 # --------------------------------------------------------------------------- #
 # Sigmoid helper                                                               #
@@ -397,7 +417,7 @@ class TwoHeadREINFORCEPolicy(BasePolicy):
         self._n_fn_ids         = int(n_fn_ids)
         self._n_spatial        = int(n_spatial)
         self._action_fn        = action_fn
-        self._hidden           = list(hidden_sizes or [128, 64])
+        self._hidden           = list(hidden_sizes) if hidden_sizes is not None else [128, 64]
         self._lr               = float(learning_rate)
         self._gamma            = float(gamma)
         self._entropy_coeff    = float(entropy_coeff)
@@ -415,7 +435,7 @@ class TwoHeadREINFORCEPolicy(BasePolicy):
             self._sp_b,
         ) = self._build_net(seed)
 
-        self._ep_grads: list[tuple]   = []
+        self._ep_grads: list[_GradEntry] = []
         self._ep_rewards: list[float] = []
 
         self._baseline_val   = 0.0
@@ -525,8 +545,15 @@ class TwoHeadREINFORCEPolicy(BasePolicy):
             dtype=np.float32,
         )
 
-        self._ep_grads.append((l_in, pre_r, h_last.copy(), fn_probs.copy(),
-                                fn_idx, sp_sig.copy(), fn_mask.copy()))
+        self._ep_grads.append(_GradEntry(
+            trunk_layer_inputs = l_in,
+            trunk_pre_relu     = pre_r,
+            h_last             = h_last.copy(),
+            fn_probs           = fn_probs.copy(),
+            fn_idx             = fn_idx,
+            sp_sig             = sp_sig.copy(),
+            fn_mask            = fn_mask.copy(),
+        ))
 
         return self._action_fn(fn_idx, sp_sig)
 
