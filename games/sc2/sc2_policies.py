@@ -3,8 +3,8 @@
 SC2MultiHeadLinearPolicy
     Multi-output linear policy for SC2.  Two weight matrices are maintained:
 
-    * **fn_idx head** — shape ``(N_FUNCTION_IDS, obs_dim)`` → 6 scores, one per
-      available function ID.  ``argmax`` gives the selected function.
+    * **fn_idx head** — shape ``(N_FUNCTION_IDS, obs_dim)`` → one score per
+      function ID.  ``argmax`` gives the selected function.
     * **spatial head** — shape ``(2, obs_dim)`` → two scalar scores fed
       through a sigmoid to produce continuous ``(x, y) ∈ [0, 1]²`` screen
       coordinates (issue #122).  Continuous output lets the policy target
@@ -603,7 +603,7 @@ class SC2REINFORCEPolicy(BasePolicy):
     The network has a **shared trunk** (hidden FC layers + ReLU) followed by
     two independent linear output heads:
 
-    * **fn_head** — 6 logits, softmax → ``fn_idx ∈ {0…5}``; unavailable
+    * **fn_head** — ``N_FUNCTION_IDS`` logits, softmax → ``fn_idx``; unavailable
       function IDs are masked to ``-∞`` before sampling.
     * **spatial_head** — 2 logits, sigmoid → continuous (x, y) ∈ [0, 1]²
       screen coordinates (issue #122).
@@ -1616,7 +1616,7 @@ class SC2LSTMPolicy:
         obj._obs_dim          = obs_spec.dim
         obj._scales           = obs_spec.scales
         obj._reset_on_episode = bool(cfg.get("reset_on_episode", True))
-        obj._race             = cfg.get("race", race)
+        obj._race             = race
         obj._race_fn_ids      = fn_ids_for_race(obj._race)
         obj._available_fn_ids = None
         obj._W_f   = np.array(cfg["W_f"],   dtype=np.float32)

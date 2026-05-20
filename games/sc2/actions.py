@@ -396,7 +396,9 @@ def build_available_actions_mask(
     )
 
 
-def action_to_function_call(action: np.ndarray, screen_size: int):
+def action_to_function_call(
+    action: np.ndarray, screen_size: int, minimap_size: int | None = None
+):
     """Translate a 4-vector action row into a PySC2 ``FunctionCall``.
 
     Parameters
@@ -405,8 +407,10 @@ def action_to_function_call(action: np.ndarray, screen_size: int):
         4-vector ``[fn_idx, x, y, queue]`` produced by a policy.
     screen_size :
         Size of the screen feature layer (e.g. 64).  Used to denormalise
-        the coordinate args.  Minimap-targeted actions use the same
-        normalised [0, 1] coords and the same size (both are 64 by default).
+        the coordinate args for ``*_screen`` actions.
+    minimap_size :
+        Size of the minimap feature layer.  Used to denormalise ``*_minimap``
+        targets.  Defaults to ``screen_size`` for backwards compatibility.
 
     Returns
     -------
@@ -434,12 +438,13 @@ def action_to_function_call(action: np.ndarray, screen_size: int):
     x_norm = float(np.clip(action[1], 0.0, 1.0))
     y_norm = float(np.clip(action[2], 0.0, 1.0))
     queue = int(np.clip(round(float(action[3])), 0, 1))
-    sx = int(x_norm * (screen_size - 1))
-    sy = int(y_norm * (screen_size - 1))
-
     name = FUNCTION_IDS.get(fn_idx, "no_op")
     fn = getattr(actions.FUNCTIONS, name, actions.FUNCTIONS.no_op)
     fn_id = int(fn.id)
+    minimap = screen_size if minimap_size is None else minimap_size
+    target_size = minimap if name.endswith("_minimap") else screen_size
+    sx = int(x_norm * (target_size - 1))
+    sy = int(y_norm * (target_size - 1))
 
     if name == "no_op":
         return actions.FunctionCall(fn_id, [])

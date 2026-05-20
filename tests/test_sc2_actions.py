@@ -1,5 +1,8 @@
 """Tests for the SC2 action definitions."""
+import sys
+import types
 import unittest
+from unittest.mock import patch
 
 import numpy as np
 
@@ -11,6 +14,7 @@ from games.sc2.actions import (
     SCREEN_GRID_RESOLUTION,
     SPATIAL_FN_IDS,
     WARMUP_ACTION,
+    action_to_function_call,
     fn_ids_for_race,
 )
 
@@ -199,6 +203,60 @@ class TestRaceGating(unittest.TestCase):
         for race in ("terran", "protoss", "zerg"):
             self.assertIn(0, fn_ids_for_race(race),
                           f"{race} missing no_op")
+
+
+class _FakeFunctionCall:
+    def __init__(self, function: int, arguments: list[list[int]]) -> None:
+        self.function = function
+        self.arguments = arguments
+
+
+def _fake_pysc2_modules() -> dict[str, types.ModuleType]:
+    pysc2_mod = types.ModuleType("pysc2")
+    lib_mod = types.ModuleType("pysc2.lib")
+    actions_mod = types.ModuleType("pysc2.lib.actions")
+    actions_mod.FunctionCall = _FakeFunctionCall
+    functions = types.SimpleNamespace()
+    for fn_idx, name in FUNCTION_IDS.items():
+        setattr(functions, name, types.SimpleNamespace(id=1000 + fn_idx))
+    actions_mod.FUNCTIONS = functions
+    return {
+        "pysc2": pysc2_mod,
+        "pysc2.lib": lib_mod,
+        "pysc2.lib.actions": actions_mod,
+    }
+
+
+class TestActionToFunctionCall(unittest.TestCase):
+    def test_quick_action_uses_queue_only(self):
+        with patch.dict(sys.modules, _fake_pysc2_modules()):
+            action = np.array([7, 0.2, 0.4, 1.0], dtype=np.float32)  # Train_Marine_quick
+            call = action_to_function_call(action, screen_size=64)
+        self.assertEqual(call.arguments, [[1]])
+
+    def test_select_point_screen_uses_screen_coords(self):
+        with patch.dict(sys.modules, _fake_pysc2_modules()):
+            action = np.array([6, 1.0, 0.0, 0.0], dtype=np.float32)  # select_point_screen
+            call = action_to_function_call(action, screen_size=64)
+        self.assertEqual(call.arguments, [[0], [63, 0]])
+
+    def test_select_rect_screen_uses_degenerate_rect(self):
+        with patch.dict(sys.modules, _fake_pysc2_modules()):
+            action = np.array([17, 0.5, 0.5, 0.0], dtype=np.float32)  # select_rect_screen
+            call = action_to_function_call(action, screen_size=64)
+        self.assertEqual(call.arguments, [[0], [31, 31], [31, 31]])
+
+    def test_minimap_action_uses_minimap_size(self):
+        with patch.dict(sys.modules, _fake_pysc2_modules()):
+            action = np.array([11, 1.0, 1.0, 0.0], dtype=np.float32)  # Move_minimap
+            call = action_to_function_call(action, screen_size=64, minimap_size=32)
+        self.assertEqual(call.arguments, [[0], [31, 31]])
+
+    def test_screen_action_uses_screen_size(self):
+        with patch.dict(sys.modules, _fake_pysc2_modules()):
+            action = np.array([2, 1.0, 1.0, 0.0], dtype=np.float32)  # Move_screen
+            call = action_to_function_call(action, screen_size=64, minimap_size=32)
+        self.assertEqual(call.arguments, [[0], [63, 63]])
 
 
 if __name__ == "__main__":

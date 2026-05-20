@@ -445,7 +445,9 @@ class SC2Client:
         """
         from pysc2.lib import actions as pysc2_actions  # type: ignore[import-untyped]
 
-        fn_call = action_to_function_call(action, self._screen_size)
+        fn_call = action_to_function_call(
+            action, self._screen_size, self._minimap_size
+        )
 
         fn_idx = int(action[0])
         fn_name = FUNCTION_IDS.get(fn_idx, "no_op")

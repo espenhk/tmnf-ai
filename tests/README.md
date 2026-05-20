@@ -491,6 +491,7 @@ handful of iterations only).
 - probe actions count=5 / shape (4,) / include no_op; warmup shape (4,) / is select_army; function_ids table complete
 - SPATIAL_FN_IDS contains exactly the fn_ids whose names end in `_screen` or `_minimap`
 - `TestRaceGating` (9 tests): all four race keys exist in RACE_FUNCTION_IDS; each race's ids are a subset of FUNCTION_IDS; random race = all fn_ids; race-specific sets (_TERRAN / _PROTOSS / _ZERG) are pairwise disjoint; unknown race falls back to all fn_ids; Terran has Build_Barracks_screen (8) not Build_Nexus_screen (50); Protoss has Build_Nexus_screen (50) not Build_Barracks_screen (8); Zerg has Build_Hatchery_screen (82) not Build_Barracks_screen (8); all three named races include Move_screen (2) and no_op (0)
+- `TestActionToFunctionCall`: fake PySC2 module validates encoding branches — `_quick` emits queue-only args, `select_point_screen` and `select_rect_screen` emit screen coords, `_minimap` actions scale with `minimap_size` (not `screen_size`), and `_screen` actions keep using `screen_size`
 
 ### test_sc2_reward.py — SC2 reward calc
 - defaults; from_yaml; unknown raises; loads bundled config
@@ -569,7 +570,7 @@ handful of iterations only).
 - Action: shape (4,) / fn_idx in [0, N_FUNCTION_IDS) / x,y in [0,1] / hidden state advances after step
 - Masking: never selects unavailable fn / set via on_episode_start info / updated via update kwargs / fallback to no_op when all masked
 - Hidden state reset: reset_on_episode=True zeros state on episode start + end / reset_on_episode=False carries state across resets
-- Serialisation: to_cfg / from_cfg round-trip lossless / save / load round-trip / policy_type = "sc2_lstm"
+- Serialisation: to_cfg / from_cfg round-trip lossless / save / load round-trip / policy_type = "sc2_lstm" / explicit `race=` argument to `from_cfg` takes precedence over any stored cfg race
 - Evolution: population size / individuals are SC2LSTMPolicy / call raises before generation / champion set after one generation / σ adapts / wrong reward count raises / flat_dim mismatch raises / initialize_from_champion sets mean / on_episode_start forwarded to champion / save writes yaml / trainer-state round-trip / dim mismatch raises
 
 ### test_sc2_genetic_policy.py — `SC2MultiHeadLinearPolicy` + genetic trainer
