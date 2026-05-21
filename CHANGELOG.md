@@ -17,6 +17,10 @@ formatting, internal refactors with no behaviour change — can be skipped.
 
 ## [Unreleased]
 
+- **TMNF bug fix:** Finish-detection threshold raised from 0.95 → 0.98 so that
+  near-end track sections (e.g. the drop at the end of A03) no longer trigger a
+  false finish before the physical finish line is reached.
+
 
 ---
 
