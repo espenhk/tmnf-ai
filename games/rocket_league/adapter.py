@@ -1,33 +1,33 @@
-"""iRacing game adapter — builds config bundles for train_rl."""
+"""Rocket League game adapter — builds config bundles for train_rl."""
 
 from __future__ import annotations
 
 from framework.run_config import GameSpec, ProbeSpec, WarmupSpec
 
 
-class IRacingAdapter:
-    name = "iracing"
-    config_dir = "games/iracing/config"
+class RocketLeagueAdapter:
+    name = "rocket_league"
+    config_dir = "games/rocket_league/config"
 
     def experiment_dir(
         self, experiment_name: str, training_params: dict,
         track_override: str | None,
     ) -> str:
-        policy = training_params.get("policy_type", "hill_climbing")
+        policy = training_params.get("policy_type", "genetic")
         track = self.track_label(training_params, track_override)
-        return f"experiments/iracing/{policy}/{track}/{experiment_name}"
+        return f"experiments/rocket_league/{policy}/{track}/{experiment_name}"
 
     def experiment_dir_root(
         self, training_params: dict, track_override: str | None,
     ) -> str:
-        policy = training_params.get("policy_type", "hill_climbing")
+        policy = training_params.get("policy_type", "genetic")
         track = self.track_label(training_params, track_override)
-        return f"experiments/iracing/{policy}/{track}"
+        return f"experiments/rocket_league/{policy}/{track}"
 
     def track_label(
         self, training_params: dict, track_override: str | None,
     ) -> str:
-        return track_override or training_params.get("track", "laguna_seca")
+        return track_override or "rocket_league"
 
     def decorate_reward_cfg(
         self, reward_cfg: dict, training_params: dict,
@@ -40,24 +40,27 @@ class IRacingAdapter:
         weights_file: str, reward_cfg_file: str,
         training_params: dict, track_override: str | None,
     ) -> GameSpec:
-        from games.iracing.obs_spec import IRACING_OBS_SPEC
-        from games.iracing.actions import DISCRETE_ACTIONS
-        from games.iracing.analytics import save_experiment_results
+        from games.rocket_league.obs_spec import ROCKET_LEAGUE_OBS_SPEC
+        from games.rocket_league.actions import DISCRETE_ACTIONS
+        from games.rocket_league.analytics import save_experiment_results
+
+        tick_skip = training_params.get("tick_skip", 8)
 
         def _make_env():
-            from games.iracing.env import make_env
+            from games.rocket_league.env import make_env
             return make_env(
                 experiment_dir=experiment_dir,
                 max_episode_time_s=training_params["in_game_episode_s"],
-                action_mode=training_params.get("action_mode", "telemetry_only"),
+                tick_skip=int(tick_skip),
             )
 
         return GameSpec(
             experiment_name=experiment_name,
             track=self.track_label(training_params, track_override),
             make_env_fn=_make_env,
-            obs_spec=IRACING_OBS_SPEC,
-            head_names=["steer", "accel", "brake"],
+            obs_spec=ROCKET_LEAGUE_OBS_SPEC,
+            head_names=["throttle", "steer", "pitch", "yaw", "roll",
+                        "jump", "boost", "handbrake"],
             discrete_actions=DISCRETE_ACTIONS,
             weights_file=weights_file,
             reward_config_file=reward_cfg_file,
@@ -72,5 +75,5 @@ class IRacingAdapter:
         return None
 
 
-def make_adapter() -> IRacingAdapter:
-    return IRacingAdapter()
+def make_adapter() -> RocketLeagueAdapter:
+    return RocketLeagueAdapter()
