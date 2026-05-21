@@ -29,6 +29,11 @@ formatting, internal refactors with no behaviour change — can be skipped.
   `goal_weight`, `concede_penalty`.  New training param: `tick_skip`.
 
 
+
+---
+
+## [0.2.0] - 2026-05-21
+
 ---
 
 ## [0.1.9] - 2026-05-21
