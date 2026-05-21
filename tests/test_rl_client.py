@@ -280,7 +280,7 @@ class TestActionWindow(unittest.TestCase):
             self.client._state_queue.get_nowait()
         iface.set_input_state.reset_mock()
         # Tick 3: transit, but inject finish.
-        finished_state = _make_state_data(track_progress=0.97)
+        finished_state = _make_state_data(track_progress=0.99)
         self._run_step(iface, action=np.array([1.0, 1.0, 0.0], dtype=np.float32),
                        state_data=finished_state)
         iface.set_input_state.assert_called_once()
