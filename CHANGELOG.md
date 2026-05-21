@@ -23,6 +23,30 @@ formatting, internal refactors with no behaviour change — can be skipped.
 ## [0.2.3] - 2026-05-21
 
 ### Added
+- **Rocket League integration** (`--game rocket_league`): single-agent RL via
+  [RLGym](https://rlgym.org/).  142-dim observation (car/ball + 2 teammate
+  cars + 3 opponent cars + relative features + boost pad availability),
+  8-dim continuous action space
+  (throttle/steer/pitch/yaw/roll/jump/boost/handbrake), and a dense+sparse
+  reward calculator (velocity-to-ball, ball touch, goal scored/conceded).
+  Requires Rocket League (commercial, Windows) + Bakkesmod + `pip install rlgym`.
+  See `games/rocket_league/README.md` for install instructions.
+  New reward config keys: `vel_to_ball_weight`, `boost_weight`, `touch_bonus`,
+  `goal_weight`, `concede_penalty`.  New training param: `tick_skip`.
+- **Rocket League grid-search templates**: added one tuned template per currently
+  supported policy type (`hill_climbing`, `neural_net`, `epsilon_greedy`,
+  `mcts`, `genetic`) under `games/rocket_league/config/`.
+
+### Fixed
+- **Rocket League tick-skip wiring**: `tick_skip` now propagates from
+  `training_params.yaml` through `RocketLeagueAdapter` into
+  `rlgym.make(tick_skip=...)`, so grid-search/template values affect simulator
+  stepping as intended.
+- **Rocket League reward scaling**: `vel_towards_ball` no longer re-scales
+  observation entries in `RocketLeagueEnv._compute_vel_towards_ball()`, avoiding
+  inflated dense reward from double-scaling.
+- **Rocket League team support**: env now uses `team_size=3` and observation
+  slots for 3 opponents + 2 friendlies, enabling 3v3-state training inputs.
 - **iRacing live action injection** (`games/iracing/controller.py`):
   Phase 2 action injection via vJoy virtual joystick.  New
   `action_mode` training param (`"telemetry_only"` default,
