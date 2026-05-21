@@ -17,6 +17,11 @@ formatting, internal refactors with no behaviour change — can be skipped.
 
 ## [Unreleased]
 
+
+---
+
+## [0.1.7] - 2026-05-21
+
 ### Added
 - Distributed coordinator: new mobile-friendly `/monitor` web app with
   username/password login, a run selector, and per-run queued / active /
