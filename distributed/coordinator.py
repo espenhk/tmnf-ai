@@ -3,8 +3,10 @@ Distributed grid-search coordinator.
 
 Hosts an HTTP server that workers poll for work and post results to.
 
-Authentication: every request must carry  Authorization: Bearer <token>.
+Authentication: worker endpoints require  Authorization: Bearer <token>.
 Missing or wrong token → 401 Unauthorized.
+The monitor UI endpoints (/monitor, /monitor/login, /monitor/api/status)
+use username/password login and session cookies instead of bearer auth.
 
 Network scope: by default, only LAN/loopback clients are accepted
 (private, link-local, or loopback source IPs). Public/non-LAN clients are
@@ -105,6 +107,7 @@ class Coordinator:
         self._monitor_password = token if monitor_password is None else monitor_password
         self._monitor_sessions: dict[str, float] = {}
         self._monitor_session_ttl_s = 12 * 60 * 60
+        self._best_rewards: dict[str, float | None] = {}
 
         self._lock = threading.Lock()
         self._done_event = threading.Event()
@@ -299,71 +302,108 @@ class Coordinator:
 
     def _build_status_payload(self) -> dict[str, Any]:
         with self._lock:
-            workers = [
-                {
-                    "name": name,
+            in_progress_items = list(self._in_progress.items())
+            queued = len(self._work_queue)
+            in_progress = len(in_progress_items)
+            done = len(self._results)
+            total = self._total
+
+        workers = [
+            {
+                "name": name,
+                "worker_id": info["worker_id"],
+                "idle_s": round(max(0.0, time.monotonic() - info["last_hb"]), 1),
+            }
+            for name, info in in_progress_items
+        ]
+        return {
+            "queued": queued,
+            "in_progress": in_progress,
+            "done": done,
+            "total": total,
+            "workers": workers,
+        }
+
+    def _build_monitor_status_payload(self) -> dict[str, Any]:
+        with self._lock:
+            in_progress_by_name = {
+                name: {
                     "worker_id": info["worker_id"],
-                    "idle_s": round(max(0.0, time.monotonic() - info["last_hb"]), 1),
+                    "last_hb": info["last_hb"],
                 }
                 for name, info in self._in_progress.items()
-            ]
-            runs = []
-            for name in self._combo_order:
-                spec = self._specs_by_name[name]
-                if name in self._results:
-                    data = self._results[name]
-                    best_reward = max(
-                        (sim.reward for sim in data.greedy_sims),
-                        default=None,
-                    )
-                    runs.append(
-                        {
-                            "name": name,
-                            "state": "done",
-                            "worker_id": None,
-                            "idle_s": None,
-                            "game": spec.game,
-                            "track": spec.track,
-                            "policy_type": spec.training_params.get("policy_type"),
-                            "best_reward": best_reward,
-                        }
-                    )
-                    continue
-                if name in self._in_progress:
-                    info = self._in_progress[name]
-                    runs.append(
-                        {
-                            "name": name,
-                            "state": "in_progress",
-                            "worker_id": info["worker_id"],
-                            "idle_s": round(max(0.0, time.monotonic() - info["last_hb"]), 1),
-                            "game": spec.game,
-                            "track": spec.track,
-                            "policy_type": spec.training_params.get("policy_type"),
-                            "best_reward": None,
-                        }
-                    )
-                    continue
+            }
+            done_names = set(self._results.keys())
+            best_rewards = dict(self._best_rewards)
+            combo_order = list(self._combo_order)
+            specs_by_name = dict(self._specs_by_name)
+            queued = len(self._work_queue)
+            in_progress = len(in_progress_by_name)
+            done = len(done_names)
+            total = self._total
+
+        now = time.monotonic()
+        workers = [
+            {
+                "name": name,
+                "worker_id": info["worker_id"],
+                "idle_s": round(max(0.0, now - info["last_hb"]), 1),
+            }
+            for name, info in in_progress_by_name.items()
+        ]
+        runs = []
+        for name in combo_order:
+            spec = specs_by_name[name]
+            if name in done_names:
                 runs.append(
                     {
                         "name": name,
-                        "state": "queued",
+                        "state": "done",
                         "worker_id": None,
                         "idle_s": None,
+                        "game": spec.game,
+                        "track": spec.track,
+                        "policy_type": spec.training_params.get("policy_type"),
+                        "best_reward": best_rewards.get(name),
+                    }
+                )
+                continue
+            if name in in_progress_by_name:
+                info = in_progress_by_name[name]
+                runs.append(
+                    {
+                        "name": name,
+                        "state": "in_progress",
+                        "worker_id": info["worker_id"],
+                        "idle_s": round(max(0.0, now - info["last_hb"]), 1),
                         "game": spec.game,
                         "track": spec.track,
                         "policy_type": spec.training_params.get("policy_type"),
                         "best_reward": None,
                     }
                 )
-            return {
-                "queued": len(self._work_queue),
-                "in_progress": len(self._in_progress),
-                "done": len(self._results),
-                "total": self._total,
-                "workers": workers,
-                "runs": runs,
-            }
+                continue
+            runs.append(
+                {
+                    "name": name,
+                    "state": "queued",
+                    "worker_id": None,
+                    "idle_s": None,
+                    "game": spec.game,
+                    "track": spec.track,
+                    "policy_type": spec.training_params.get("policy_type"),
+                    "best_reward": None,
+                }
+            )
+
+        return {
+            "queued": queued,
+            "in_progress": in_progress,
+            "done": done,
+            "total": total,
+            "workers": workers,
+            "runs": runs,
+        }
 
     def _monitor_cookie_header(self, session_id: str, expires_now: bool = False) -> str:
         max_age = 0 if expires_now else self._monitor_session_ttl_s
@@ -412,7 +452,8 @@ class Coordinator:
         error_html = (
             f'<p class="error">{html.escape(error)}</p>' if error else ""
         )
-        username = html.escape(self._monitor_username, quote=True)
+        default_username = "monitor" if self._monitor_username == "monitor" else ""
+        username = html.escape(default_username, quote=True)
         return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -737,7 +778,7 @@ class Coordinator:
             if not self._has_monitor_session(handler):
                 handler._send_json(401, {"error": "login required"})
                 return
-            handler._send_json(200, self._build_status_payload())
+            handler._send_json(200, self._build_monitor_status_payload())
             return
         if path in ("/monitor", "/monitor/"):
             if self._has_monitor_session(handler):
@@ -838,6 +879,7 @@ class Coordinator:
             return
 
         done = False
+        best_reward = max((s.reward for s in data.greedy_sims), default=None)
         with self._lock:
             if payload.name not in self._known_names:
                 logger.warning("Rejected result for unknown combo %s from worker %s", payload.name, worker_id)
@@ -851,6 +893,7 @@ class Coordinator:
 
             self._in_progress.pop(payload.name, None)
             self._results[payload.name] = data
+            self._best_rewards[payload.name] = best_reward
             progress = len(self._results)
             if progress == self._total:
                 done = True
@@ -859,7 +902,7 @@ class Coordinator:
         logger.info(
             "Received result for %s  best_reward=%+.1f  (%d/%d done)",
             payload.name,
-            max((s.reward for s in data.greedy_sims), default=float("-inf")),
+            best_reward if best_reward is not None else float("-inf"),
             progress,
             self._total,
         )

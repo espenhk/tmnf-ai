@@ -321,7 +321,7 @@ class TestCoordinator:
         assert status["total"] == 2
         assert status["queued"] == 2
         assert status["done"] == 0
-        assert [run["state"] for run in status["runs"]] == ["queued", "queued"]
+        assert "runs" not in status
         coord.stop()
 
     def test_monitor_login_page_served_without_bearer_token(self):
@@ -333,6 +333,27 @@ class TestCoordinator:
 
         assert r.status == 200
         assert "Run monitor login" in body
+        coord.stop()
+
+    def test_monitor_login_does_not_leak_custom_username(self):
+        import urllib.request
+
+        coord = Coordinator(
+            [_make_combo("monitor_test")],
+            token=_TEST_TOKEN,
+            port=0,
+            heartbeat_timeout=30.0,
+            monitor_username="private-user",
+        )
+        coord.start()
+        time.sleep(0.05)
+
+        with urllib.request.urlopen(self._url(coord, "/monitor"), timeout=5) as r:
+            body = r.read().decode()
+
+        assert r.status == 200
+        assert 'value=""' in body
+        assert "private-user" not in body
         coord.stop()
 
     def test_monitor_api_requires_login(self):
