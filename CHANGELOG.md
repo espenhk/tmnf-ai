@@ -17,6 +17,11 @@ formatting, internal refactors with no behaviour change — can be skipped.
 
 ## [Unreleased]
 
+### Fixed
+- **TMNF accel bonus**: `accel_bonus` is now only awarded when the throttle
+  is pressed AND the car's speed actually increased that step (`curr speed >
+  prev speed`).  Previously the bonus was given whenever the gas pedal was
+  pressed, allowing a stuck or wall-spinning car to accumulate unlimited reward.
 
 ---
 

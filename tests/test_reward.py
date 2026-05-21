@@ -123,10 +123,20 @@ class TestRewardCalculator(unittest.TestCase):
     # --- Acceleration ---
 
     def test_accel_bonus(self):
+        # Bonus is given when throttle is pressed AND the car actually gained speed.
+        prev = make_state_data(track_progress=0.5, speed=(5.0, 0.0, 0.0))
+        curr = make_state_data(track_progress=0.5, speed=(6.0, 0.0, 0.0))
+        r_accel = self._r(prev, curr, accelerating=True)
+        r_coast  = self._r(prev, curr, accelerating=False)
+        # Speed component is the same in both calls; only accel_bonus differs.
+        self.assertAlmostEqual(r_accel - r_coast, self.cfg.accel_bonus, places=4)
+
+    def test_accel_bonus_not_given_when_speed_does_not_increase(self):
+        # No accel bonus when the car is stuck (speed unchanged or decreasing).
         state = make_state_data(track_progress=0.5, speed=(0.0, 0.0, 0.0))
         r_accel = self._r(state, state, accelerating=True)
         r_coast  = self._r(state, state, accelerating=False)
-        self.assertAlmostEqual(r_accel - r_coast, self.cfg.accel_bonus, places=4)
+        self.assertAlmostEqual(r_accel - r_coast, 0.0, places=4)
 
     # --- Step penalty ---
 
@@ -211,10 +221,15 @@ class TestNTicksScaling(unittest.TestCase):
         self.assertAlmostEqual(r3 - r1, expected_diff, places=5)
 
     def test_accel_bonus_scales_with_n_ticks(self):
-        state = make_state_data(track_progress=0.5, lateral_offset=0.0, speed=(0.0, 0.0, 0.0))
-        r1 = self._r(state, state, n_ticks=1, accelerating=True)
-        r3 = self._r(state, state, n_ticks=3, accelerating=True)
-        expected_diff = 2.0 * (self.cfg.accel_bonus + self.cfg.step_penalty)
+        # Use different prev/curr speeds so the speed-gain condition is met.
+        prev = make_state_data(track_progress=0.5, lateral_offset=0.0, speed=(5.0, 0.0, 0.0))
+        curr = make_state_data(track_progress=0.5, lateral_offset=0.0, speed=(6.0, 0.0, 0.0))
+        r1 = self._r(prev, curr, n_ticks=1, accelerating=True)
+        r3 = self._r(prev, curr, n_ticks=3, accelerating=True)
+        # accel_bonus, speed_weight * curr_speed, and step_penalty all scale linearly.
+        expected_diff = 2.0 * (self.cfg.accel_bonus
+                               + self.cfg.speed_weight * 6.0
+                               + self.cfg.step_penalty)
         self.assertAlmostEqual(r3 - r1, expected_diff, places=5)
 
     def test_finish_bonus_does_not_scale_with_n_ticks(self):
@@ -513,9 +528,11 @@ class TestComputeWithComponents(unittest.TestCase):
                                self.cfg.step_penalty * 2, places=6)
 
     def test_accel_bonus_component_present_when_accelerating(self):
-        state = make_state_data(track_progress=0.5, speed=(0.0, 0.0, 0.0))
-        _, comps_accel = self._rwc(state, state, accelerating=True)
-        _, comps_coast = self._rwc(state, state, accelerating=False)
+        # Bonus is non-zero only when throttle is pressed AND speed increased.
+        prev = make_state_data(track_progress=0.5, speed=(5.0, 0.0, 0.0))
+        curr = make_state_data(track_progress=0.5, speed=(6.0, 0.0, 0.0))
+        _, comps_accel = self._rwc(prev, curr, accelerating=True)
+        _, comps_coast = self._rwc(prev, curr, accelerating=False)
         self.assertAlmostEqual(comps_accel["accel_bonus"],
                                self.cfg.accel_bonus, places=6)
         self.assertEqual(comps_coast["accel_bonus"], 0.0)
