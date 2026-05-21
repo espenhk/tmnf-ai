@@ -3,6 +3,7 @@ import unittest
 
 import numpy as np
 
+from games.sc2.actions import FUNCTION_IDS
 from games.sc2.obs_spec import (
     BASE_OBS_DIM,
     LADDER_OBS_DIM,

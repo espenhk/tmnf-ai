@@ -21,7 +21,7 @@ from games.sc2.sc2_policies import SC2NeuralDQNPolicy
 
 _OBS_SPEC = SC2_MINIGAME_OBS_SPEC
 _OBS_DIM = SC2_MINIGAME_OBS_SPEC.dim
-_N = len(DISCRETE_ACTIONS)  # 66 (no_op + select_army + 8×8 Move_screen)
+_N = len(DISCRETE_ACTIONS)
 
 
 def _make_policy(**kw) -> SC2NeuralDQNPolicy:

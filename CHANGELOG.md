@@ -20,6 +20,26 @@ formatting, internal refactors with no behaviour change — can be skipped.
 
 ---
 
+## [0.1.7] - 2026-05-21
+
+### Added
+- Distributed coordinator: new mobile-friendly `/monitor` web app with
+  username/password login, a run selector, and per-run queued / active /
+  completed state so users can watch multi-machine runs from a phone. By
+  default the monitor username is `monitor` and the password reuses the
+  coordinator token; both can be overridden with
+  `distribute.monitor_username` / `distribute.monitor_password` or the
+  matching CLI flags.
+
+---
+
+## [0.1.6] - 2026-05-21
+
+### Fixed
+- **Live GUI** (`framework/live_monitor.py`): the "Last 10 actions" panel now renders 3-axis driving actions in a legible control-oriented format, treating tiny pedal values (`<= 0.01`) as effectively zero so it cleanly shows `accel % | steer ...` or `brake % | steer ...` instead of raw vectors.
+
+---
+
 ## [0.1.5] - 2026-05-21
 
 ### Changed

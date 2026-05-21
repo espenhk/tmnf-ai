@@ -34,7 +34,7 @@ from framework.training import (
     _greedy_loop_cmaes,
     _greedy_loop_q_learning,
 )
-from games.sc2.actions import DISCRETE_ACTIONS
+from games.sc2.actions import DISCRETE_ACTIONS, FUNCTION_IDS
 
 _OBS_SPEC = SC2_LADDER_OBS_SPEC
 _HEAD_NAMES = ["fn_idx", "x", "y", "queue"]
