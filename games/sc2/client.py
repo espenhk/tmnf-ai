@@ -118,8 +118,8 @@ _MARINE_RANGE_PX_AT_64: float = 20.0
 # Built on first use when pysc2 is available.
 _pysc2_id_to_fn_idx: dict[int, int] | None = None
 
-# Retry cadence for re-issuing select_army when a unit-targeted action stays
-# blocked for many consecutive steps. Prevents permanent idling after
+# Retry cadence for re-issuing select_army when a selection-required action
+# stays blocked while no units are selected. Prevents permanent idling after
 # round/selection transitions in minigames while still avoiding per-step spam.
 _SELECT_ARMY_RETRY_BLOCKED_STEPS: int = 8
 
@@ -278,8 +278,10 @@ class SC2Client:
         self._cumulative_score: float = 0.0
         self._explored_mask: np.ndarray | None = None
         self._available_actions: set[int] | None = None
+        self._selected_count: float = 0.0
         self._last_fn_idx: int = 0  # for last_fn_* one-hot in rich preset
-        # Consecutive blocked unit-targeted steps where select_army is available.
+        # Consecutive blocked selection-required steps where select_army is
+        # available and no unit is selected.
         # Used to issue one immediate select_army and then periodic retries
         # (instead of permanent no_op) if the blocked state persists.
         self._blocked_unit_targeted_steps: int = 0
@@ -302,6 +304,7 @@ class SC2Client:
         self._cumulative_score = 0.0
         self._explored_mask = None
         self._available_actions = None
+        self._selected_count = 0.0
         self._last_fn_idx = 0
         self._blocked_unit_targeted_steps = 0
         return self._timestep_to_obs_info(timesteps[0])
@@ -434,14 +437,12 @@ class SC2Client:
         preconditions like "have units selected"), substitute either
         ``select_army`` or ``no_op`` depending on context.
 
-        Issues #121 / #124: if the policy issues a unit-targeted action
-        (``Move_screen`` / ``Attack_screen`` / ``Harvest_Gather_screen``)
-        but no army is selected, fall back to ``select_army`` rather than
-        ``no_op``.  Otherwise the agent appears to "idle" — the next step
-        has the same observation, the policy emits the same blocked
-        action, and PySC2 keeps no-op'ing it until the policy stochastically
-        elects ``select_army`` itself.  Auto-selecting closes that gap and
-        ensures the very next step can actually move.
+        Issues #121 / #124 / #286: when the policy emits a blocked
+        selection-required action while no units are selected, fall back to
+        ``select_army`` rather than ``no_op``. Otherwise the agent appears to
+        "idle" — the next step has the same observation, the policy emits the
+        same blocked action, and PySC2 keeps no-op'ing it until the policy
+        stochastically elects ``select_army`` itself.
         """
         from pysc2.lib import actions as pysc2_actions  # type: ignore[import-untyped]
 
@@ -457,10 +458,13 @@ class SC2Client:
             and int(fn_call.function) not in self._available_actions
         ):
             select_army_id = int(pysc2_actions.FUNCTIONS.select_army.id)
-            unit_targeted = fn_name in (
-                "Move_screen", "Attack_screen", "Harvest_Gather_screen",
-            )
-            if unit_targeted and select_army_id in self._available_actions:
+            selection_required = fn_name != "no_op" and not fn_name.startswith("select_")
+            no_units_selected = self._selected_count < 1.0
+            if (
+                selection_required
+                and no_units_selected
+                and select_army_id in self._available_actions
+            ):
                 self._blocked_unit_targeted_steps += 1
                 if (
                     self._blocked_unit_targeted_steps == 1
@@ -529,6 +533,7 @@ class SC2Client:
         feats: dict[str, float] = {}
         feats.update(self._player_features(ob))
         feats.update(self._selected_features(ob))
+        self._selected_count = float(feats.get("selected_count", 0.0))
         feats.update(self._screen_summary_features(feat_screen))
         feats.update(self._minimap_summary_features(feat_minimap))
         feats.update(self._score_features(ob))

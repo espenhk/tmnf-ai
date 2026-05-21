@@ -568,6 +568,7 @@ class _FakeFunctions:
     no_op       = _FakeFn(0)
     select_army = _FakeFn(7)
     Move_screen = _FakeFn(331)
+    Build_Barracks_screen = _FakeFn(321)
 
 
 class _FakeFunctionCall:
@@ -613,6 +614,7 @@ class TestSC2ClientActionFallback(unittest.TestCase):
                 0: _FakeFunctions.no_op.id,
                 1: _FakeFunctions.select_army.id,
                 2: _FakeFunctions.Move_screen.id,
+                8: _FakeFunctions.Build_Barracks_screen.id,
             }.get(fn_idx, _FakeFunctions.no_op.id)
             return _FakeFunctionCall(fn_id, [])
 
@@ -725,6 +727,26 @@ class TestSC2ClientActionFallback(unittest.TestCase):
         self.assertEqual(calls[0], _FakeFunctions.select_army.id)
         self.assertTrue(all(c == _FakeFunctions.no_op.id for c in calls[1:7]))
         self.assertEqual(calls[7], _FakeFunctions.select_army.id)
+
+    def test_build_action_with_no_units_selected_substitutes_select_army(self):
+        """Blocked build action should trigger selection recovery when empty."""
+        self.client._available_actions = {
+            _FakeFunctions.no_op.id, _FakeFunctions.select_army.id,
+        }
+        self.client._selected_count = 0.0
+        action = np.array([8, 0.4, 0.6, 0], dtype=np.float32)
+        call = self.client._action_to_call(action)
+        self.assertEqual(call.function, _FakeFunctions.select_army.id)
+
+    def test_does_not_substitute_select_army_when_units_are_already_selected(self):
+        """Blocked actions for other reasons should remain no_op fallback."""
+        self.client._available_actions = {
+            _FakeFunctions.no_op.id, _FakeFunctions.select_army.id,
+        }
+        self.client._selected_count = 2.0
+        action = np.array([8, 0.4, 0.6, 0], dtype=np.float32)
+        call = self.client._action_to_call(action)
+        self.assertEqual(call.function, _FakeFunctions.no_op.id)
 
 class TestSC2ClientAvailableFnIds(unittest.TestCase):
     """Tests for the info["available_fn_ids"] field added by _timestep_to_obs_info."""
