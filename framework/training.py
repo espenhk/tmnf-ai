@@ -231,7 +231,7 @@ def _run_episode(
         total_reward += reward
         steps += 1
         if live_monitor is not None:
-            live_monitor.on_step(next_obs, reward, info)
+            live_monitor.on_step(next_obs, reward, info, action=action)
 
         if not in_warmup:
             policy.update(prev_obs, action, reward, next_obs, terminated or truncated,
@@ -904,7 +904,7 @@ def _greedy_loop(
                 best_info_logged = best_info
             else:
                 _discard_candidate_replay(_winner_candidate)
-                verdict = (f"no improvement  +ε={r_plus:+.1f}  −ε={r_minus:+.1f}"
+                verdict = (f"no improvement  +ε={r_plus:+.1f}  -ε={r_minus:+.1f}"
                            f"  best={best_reward:+.1f}")
                 logger.info("  >> %s", verdict)
                 if log_stats_every_n_sims > 0 and sim % log_stats_every_n_sims == 0:
@@ -1542,7 +1542,7 @@ def train_rl(
         Game-specific extra policy types and loop dispatch.
     """
 
-    # ── unpack bundles into local scalars for internal helpers ────────
+    # ── unpack bundles into local scalars for internal helpers ────────────────────
     experiment_name  = game.experiment_name
     make_env_fn      = game.make_env_fn
     obs_spec         = game.obs_spec
@@ -1685,7 +1685,7 @@ def train_rl(
         else _extra_dispatch.get(policy_type)
     )
 
-    # ── intra-run parallel evaluation (issue #229) ────────────────────
+    # ── intra-run parallel evaluation (issue #229) ────────────────────────────
     evaluator = _maybe_build_evaluator(
         n_workers=int(training_params.get("n_workers", 1) or 1),
         policy_type=policy_type,
