@@ -613,12 +613,12 @@ class SC2Client:
                     for pid in self._available_actions
                     if pid in id_map
                 }
-        inferred_fn_ids = self._infer_fn_ids_from_units(ob)
-        if inferred_fn_ids is not None:
-            if available_fn_ids is None:
-                available_fn_ids = set(inferred_fn_ids)
-            else:
-                available_fn_ids &= inferred_fn_ids
+            inferred_fn_ids = self._infer_fn_ids_from_units(ob)
+            if inferred_fn_ids is not None:
+                if available_fn_ids is None:
+                    available_fn_ids = set(inferred_fn_ids)
+                else:
+                    available_fn_ids &= inferred_fn_ids
 
         # player_outcome is only meaningful for ladder maps where PySC2 emits
         # a terminal +1 / -1 / 0.  For minigames timestep.reward is a per-step
@@ -1294,11 +1294,17 @@ class SC2Client:
             if (
                 selected is None
                 or selected.size == 0
-                or selected.ndim != 2
-                or selected.shape[1] < 1
             ):
                 continue
-            for row in selected:
+            if selected.ndim == 1:
+                if selected.shape[0] < 1:
+                    continue
+                rows = selected[np.newaxis, :]
+            elif selected.ndim == 2 and selected.shape[1] >= 1:
+                rows = selected
+            else:
+                continue
+            for row in rows:
                 race = self._unit_type_id_to_race.get(int(row[0]))
                 if race is not None:
                     race_votes.add(race)
