@@ -306,6 +306,14 @@ class SC2Client:
         """Initialise the SC2 env and return the first observation + info."""
         if self._sc2_env is None:
             self._sc2_env = self._make_sc2_env()
+        elif self._is_ladder:
+            # PySC2's _restart() only calls leave() when there are multiple
+            # controllers, but a 1-Agent + Bot game has a single controller.
+            # Without leave(), the SC2 binary stays on the post-game end
+            # screen and may reject the RequestCreateGame that PySC2's
+            # _create_join() issues next.  Explicitly leave the current game
+            # so the binary returns to the lobby before reset() proceeds.
+            self._leave_ladder_game()
         timesteps = self._sc2_env.reset()
         self._cumulative_score = 0.0
         self._explored_mask = None
@@ -335,6 +343,34 @@ class SC2Client:
         if self._sc2_env is not None:
             self._sc2_env.close()
             self._sc2_env = None
+
+    def _leave_ladder_game(self) -> None:
+        """Leave the current ladder game so the SC2 binary returns to the lobby.
+
+        PySC2's ``SC2Env._restart()`` only issues ``RequestLeaveGame`` when
+        there are multiple controllers.  For a single-Agent + Bot game there
+        is one controller, so PySC2 skips ``leave()`` and calls
+        ``_create_join()`` directly.  Without the leave, the SC2 binary stays
+        on the post-game end screen and may reject ``RequestCreateGame``,
+        preventing automatic restart between episodes.
+
+        Calling ``leave()`` here moves the binary back to the ``launched``
+        state before PySC2's ``reset()`` triggers ``_create_join()``.
+        If ``leave()`` fails (e.g. the controller is already in a disconnected
+        state), the env is closed and recreated as a fallback.
+        """
+        try:
+            controllers = getattr(self._sc2_env, "_controllers", None) or []
+            for controller in controllers:
+                controller.leave()
+        except Exception as exc:
+            logger.warning(
+                "SC2Client: leave() before ladder reset raised %s; "
+                "closing the SC2 env to force a clean restart.",
+                exc,
+            )
+            self._sc2_env.close()
+            self._sc2_env = self._make_sc2_env()
 
     def save_replay(self, replay_dir: str, prefix: str) -> str | None:
         """Save the most recently played episode as an SC2 replay file.

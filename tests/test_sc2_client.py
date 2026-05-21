@@ -1483,5 +1483,139 @@ class TestSC2ClientRealtimeParam(unittest.TestCase):
         self.assertTrue(kwargs.get("realtime"), "realtime not forwarded to SC2Env")
 
 
+# ---------------------------------------------------------------------------
+# Issue: SC2 Simple64 doesn't restart when losing
+# SC2Client.reset() must call leave() on ladder env controllers before
+# PySC2's reset() triggers _create_join(), otherwise the SC2 binary can
+# stay on the game-over end screen and reject the new RequestCreateGame.
+# ---------------------------------------------------------------------------
+
+class TestSC2ClientLadderRestart(unittest.TestCase):
+    """SC2Client.reset() calls leave() on controllers for ladder maps."""
+
+    def _make_fake_env(self, controllers=None):
+        """Return a MagicMock that looks like a PySC2 SC2Env."""
+        from unittest.mock import MagicMock
+        fake_env = MagicMock()
+        if controllers is None:
+            fake_ctrl = MagicMock()
+            controllers = [fake_ctrl]
+        fake_env._controllers = controllers
+        # reset() returns a list of timesteps; we only use index 0.
+        fake_ts = MagicMock()
+        fake_ts.last.return_value = False
+        fake_env.reset.return_value = [fake_ts]
+        return fake_env
+
+    def _patch_make_env(self, client, fake_env):
+        """Replace client._make_sc2_env so it returns *fake_env*."""
+        from unittest.mock import MagicMock
+        client._make_sc2_env = MagicMock(return_value=fake_env)
+
+    def _make_ladder_client(self):
+        from games.sc2.client import SC2Client
+        return SC2Client(map_name="Simple64")
+
+    def _make_minigame_client(self):
+        from games.sc2.client import SC2Client
+        return SC2Client(map_name="MoveToBeacon")
+
+    def _patch_timestep_to_obs_info(self, client):
+        """Patch _timestep_to_obs_info to return (zeros_obs, {})."""
+        from unittest.mock import MagicMock
+        dummy_obs = np.zeros(LADDER_OBS_DIM, dtype=np.float32)
+        client._timestep_to_obs_info = MagicMock(return_value=(dummy_obs, {}))
+
+    def test_leave_not_called_on_first_ladder_reset(self):
+        """On the very first reset(), _sc2_env is None so no leave() needed."""
+        client = self._make_ladder_client()
+        fake_env = self._make_fake_env()
+        self._patch_make_env(client, fake_env)
+        self._patch_timestep_to_obs_info(client)
+
+        client.reset()
+
+        # _sc2_env was None → _make_sc2_env creates it, no leave() call.
+        client._make_sc2_env.assert_called_once()
+        for ctrl in fake_env._controllers:
+            ctrl.leave.assert_not_called()
+
+    def test_leave_called_on_second_ladder_reset(self):
+        """On subsequent resets for a ladder map, leave() is called once per
+        controller before PySC2's reset()."""
+        client = self._make_ladder_client()
+        fake_env = self._make_fake_env()
+        self._patch_make_env(client, fake_env)
+        self._patch_timestep_to_obs_info(client)
+
+        # First reset — creates the env.
+        client.reset()
+        ctrl = fake_env._controllers[0]
+        ctrl.leave.assert_not_called()
+
+        # Second reset — leave() must be called before _sc2_env.reset().
+        client.reset()
+        ctrl.leave.assert_called_once()
+        # And PySC2's reset() must also have been called (twice total).
+        self.assertEqual(fake_env.reset.call_count, 2)
+
+    def test_leave_called_for_each_controller(self):
+        """leave() is called on every controller when there are multiple."""
+        from unittest.mock import MagicMock
+        ctrl1, ctrl2 = MagicMock(), MagicMock()
+        client = self._make_ladder_client()
+        fake_env = self._make_fake_env(controllers=[ctrl1, ctrl2])
+        self._patch_make_env(client, fake_env)
+        self._patch_timestep_to_obs_info(client)
+
+        client.reset()  # first reset — no leave
+        client.reset()  # second reset — leave on both controllers
+
+        ctrl1.leave.assert_called_once()
+        ctrl2.leave.assert_called_once()
+
+    def test_leave_not_called_for_minigame_reset(self):
+        """Minigame (non-ladder) maps must not trigger leave() on reset."""
+        client = self._make_minigame_client()
+        fake_env = self._make_fake_env()
+        self._patch_make_env(client, fake_env)
+        self._patch_timestep_to_obs_info(client)
+
+        client.reset()
+        client.reset()
+
+        for ctrl in fake_env._controllers:
+            ctrl.leave.assert_not_called()
+
+    def test_leave_failure_triggers_env_recreate(self):
+        """If leave() raises, the env is closed and a new one is created."""
+        from unittest.mock import MagicMock
+        client = self._make_ladder_client()
+
+        ctrl = MagicMock()
+        ctrl.leave.side_effect = RuntimeError("connection lost")
+
+        fake_env_old = self._make_fake_env(controllers=[ctrl])
+        fake_env_new = self._make_fake_env()
+        self._patch_timestep_to_obs_info(client)
+
+        # _make_sc2_env returns old env on first call, new env on second.
+        client._make_sc2_env = MagicMock(side_effect=[fake_env_old, fake_env_new])
+
+        client.reset()  # first reset — creates old env
+
+        # Patch _timestep_to_obs_info on the client again after env swap.
+        client._timestep_to_obs_info = MagicMock(
+            return_value=(np.zeros(LADDER_OBS_DIM, dtype=np.float32), {})
+        )
+
+        client.reset()  # second reset — leave fails → old env closed, new env created
+
+        fake_env_old.close.assert_called_once()
+        self.assertIs(client._sc2_env, fake_env_new)
+        # PySC2's reset() on the new env must have been called.
+        fake_env_new.reset.assert_called_once()
+
+
 if __name__ == "__main__":
     unittest.main()
