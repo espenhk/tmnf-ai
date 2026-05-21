@@ -71,6 +71,18 @@ class TestDisplayHelpers(unittest.TestCase):
             "[+1.00, +2.00, +3.00, +4.00, +5.00, +6.00…]",
         )
 
+    def test_fmt_action_formats_tmnf_style_controls(self):
+        self.assertEqual(
+            _fmt_action([-0.5, 1.0, 0.25]),
+            "accel 100% / brake 25% | steer left 50%",
+        )
+
+    def test_fmt_action_formats_straight_steer(self):
+        self.assertEqual(
+            _fmt_action([0.0, 0.5, 0.0]),
+            "accel 50% / brake 0% | steer straight",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
