@@ -17,7 +17,18 @@ formatting, internal refactors with no behaviour change — can be skipped.
 
 ## [Unreleased]
 
+### Added
+- **iRacing telemetry integration** (`games/iracing/`): Phase 1 read-only
+  telemetry via `pyirsdk`.  21-dim observation (speed, RPM, gear, fuel,
+  tire loads/temps, brake bias, lap times, …), standard steer/accel/brake
+  action space, progress + centerline + off-track reward.  Registered as
+  `--game iracing` in `main.py` and `grid_search.py`.
 
+### Fixed
+- **SC2 action names**: Renamed `select_point_screen` → `select_point`
+  and `select_rect_screen` → `select_rect` in `FUNCTION_IDS` to match
+  actual PySC2 function names.  Fixes `KeyError` in integration tests
+  when epsilon-greedy or other policies select these actions.
 
 ---
 

@@ -14,7 +14,7 @@
   - [test\_distributed.py — coordinator/worker protocol + HTTP server](#test_distributedpy--coordinatorworker-protocol--http-server)
   - [test\_early\_stopping.py — early-stop logic in greedy + Q loops](#test_early_stoppingpy--early-stop-logic-in-greedy--q-loops)
   - [test\_env\_termination.py — `_classify_termination()`](#test_env_terminationpy--_classify_termination)
-  - [test\_game\_adapter.py — TMNF/TORCS/SC2/BeamNG adapter abstractions](#test_game_adapterpy--tmnftorcssc2beamng-adapter-abstractions)
+  - [test\_game\_adapter.py — TMNF/TORCS/SC2/BeamNG/iRacing adapter abstractions](#test_game_adapterpy--tmnftorcssc2beamngiracing-adapter-abstractions)
   - [test\_grid\_search.py — Cartesian-product expansion + naming](#test_grid_searchpy--cartesian-product-expansion--naming)
   - [test\_info\_gain.py — staleness-based intrinsic reward](#test_info_gainpy--staleness-based-intrinsic-reward)
   - [test\_live\_monitor.py — live GUI monitor helpers](#test_live_monitorpy--live-gui-monitor-helpers)
@@ -215,13 +215,14 @@ worker mechanics are unit-tested with a dummy env.
 ### test_env_termination.py — `_classify_termination()`
 - finish / crash / hard-crash / timeout / still-running; finish > crash priority; reason key always present
 
-### test_game_adapter.py — TMNF/TORCS/SC2/BeamNG adapter abstractions
+### test_game_adapter.py — TMNF/TORCS/SC2/BeamNG/iRacing adapter abstractions
 - registry: all games registered; adapter instantiable
 - TMNF: experiment_dir includes game/policy/track hierarchy, track override, track_label default+override, build_probe/build_warmup, decorate_reward_cfg
 - TORCS: experiment_dir root/dir includes game/policy/map hierarchy, track_label default+override, build_probe/warmup = None
 - SC2: experiment_dir includes game/policy/map hierarchy, track override, track_label, build_probe/warmup = None
 - BeamNG: experiment_dir / build_probe = None
 - AssettoCorsa: experiment_dir / build_probe = None
+- iRacing: experiment_dir, track_label default (laguna_seca) + override, build_probe/warmup = None
 
 (SC2 policy/param validation moved to test_policy_registry.py with the
 `compatible_with` hook in Phase D — `build_extras` was deleted.)
@@ -541,7 +542,7 @@ handful of iterations only).
 - probe actions count=5 / shape (4,) / include no_op; warmup shape (4,) / is select_army; function_ids table complete
 - SPATIAL_FN_IDS contains exactly the fn_ids whose names end in `_screen` or `_minimap`
 - `TestRaceGating` (9 tests): all four race keys exist in RACE_FUNCTION_IDS; each race's ids are a subset of FUNCTION_IDS; random race = all fn_ids; race-specific sets (_TERRAN / _PROTOSS / _ZERG) are pairwise disjoint; unknown race falls back to all fn_ids; Terran has Build_Barracks_screen (8) not Build_Nexus_screen (50); Protoss has Build_Nexus_screen (50) not Build_Barracks_screen (8); Zerg has Build_Hatchery_screen (82) not Build_Barracks_screen (8); all three named races include Move_screen (2) and no_op (0)
-- `TestActionToFunctionCall`: fake PySC2 module validates encoding branches — `_quick` emits queue-only args, `select_point_screen` and `select_rect_screen` emit screen coords, `_minimap` actions scale with `minimap_size` (not `screen_size`), and `_screen` actions keep using `screen_size`
+- `TestActionToFunctionCall`: fake PySC2 module validates encoding branches — `_quick` emits queue-only args, `select_point` and `select_rect` emit screen coords, `_minimap` actions scale with `minimap_size` (not `screen_size`), and `_screen` actions keep using `screen_size`
 
 ### test_sc2_reward.py — SC2 reward calc
 - defaults; from_yaml; unknown raises; loads bundled config
