@@ -242,7 +242,7 @@ worker mechanics are unit-tested with a dummy env.
 
 ### test_reward.py — TMNF reward calculator + curiosity glue
 - Config: defaults / custom / unknown-key raises / valid keys / partial keys
-- Components: progress / no-progress / centerline quadratic / on-center zero / finish bonus / over-par penalty / no-finish-no-bonus / accel bonus / step penalty / airborne / airborne above centreline
+- Components: progress / no-progress / centerline quadratic / on-center zero / finish bonus / over-par penalty / no-finish-no-bonus / accel bonus (requires actual speed gain) / accel bonus suppressed when stuck (speed unchanged) / step penalty / airborne / airborne above centreline
 - n_ticks scaling: centerline / speed / airborne / accel-bonus scale; finish-bonus + progress do *not* scale
 - Track fields: default name / centerline path / custom / from yaml / backward-compat / default config back-compat
 - Curiosity: ICM adds positive intrinsic / scales w/ n_ticks / skipped when obs missing / reset propagates / yaml accepts new keys

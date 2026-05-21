@@ -48,8 +48,9 @@ class RewardConfig:
     par_time_s:
         Reference lap time in seconds for the finish_time_weight calculation.
     accel_bonus:
-        Flat reward every step the throttle is pressed.
-        Prevents the policy from preferring coast actions.
+        Flat reward every step the throttle is pressed AND the car's speed
+        actually increased (curr speed > prev speed).  Prevents the policy
+        from preferring coast actions without rewarding wall-stuck spinning.
     airborne_penalty:
         Applied when the car has ≤1 wheel in contact AND vertical_offset ≤ 0
         (below or beside the centreline — not a legitimate jump).
@@ -181,8 +182,16 @@ class RewardCalculator(RewardCalculatorBase):
         components["speed"] = speed
 
         # Acceleration bonus: nudge the policy away from coasting.
+        # Only awarded when the throttle is pressed AND the car's speed actually
+        # increased this step (curr speed > prev speed), preventing rewards while
+        # the car is stuck against a wall and spinning.
         # Scaled by n_ticks because the action was held for that many game ticks.
-        accel_bonus = cfg.accel_bonus * n_ticks if accelerating else 0.0
+        accel_bonus = 0.0
+        if accelerating:
+            prev_speed = prev_state.velocity.magnitude()
+            curr_speed = curr_state.velocity.magnitude()
+            if curr_speed > prev_speed:
+                accel_bonus = cfg.accel_bonus * n_ticks
         components["accel_bonus"] = accel_bonus
 
         # Time cost: constant small penalty per tick, scaled by ticks covered.
