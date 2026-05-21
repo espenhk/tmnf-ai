@@ -14,7 +14,7 @@
   - [test\_distributed.py — coordinator/worker protocol + HTTP server](#test_distributedpy--coordinatorworker-protocol--http-server)
   - [test\_early\_stopping.py — early-stop logic in greedy + Q loops](#test_early_stoppingpy--early-stop-logic-in-greedy--q-loops)
   - [test\_env\_termination.py — `_classify_termination()`](#test_env_terminationpy--_classify_termination)
-  - [test\_game\_adapter.py — TMNF/TORCS/SC2/BeamNG adapter abstractions](#test_game_adapterpy--tmnftorcssc2beamng-adapter-abstractions)
+  - [test\_game\_adapter.py — TMNF/TORCS/SC2/BeamNG/iRacing adapter abstractions](#test_game_adapterpy--tmnftorcssc2beamngiracing-adapter-abstractions)
   - [test\_grid\_search.py — Cartesian-product expansion + naming](#test_grid_searchpy--cartesian-product-expansion--naming)
   - [test\_info\_gain.py — staleness-based intrinsic reward](#test_info_gainpy--staleness-based-intrinsic-reward)
   - [test\_live\_monitor.py — live GUI monitor helpers](#test_live_monitorpy--live-gui-monitor-helpers)
@@ -67,7 +67,7 @@
   - [test\_sc2\_simple64\_training.py — Simple64 ladder integration](#test_sc2_simple64_trainingpy--simple64-ladder-integration)
   - [test\_sc2\_analytics.py — SC2-specific analytics plots and flags](#test_sc2_analyticspy--sc2-specific-analytics-plots-and-flags)
 - [Rocket League](#rocket-league)
-  - [test\_rocket\_league\_obs\_spec.py — Rocket League observation spec (70-dim)](#test_rocket_league_obs_specpy--rocket-league-observation-spec-70-dim)
+  - [test\_rocket\_league\_obs\_spec.py — Rocket League observation spec (142-dim)](#test_rocket_league_obs_specpy--rocket-league-observation-spec-142-dim)
   - [test\_rocket\_league\_reward.py — Rocket League reward calc](#test_rocket_league_rewardpy--rocket-league-reward-calc)
   - [test\_rocket\_league\_env.py — Rocket League env wrapper (mocked rlgym)](#test_rocket_league_envpy--rocket-league-env-wrapper-mocked-rlgym)
 - [CLI / misc](#cli--misc)
@@ -219,13 +219,14 @@ worker mechanics are unit-tested with a dummy env.
 ### test_env_termination.py — `_classify_termination()`
 - finish / crash / hard-crash / timeout / still-running; finish > crash priority; reason key always present
 
-### test_game_adapter.py — TMNF/TORCS/SC2/BeamNG adapter abstractions
+### test_game_adapter.py — TMNF/TORCS/SC2/BeamNG/iRacing adapter abstractions
 - registry: all games registered; adapter instantiable
 - TMNF: experiment_dir includes game/policy/track hierarchy, track override, track_label default+override, build_probe/build_warmup, decorate_reward_cfg
 - TORCS: experiment_dir root/dir includes game/policy/map hierarchy, track_label default+override, build_probe/warmup = None
 - SC2: experiment_dir includes game/policy/map hierarchy, track override, track_label, build_probe/warmup = None
 - BeamNG: experiment_dir / build_probe = None
 - AssettoCorsa: experiment_dir / build_probe = None
+- iRacing: experiment_dir, track_label default (laguna_seca) + override, build_probe/warmup = None
 
 (SC2 policy/param validation moved to test_policy_registry.py with the
 `compatible_with` hook in Phase D — `build_extras` was deleted.)
@@ -545,7 +546,7 @@ handful of iterations only).
 - probe actions count=5 / shape (4,) / include no_op; warmup shape (4,) / is select_army; function_ids table complete
 - SPATIAL_FN_IDS contains exactly the fn_ids whose names end in `_screen` or `_minimap`
 - `TestRaceGating` (9 tests): all four race keys exist in RACE_FUNCTION_IDS; each race's ids are a subset of FUNCTION_IDS; random race = all fn_ids; race-specific sets (_TERRAN / _PROTOSS / _ZERG) are pairwise disjoint; unknown race falls back to all fn_ids; Terran has Build_Barracks_screen (8) not Build_Nexus_screen (50); Protoss has Build_Nexus_screen (50) not Build_Barracks_screen (8); Zerg has Build_Hatchery_screen (82) not Build_Barracks_screen (8); all three named races include Move_screen (2) and no_op (0)
-- `TestActionToFunctionCall`: fake PySC2 module validates encoding branches — `_quick` emits queue-only args, `select_point_screen` and `select_rect_screen` emit screen coords, `_minimap` actions scale with `minimap_size` (not `screen_size`), and `_screen` actions keep using `screen_size`
+- `TestActionToFunctionCall`: fake PySC2 module validates encoding branches — `_quick` emits queue-only args, `select_point` and `select_rect` emit screen coords, `_minimap` actions scale with `minimap_size` (not `screen_size`), and `_screen` actions keep using `screen_size`
 
 ### test_sc2_reward.py — SC2 reward calc
 - defaults; from_yaml; unknown raises; loads bundled config
@@ -714,21 +715,22 @@ handful of iterations only).
 
 `games/rocket_league/` — single-agent RL for Rocket League via RLGym.
 
-**Tested.** The 70-dim observation spec (all groups: self car, ball, opponent,
-relative features, boost pads); the reward calculator (velocity-to-ball dense
+**Tested.** The 142-dim observation spec (self car, ball, 2 teammates,
+3 opponents, relative features, boost pads); the reward calculator (velocity-to-ball dense
 shaping, one-shot touch bonus that resets each episode, goal-scored /
 goal-conceded sparse rewards, step penalty, combined additive total); and the
 env wrapper (obs/action spaces, episode time-limit get/set, step 5-tuple, info
-dict keys, boost detection from action[6], timeout truncation, close delegation)
+dict keys, boost detection from action[6], timeout truncation, close delegation,
+tick_skip forwarding incl. `team_size=3`)
 — all exercised against a mocked `rlgym` so no Rocket League install is required.
 
 **Not tested.** The actual RLGym + Bakkesmod + Rocket League binary plumbing;
 real episode rollouts and goal-detection signals from the game process; the
 `vel_towards_ball` computation accuracy against live game data.
 
-### test_rocket_league_obs_spec.py — Rocket League observation spec (70-dim)
-- ObsSpec instance; dim matches base; dim=70; names length; scales shape+positive; obs_spec_list match; names unique; first=car_pos_x; boost_amount present; ball features present; opponent features present; relative features present; boost pad features present (10)
-- car features are indices 0–17; ball features are 18–26; opponent features are 27–44; boost pads are 60–69
+### test_rocket_league_obs_spec.py — Rocket League observation spec (142-dim)
+- ObsSpec instance; dim matches base; dim=142; names length; scales shape+positive; obs_spec_list match; names unique; first=car_pos_x; boost_amount present; ball/friendly/opponent features present; relative features present; boost pad features present (10)
+- car features are indices 0–17; ball features are 18–26; teammates are 27–62; opponents are 63–116; boost pads are 132–141
 - with_zero_lidar same; with_lidar extends dim
 
 ### test_rocket_league_reward.py — Rocket League reward calc
@@ -737,6 +739,7 @@ real episode rollouts and goal-detection signals from the game process; the
 
 ### test_rocket_league_env.py — Rocket League env wrapper (mocked rlgym)
 - obs/action space shape+bounds; episode time-limit get/set; reset obs+info; step 5-tuple; info keys; boost flag from action[6]; timeout truncation; close delegates to rlgym env
+- tick_skip is forwarded from env/factory into `rlgym.make(..., team_size=3, self_play=False)`
 - discrete actions shape (≥9, 8-dim); probe count=6, shape; warmup shape; action bounds respected
 
 ## CLI / misc
@@ -747,7 +750,7 @@ enough to only have a smoke test.
 **Tested.** That `main.py --game <name>` accepts every supported choice,
 rejects unknown ones, exposes the option in `--help`, accepts `--track`,
 and dispatches to the right runner per game (`run_one` for tmnf / beamng /
-car_racing / torcs / sc2, `run_assetto` for assetto, with a clear error
+car_racing / torcs / sc2 / rocket_league / iracing, `run_assetto` for assetto, with a clear error
 when the optional dependency is missing); that the Assetto Corsa adapter's
 obs spec, env wrapper, reward calc and a 5-episode training loop all run
 against a stubbed client.

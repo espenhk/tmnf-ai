@@ -197,12 +197,12 @@ class TestRocketLeagueEnvStepLogic(unittest.TestCase):
 
     def test_tick_skip_forwarded_to_rlgym_make(self):
         _make_env(tick_skip=12)
-        _mock_rlgym.make.assert_called_with(tick_skip=12, team_size=1, self_play=False)
+        _mock_rlgym.make.assert_called_with(tick_skip=12, team_size=3, self_play=False)
 
     def test_make_env_factory_forwards_tick_skip(self):
         from games.rocket_league.env import make_env
         make_env(experiment_dir=".", tick_skip=10)
-        _mock_rlgym.make.assert_called_with(tick_skip=10, team_size=1, self_play=False)
+        _mock_rlgym.make.assert_called_with(tick_skip=10, team_size=3, self_play=False)
 
 
 class TestRocketLeagueActions(unittest.TestCase):

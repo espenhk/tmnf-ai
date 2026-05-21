@@ -38,8 +38,8 @@ Action-call encoding by fn_name pattern (see ``action_to_function_call``)
 - ``no_op``                  → ``FunctionCall(fn_id, [])``
 - ``select_army`` / ``select_idle_worker``
                              → ``FunctionCall(fn_id, [[0]])``
-- ``select_point_screen``    → ``FunctionCall(fn_id, [[0], [sx, sy]])``
-- ``select_rect_screen``     → ``FunctionCall(fn_id, [[0], [sx,sy],[sx,sy]])``
+- ``select_point``            → ``FunctionCall(fn_id, [[0], [sx, sy]])``
+- ``select_rect``             → ``FunctionCall(fn_id, [[0], [sx,sy],[sx,sy]])``
   (degenerate rect = single-point click)
 - names ending in ``_quick`` (all train/morph/ability quick-casts)
                              → ``FunctionCall(fn_id, [[queue]])``
@@ -78,7 +78,7 @@ FUNCTION_IDS = {
     4: "select_idle_worker",
     5: "Harvest_Gather_screen",
     # --- issue #276 (initial 5): BuildMarines / Simple64 basics ---
-    6: "select_point_screen",
+    6: "select_point",
     7: "Train_Marine_quick",
     8: "Build_Barracks_screen",
     9: "Build_SupplyDepot_screen",
@@ -92,7 +92,7 @@ FUNCTION_IDS = {
     15: "Stop_quick",
     16: "Attack_minimap",
     # selection / logistics
-    17: "select_rect_screen",
+    17: "select_rect",
     18: "Harvest_Return_quick",
     19: "Rally_Units_screen",
     20: "Rally_Workers_screen",
@@ -211,6 +211,7 @@ SPATIAL_FN_IDS: frozenset[int] = frozenset(
     fn_idx
     for fn_idx, name in FUNCTION_IDS.items()
     if name.endswith("_screen") or name.endswith("_minimap")
+    or name in ("select_point", "select_rect")
 )
 
 # ---------------------------------------------------------------------------
@@ -227,14 +228,14 @@ _UNIVERSAL_FN_IDS: frozenset[int] = frozenset({
     3,   # Attack_screen
     4,   # select_idle_worker
     5,   # Harvest_Gather_screen
-    6,   # select_point_screen
+    6,   # select_point
     11,  # Move_minimap
     12,  # Patrol_screen
     13,  # Patrol_minimap
     14,  # HoldPosition_quick
     15,  # Stop_quick
     16,  # Attack_minimap
-    17,  # select_rect_screen
+    17,  # select_rect
     18,  # Harvest_Return_quick
     19,  # Rally_Units_screen
     20,  # Rally_Workers_screen
@@ -321,7 +322,7 @@ def _build_discrete_actions(resolution: int) -> np.ndarray:
     rows: list[list[float]] = []
     for fn_idx in sorted(FUNCTION_IDS.keys()):
         name = FUNCTION_IDS[fn_idx]
-        if name.endswith("_screen") or name.endswith("_minimap"):
+        if fn_idx in SPATIAL_FN_IDS:
             for x, y in centres:
                 rows.append([fn_idx, x, y, 0])
         else:
@@ -425,8 +426,8 @@ def action_to_function_call(
     - ``no_op``                → ``FunctionCall(fn_id, [])``
     - ``select_army`` / ``select_idle_worker``
                                → ``FunctionCall(fn_id, [[0]])``
-    - ``select_point_screen``  → ``FunctionCall(fn_id, [[0], [sx, sy]])``
-    - ``select_rect_screen``   → ``FunctionCall(fn_id, [[0], [sx,sy],[sx,sy]])``
+    - ``select_point``          → ``FunctionCall(fn_id, [[0], [sx, sy]])``
+    - ``select_rect``           → ``FunctionCall(fn_id, [[0], [sx,sy],[sx,sy]])``
     - names ending in ``_quick`` (train/morph/ability)
                                → ``FunctionCall(fn_id, [[queue]])``
     - all other spatial actions (``_screen`` / ``_minimap``)
@@ -450,10 +451,10 @@ def action_to_function_call(
         return actions.FunctionCall(fn_id, [])
     if name in ("select_army", "select_idle_worker"):
         return actions.FunctionCall(fn_id, [[0]])
-    if name == "select_point_screen":
+    if name == "select_point":
         # select_point_act=0: single-unit click (not add/toggle).
         return actions.FunctionCall(fn_id, [[0], [sx, sy]])
-    if name == "select_rect_screen":
+    if name == "select_rect":
         # Degenerate rect (start == end) acts as a single-point click.
         return actions.FunctionCall(fn_id, [[0], [sx, sy], [sx, sy]])
     if name.endswith("_quick"):

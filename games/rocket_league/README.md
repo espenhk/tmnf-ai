@@ -60,23 +60,24 @@ without affecting other runs.
 
 ---
 
-## Observation space (70 floats, float32)
+## Observation space (142 floats, float32)
 
 | Index range | Group | Description |
 |---|---|---|
 | 0–17  | **Self car** | pos x/y/z, vel x/y/z, ang\_vel x/y/z, forward x/y/z, up x/y/z, on\_ground, has\_flip, boost\_amount |
 | 18–26 | **Ball** | pos x/y/z, vel x/y/z, ang\_vel x/y/z |
-| 27–44 | **Opponent car (single)** | same layout as self car |
-| 45–47 | **Relative ball position** | ball\_pos − car\_pos |
-| 48–50 | **Relative ball velocity** | ball\_vel − car\_vel |
-| 51    | `dist_to_ball` | Euclidean distance from car to ball |
-| 52    | `vel_towards_ball` | Signed velocity component towards ball |
-| 53–56 | **Goal distances** | Ball/car to opponent/own goal |
-| 57–59 | **Relative opponent pos** | opp\_pos − car\_pos |
-| 60–69 | **Boost pads** | Binary availability of 10 nearest pads |
-
-Current scope: one controlled car vs one opponent car. Friendly teammate cars are
-not included in the observation yet (3v3/self-play support is deferred).
+| 27–44 | **Friendly 1** | same layout as self car |
+| 45–62 | **Friendly 2** | same layout as self car |
+| 63–80 | **Opponent 1** | same layout as self car |
+| 81–98 | **Opponent 2** | same layout as self car |
+| 99–116 | **Opponent 3** | same layout as self car |
+| 117–119 | **Relative ball position** | ball\_pos − car\_pos |
+| 120–122 | **Relative ball velocity** | ball\_vel − car\_vel |
+| 123    | `dist_to_ball` | Euclidean distance from car to ball |
+| 124    | `vel_towards_ball` | Signed velocity component towards ball |
+| 125–128 | **Goal distances** | Ball/car to opponent/own goal |
+| 129–131 | **Relative opponent 1 pos** | opp1\_pos − car\_pos |
+| 132–141 | **Boost pads** | Binary availability of 10 nearest pads |
 
 See `games/rocket_league/obs_spec.py` for the full spec with normalisation
 scales.
@@ -136,9 +137,10 @@ scales.
 
 ## Multi-agent / self-play
 
-This integration is scoped to **single-agent vs built-in bot**.  Team play
-and self-play are deferred to future issues that will extend the
-`distributed/` coordinator with a "pair workers" mode.
+This integration remains **single controlled agent**, but now runs with
+`team_size=3` and exposes teammate/opponent slots in the observation
+(2 friendlies + 3 opponents). Teammate and opponent behaviour is provided by
+the simulator, not separate learned policies in this module.
 
 ---
 

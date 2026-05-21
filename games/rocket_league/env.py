@@ -14,7 +14,7 @@ with setup guidance.
 
 Observation
 -----------
-70 float32 values — see ``games.rocket_league.obs_spec`` for the full spec.
+142 float32 values — see ``games.rocket_league.obs_spec`` for the full spec.
 
 Action
 ------
@@ -108,7 +108,7 @@ class RocketLeagueEnv(BaseGameEnv):
         # Build RLGym environment.
         self._env = rlgym.make(
             tick_skip=tick_skip,
-            team_size=1,
+            team_size=3,
             self_play=False,
         )
 
@@ -219,7 +219,7 @@ class RocketLeagueEnv(BaseGameEnv):
     # ------------------------------------------------------------------
 
     def _parse_obs(self, raw_obs: Any) -> np.ndarray:
-        """Convert raw RLGym observation to our 70-dim vector."""
+        """Convert raw RLGym observation to our fixed-size vector."""
         arr = np.zeros(BASE_OBS_DIM, dtype=np.float32)
         if raw_obs is not None:
             raw = np.asarray(raw_obs, dtype=np.float32).ravel()
@@ -231,8 +231,8 @@ class RocketLeagueEnv(BaseGameEnv):
         """Return the car's velocity component directed towards the ball (UU/s)."""
         # car velocity: indices 3–5
         car_vel = obs[3:6]
-        # relative ball pos: indices 45–47 (already ball_pos - car_pos)
-        rel_ball = obs[45:48]
+        # relative ball pos: indices 117–119 (already ball_pos - car_pos)
+        rel_ball = obs[117:120]
         dist = float(np.linalg.norm(rel_ball))
         if dist < 1e-6:
             return 0.0

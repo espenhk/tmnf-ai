@@ -22,8 +22,8 @@ class TestRocketLeagueObsSpec(unittest.TestCase):
     def test_dim_matches_base(self):
         self.assertEqual(ROCKET_LEAGUE_OBS_SPEC.dim, BASE_OBS_DIM)
 
-    def test_dim_is_70(self):
-        self.assertEqual(BASE_OBS_DIM, 70)
+    def test_dim_is_142(self):
+        self.assertEqual(BASE_OBS_DIM, 142)
 
     def test_names_length(self):
         self.assertEqual(len(OBS_NAMES), BASE_OBS_DIM)
@@ -55,7 +55,11 @@ class TestRocketLeagueObsSpec(unittest.TestCase):
             self.assertIn(name, OBS_NAMES)
 
     def test_opponent_features_present(self):
-        for name in ("opp_pos_x", "opp_pos_y", "opp_pos_z"):
+        for name in ("opp1_pos_x", "opp2_pos_x", "opp3_pos_x"):
+            self.assertIn(name, OBS_NAMES)
+
+    def test_friendly_features_present(self):
+        for name in ("mate1_pos_x", "mate2_pos_x"):
             self.assertIn(name, OBS_NAMES)
 
     def test_relative_features_present(self):
@@ -76,13 +80,17 @@ class TestRocketLeagueObsSpec(unittest.TestCase):
         self.assertEqual(OBS_NAMES[18], "ball_pos_x")
         self.assertEqual(OBS_NAMES[26], "ball_ang_vel_z")
 
-    def test_opponent_features_are_indices_27_to_44(self):
-        self.assertEqual(OBS_NAMES[27], "opp_pos_x")
-        self.assertEqual(OBS_NAMES[44], "opp_boost")
+    def test_teammate_features_are_indices_27_to_62(self):
+        self.assertEqual(OBS_NAMES[27], "mate1_pos_x")
+        self.assertEqual(OBS_NAMES[62], "mate2_boost")
+
+    def test_opponent_features_are_indices_63_to_116(self):
+        self.assertEqual(OBS_NAMES[63], "opp1_pos_x")
+        self.assertEqual(OBS_NAMES[116], "opp3_boost")
 
     def test_boost_pad_features_are_last_10(self):
-        self.assertEqual(OBS_NAMES[60], "boost_pad_0")
-        self.assertEqual(OBS_NAMES[69], "boost_pad_9")
+        self.assertEqual(OBS_NAMES[132], "boost_pad_0")
+        self.assertEqual(OBS_NAMES[141], "boost_pad_9")
 
     def test_with_zero_lidar_returns_same(self):
         spec = ROCKET_LEAGUE_OBS_SPEC.with_lidar(0)

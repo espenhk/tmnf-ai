@@ -19,8 +19,9 @@ formatting, internal refactors with no behaviour change — can be skipped.
 
 ### Added
 - **Rocket League integration** (`--game rocket_league`): single-agent RL via
-  [RLGym](https://rlgym.org/).  70-dim observation (car/ball/opponent state +
-  relative features + boost pad availability), 8-dim continuous action space
+  [RLGym](https://rlgym.org/).  142-dim observation (car/ball + 2 teammate
+  cars + 3 opponent cars + relative features + boost pad availability),
+  8-dim continuous action space
   (throttle/steer/pitch/yaw/roll/jump/boost/handbrake), and a dense+sparse
   reward calculator (velocity-to-ball, ball touch, goal scored/conceded).
   Requires Rocket League (commercial, Windows) + Bakkesmod + `pip install rlgym`.
@@ -39,8 +40,26 @@ formatting, internal refactors with no behaviour change — can be skipped.
 - **Rocket League reward scaling**: `vel_towards_ball` no longer re-scales
   observation entries in `RocketLeagueEnv._compute_vel_towards_ball()`, avoiding
   inflated dense reward from double-scaling.
+- **Rocket League team support**: env now uses `team_size=3` and observation
+  slots for 3 opponents + 2 friendlies, enabling 3v3-state training inputs.
 
 
+---
+
+## [0.2.1] - 2026-05-21
+
+### Added
+- **iRacing telemetry integration** (`games/iracing/`): Phase 1 read-only
+  telemetry via `pyirsdk`.  21-dim observation (speed, RPM, gear, fuel,
+  tire loads/temps, brake bias, lap times, …), standard steer/accel/brake
+  action space, progress + centerline + off-track reward.  Registered as
+  `--game iracing` in `main.py` and `grid_search.py`.
+
+### Fixed
+- **SC2 action names**: Renamed `select_point_screen` → `select_point`
+  and `select_rect_screen` → `select_rect` in `FUNCTION_IDS` to match
+  actual PySC2 function names.  Fixes `KeyError` in integration tests
+  when epsilon-greedy or other policies select these actions.
 
 ---
 
