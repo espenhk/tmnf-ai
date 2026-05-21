@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import logging
 import os
+import warnings
 from typing import TYPE_CHECKING
 
 import yaml
@@ -221,10 +222,22 @@ def _load_champion_policy(
         return policy
 
     if policy_type == "neural_dqn":
+        warnings.warn(
+            "Bare-name policy_type 'neural_dqn' is deprecated for SC2. "
+            "Use 'sc2_neural_dqn' in training configs. Loading legacy champion for play only.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         from games.sc2.sc2_policies import SC2NeuralDQNPolicy
         return SC2NeuralDQNPolicy.from_cfg(cfg, obs_spec)
 
     if policy_type == "reinforce":
+        warnings.warn(
+            "Bare-name policy_type 'reinforce' is deprecated for SC2. "
+            "Use 'sc2_reinforce' in training configs. Loading legacy champion for play only.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         if (
             any(k in cfg for k in ("weights", "biases", "baseline_value"))
             and "trunk_weights" not in cfg
@@ -237,6 +250,12 @@ def _load_champion_policy(
         return SC2REINFORCEPolicy.from_cfg(cfg, obs_spec)
 
     if policy_type == "lstm":
+        warnings.warn(
+            "Bare-name policy_type 'lstm' is deprecated for SC2. "
+            "Use 'sc2_lstm' in training configs. Loading legacy champion for play only.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         if any(k in cfg for k in ("W_fn", "W_x", "W_y", "W_queue")):
             raise SystemExit(
                 "Unsupported legacy SC2 bare-name 'lstm' weights format detected. "

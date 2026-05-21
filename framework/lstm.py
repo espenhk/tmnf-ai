@@ -304,6 +304,8 @@ class LSTMEvolutionPolicy(BasePolicy):
 
         self._template: _LSTMIndividual = _template if _template is not None else LSTMCore(obs_spec=obs_spec, hidden_size=hidden_size)
         self._flat_dim = self._template.flat_dim
+        self._hidden_size = getattr(self._template, "_hidden_size", hidden_size)
+        self._obs_dim_cfg = getattr(self._template, "_obs_dim", obs_spec.dim)
         self._mean     = self._template.to_flat().astype(np.float64)
 
         mu             = self._lam // 2
@@ -436,10 +438,10 @@ class LSTMEvolutionPolicy(BasePolicy):
     def to_cfg(self) -> dict:
         return {
             "policy_type":     "lstm",
-            "hidden_size":     self._template._hidden_size,
+            "hidden_size":     self._hidden_size,
             "population_size": self._lam,
             "sigma":           float(self._sigma),
-            "obs_dim":         self._template._obs_dim,
+            "obs_dim":         self._obs_dim_cfg,
             "champion_reward": float(self._champion_reward),
         }
 

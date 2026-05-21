@@ -112,9 +112,15 @@ def _make_policy(
 ) -> BasePolicy:
     """Construct a policy via POLICY_REGISTRY, after a game-compatibility check."""
     if game_name == "sc2" and policy_type in _SC2_REMOVED_BARE_POLICY_TYPES:
+        sc2_compatible = sorted(
+            name for name, cls in POLICY_REGISTRY.items()
+            if name not in _SC2_REMOVED_BARE_POLICY_TYPES
+            and cls.compatible_with("sc2")[0]
+        )
         raise ValueError(
-            f"Unknown policy_type: {policy_type!r}. "
-            f"Registered: {sorted(POLICY_REGISTRY)}"
+            f"policy_type {policy_type!r} is not valid for game 'sc2'. "
+            f"Use the sc2_-prefixed equivalent (e.g. 'sc2_{policy_type}'). "
+            f"SC2-compatible types: {sc2_compatible}"
         )
     cls = _resolve_policy_class(policy_type)
     _assert_policy_compatible(cls, policy_type, game_name)

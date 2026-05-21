@@ -77,9 +77,9 @@ class MyGamePolicy(BasePolicy):
 ```python
 from framework.replay import ReplayBuffer, MaskedReplayBuffer
 
-buf = ReplayBuffer(capacity=10_000, obs_dim=15, action_dim=9)
-buf.add(obs, action_idx, reward, next_obs, done)
-sample = buf.sample(batch_size=64)   # dict with "obs", "action", "reward", …
+buf = ReplayBuffer(maxlen=10_000)
+buf.push(obs, action_idx, reward, next_obs, done)
+obs_b, act_b, rew_b, next_b, done_b = buf.sample(batch_size=64)
 ```
 
 `MaskedReplayBuffer` extends `ReplayBuffer` with a boolean `mask` column for

@@ -97,6 +97,7 @@ class DQNPolicy(BasePolicy):
         self._gamma       = float(gamma)
         self._avail_fn    = available_actions_fn
         self._seed        = seed
+        self._rng         = np.random.default_rng(seed)
 
         self._masked      = available_actions_fn is not None
         if self._masked:
@@ -290,11 +291,11 @@ class DQNPolicy(BasePolicy):
     def __call__(self, obs: np.ndarray) -> np.ndarray:
         if self._masked:
             mask = self._cached_mask
-            if np.random.random() < self._eps:
+            if self._rng.random() < self._eps:
                 available = np.where(mask)[0]
                 if len(available) == 0:
                     available = np.arange(self._n_actions)
-                return self._actions[np.random.choice(available)].copy()
+                return self._actions[self._rng.choice(available)].copy()
             obs_norm = (obs / self._scales).astype(np.float32)
             q = self._q_values(self._online, obs_norm).copy()
             q[~mask] = -np.inf
@@ -302,8 +303,8 @@ class DQNPolicy(BasePolicy):
                 q = self._q_values(self._online, obs_norm)
             return self._actions[int(np.argmax(q))].copy()
         else:
-            if np.random.random() < self._eps:
-                return self._actions[np.random.randint(self._n_actions)].copy()
+            if self._rng.random() < self._eps:
+                return self._actions[self._rng.integers(self._n_actions)].copy()
             obs_norm = (obs / self._scales).astype(np.float32)
             q        = self._q_values(self._online, obs_norm)
             return self._actions[int(np.argmax(q))].copy()
@@ -338,10 +339,10 @@ class DQNPolicy(BasePolicy):
 
         if len(self._replay) >= self._min_replay:
             if self._masked:
-                obs_b, act_b, rew_b, next_b, done_b, mask_b = self._replay.sample(self._batch_size)  # type: ignore[misc]
+                obs_b, act_b, rew_b, next_b, done_b, mask_b = self._replay.sample(self._batch_size, rng=self._rng)  # type: ignore[misc]
                 self._gradient_step(obs_b, act_b, rew_b, next_b, done_b, mask_b)
             else:
-                obs_b, act_b, rew_b, next_b, done_b = self._replay.sample(self._batch_size)
+                obs_b, act_b, rew_b, next_b, done_b = self._replay.sample(self._batch_size, rng=self._rng)
                 self._gradient_step(obs_b, act_b, rew_b, next_b, done_b)
 
     def on_episode_end(self) -> None:

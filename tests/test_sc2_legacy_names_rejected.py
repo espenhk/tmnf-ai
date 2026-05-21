@@ -26,9 +26,9 @@ def _import_policy_modules() -> None:
     ],
 )
 def test_sc2_bare_name_rejected(tmp_path, legacy_name: str, expected_sc2_name: str):
-    """SC2 bare-name legacy policy_type values should fail with Unknown policy_type."""
+    """SC2 bare-name legacy policy_type values should fail with not valid for game 'sc2'."""
     _import_policy_modules()
-    with pytest.raises(ValueError, match=rf"Unknown policy_type: '{legacy_name}'") as exc:
+    with pytest.raises(ValueError, match=rf"policy_type '{legacy_name}' is not valid for game 'sc2'") as exc:
         _make_policy(
             legacy_name,
             obs_spec=SC2_MINIGAME_OBS_SPEC,

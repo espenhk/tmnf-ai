@@ -112,6 +112,7 @@ class REINFORCEPolicy(BasePolicy):
         # Attributes accessed by tests and downstream code
         self._obs_dim = obs_spec.dim
         self._scales  = obs_spec.scales
+        self._rng     = np.random.default_rng(seed)
 
         self._weights, self._biases = self._build_net(seed)
 
@@ -197,10 +198,10 @@ class REINFORCEPolicy(BasePolicy):
             else:
                 masked = self._available_mask.astype(np.float32)
                 masked = masked / float(masked.sum())
-            action_idx   = int(np.random.choice(self._output_dim, p=masked))
+            action_idx   = int(self._rng.choice(self._output_dim, p=masked))
             stored_probs = masked
         else:
-            action_idx   = int(np.random.choice(self._output_dim, p=probs))
+            action_idx   = int(self._rng.choice(self._output_dim, p=probs))
             stored_probs = probs.copy()
         self._ep_grads.append((l_in, pre_r, stored_probs, action_idx))
         return self._action_decoder(action_idx).copy()
