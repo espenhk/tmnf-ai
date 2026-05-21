@@ -17,6 +17,11 @@ formatting, internal refactors with no behaviour change — can be skipped.
 
 ## [Unreleased]
 
+
+---
+
+## [0.2.1] - 2026-05-21
+
 ### Added
 - **iRacing telemetry integration** (`games/iracing/`): Phase 1 read-only
   telemetry via `pyirsdk`.  21-dim observation (speed, RPM, gear, fuel,
