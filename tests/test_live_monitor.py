@@ -8,7 +8,9 @@ from collections import deque
 from framework.live_monitor import (
     _classify_observation_features,
     _derive_step_components,
+    _fmt_action,
     _rolling_means,
+    _reward_sort_key,
 )
 
 
@@ -53,6 +55,21 @@ class TestObservationClassification(unittest.TestCase):
         self.assertIn("screen_enemy", [base for base, _ in groups.quads])
         speed_idx = names.index("speed_ms")
         self.assertIn(speed_idx, groups.scalar_idxs)
+
+
+class TestDisplayHelpers(unittest.TestCase):
+    def test_reward_sort_key_keeps_known_order_and_sorts_unknowns_alphabetically(self):
+        names = ["z_bonus", "step_penalty", "a_bonus", "progress_weight"]
+        self.assertEqual(
+            sorted(names, key=_reward_sort_key),
+            ["progress_weight", "step_penalty", "a_bonus", "z_bonus"],
+        )
+
+    def test_fmt_action_truncates_long_vectors_after_six_values(self):
+        self.assertEqual(
+            _fmt_action([1, 2, 3, 4, 5, 6, 7]),
+            "[+1.00, +2.00, +3.00, +4.00, +5.00, +6.00…]",
+        )
 
 
 if __name__ == "__main__":

@@ -23,6 +23,34 @@ formatting, internal refactors with no behaviour change — can be skipped.
 
 ---
 
+## [0.1.3] - 2026-05-20
+
+### Fixed
+- SC2: agents on BuildMarines, Simple64, and every other non-movement map were
+  unable to train units, construct buildings, or issue any race-specific command
+  because `FUNCTION_IDS` only contained 6 entries (movement + harvest).
+  `FUNCTION_IDS` now covers all 118 Terran, Protoss, and Zerg build / train /
+  morph / ability commands used in standard PySC2 play (fn_idx 0–117).
+  `SPATIAL_FN_IDS` is auto-derived as the frozenset of fn_ids whose names end in
+  `_screen` or `_minimap` (55 entries); every spatial function now gets a full
+  `N×N` (`SCREEN_GRID_RESOLUTION²`, default 8×8 = 64 rows) block in
+  `DISCRETE_ACTIONS`, giving a uniform `[command × location]` layout (3 583 rows
+  total).  Race gating (`RACE_FUNCTION_IDS`, `fn_ids_for_race()`, private
+  `_TERRAN_FN_IDS` / `_PROTOSS_FN_IDS` / `_ZERG_FN_IDS` sets) ensures that
+  agents only ever see the actions valid for their race — this permanent mask is
+  applied in every SC2 policy's `__call__` before the per-step
+  `available_fn_ids` mask.  All four multi-head SC2 policies
+  (`SC2GeneticPolicy`, `SC2CMAESPolicy`, `SC2LSTMEvolutionPolicy`, and the
+  `SC2MultiHeadLinearPolicy` base) accept and propagate a `race` parameter.
+  `N_FUNCTION_IDS` grows from 6 to 118 automatically; existing weight files
+  migrate cleanly via the zero-default path.  (Closes #276)
+
+---
+
+## [0.1.2] - 2026-05-20
+
+---
+
 ## [0.1.1] - 2026-05-20
 
 ### Documentation
@@ -384,4 +412,3 @@ formatting, internal refactors with no behaviour change — can be skipped.
 - Test dependency wiring and a batch of failing tests (#100).
 
 ---
-

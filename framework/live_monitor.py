@@ -47,13 +47,11 @@ _REWARD_ORDER = [
     "damage_taken_penalty",
     "passive_under_fire_penalty",
 ]
+_REWARD_ORDER_INDEX = {name: idx for idx, name in enumerate(_REWARD_ORDER)}
 
 
 def _reward_sort_key(name: str) -> tuple[int, str]:
-    try:
-        return (_REWARD_ORDER.index(name), name)
-    except ValueError:
-        return (len(_REWARD_ORDER), name)
+    return (_REWARD_ORDER_INDEX.get(name, len(_REWARD_ORDER)), name)
 
 
 def _safe_float(value: Any, default: float = 0.0) -> float:
@@ -280,7 +278,8 @@ class LiveTelemetryMonitor:
         def _on_wheel(event):
             delta = getattr(event, "delta", 0)
             if delta:
-                canvas.yview_scroll(-1 * (delta // 120), "units")
+                units = max(1, abs(int(delta)) // 120)
+                canvas.yview_scroll(-units if delta > 0 else units, "units")
             elif event.num == 4:
                 canvas.yview_scroll(-1, "units")
             elif event.num == 5:
