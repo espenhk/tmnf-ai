@@ -470,11 +470,6 @@ class LiveTelemetryMonitor:
             y += row_h
             shown += 1
 
-        if shown == 0:
-            c.create_text(8, 8, anchor="nw", text="(no non-no-op actions yet)", fill="gray", font=("TkDefaultFont", 8))
-            c.configure(scrollregion=(0, 0, 200, 40))
-            return
-
         c.configure(scrollregion=(0, 0, int(c.winfo_width()) or 200, y + 4))
 
     def _draw_observation_panel(self, obs: np.ndarray) -> None:
