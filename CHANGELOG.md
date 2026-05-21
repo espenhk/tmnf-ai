@@ -17,6 +17,8 @@ formatting, internal refactors with no behaviour change — can be skipped.
 
 ## [Unreleased]
 
+### Fixed
+- **Live GUI** (`framework/live_monitor.py`): reward rows now render in two columns, observation sections render in adaptive 3–4 columns, and mid-index names (e.g. `wheel_0_contact`) are grouped as indexed vectors so logical groups stay together.
 
 ---
 
