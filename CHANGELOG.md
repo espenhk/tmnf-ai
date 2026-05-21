@@ -17,6 +17,9 @@ formatting, internal refactors with no behaviour change — can be skipped.
 
 ## [Unreleased]
 
+### Changed
+- **Live GUI** (`framework/live_monitor.py`): window shrunk from 1200×850 to 960×720; reward and observation panels are now independently scrollable (mousewheel supported); reward components are displayed in a fixed logical order (no more jumping); scalar observations are shown in stable obs-spec order rather than sorted by magnitude; subtle vertical grid lines added to all bar charts; a new "Last 10 actions" panel shows the most recent actions in a fixed sidebar.
+- `framework/training.py`: `live_monitor.on_step()` now receives the current `action` so the actions panel can display it.
 
 ---
 
@@ -64,6 +67,10 @@ formatting, internal refactors with no behaviour change — can be skipped.
 ## [0.1.1] - 2026-05-20
 
 ### Documentation
+- `README.md` now links directly to the
+  `good first issue` filter, `CONTRIBUTING.md` documents the canonical
+  issue-label taxonomy, and the shared issue template now applies the
+  default `triage` label on newly opened issues.
 - PR template (`.github/PULL_REQUEST_TEMPLATE.md`) now carries a
   `Closes #<issue>` line near the top so PRs auto-close their issue on
   merge.  `CLAUDE.md` gains a **Pull requests** section requiring every
@@ -88,6 +95,16 @@ formatting, internal refactors with no behaviour change — can be skipped.
     descriptions to match the issue #253 unit-position tracking fix.
 
 ### Added
+- New post-merge workflow `.github/workflows/auto-version-bump.yml` that
+  automatically runs after a PR is merged into `main`, infers release bump
+  type from PR-template checkboxes (`Patch` default, `Minor`, `Major`),
+  computes the next SemVer, and runs `scripts/release.py --no-tag` to bump
+  `pyproject.toml` + `framework/version.py` and roll `## [Unreleased]` into
+  a dated version section.
+- Analytics reports now surface code version tags more prominently:
+  single-run `results.md` includes a dedicated **Code Version** block, and
+  grid-search `summary.md` includes a **Code Versions** section plus a
+  per-experiment `Code version` stat row.
 - Optional live training GUI (`--live-gui`) for both `main.py` and
   `grid_search.py`. The window updates during training (not post-run only):
   - reward-component bar chart per step with a 5-step rolling average, plus
@@ -406,3 +423,5 @@ formatting, internal refactors with no behaviour change — can be skipped.
 
 ### Fixed
 - Test dependency wiring and a batch of failing tests (#100).
+
+---

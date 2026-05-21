@@ -232,6 +232,8 @@ worker mechanics are unit-tested with a dummy env.
 - reward-component extraction prefers per-step components and falls back to differencing cumulative episode totals
 - rolling-average values are computed from the latest 5 steps
 - observation grouping detects x/y pairs, indexed vectors, quadrant grids, and scalar fallbacks
+- reward ordering keeps known keys in fixed logical order and appends unknown keys alphabetically
+- action formatting shows up to six vector entries before truncating with an ellipsis
 
 ### test_obs_memory.py — frame-stacking observation wrapper
 - shape; reset fills initial; step shifts frames; k=1 passthrough; invalid k raises; most-recent zero-padded; clear
