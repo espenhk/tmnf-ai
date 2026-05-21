@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 _IDX_RE = re.compile(r"^(?P<base>.+)_(?P<idx>\d+)$")
 
-# Logical display order for well-known reward / obs keys.  Keys not in this
+# Logical display order for well-known reward-component keys. Keys not in this
 # list are appended alphabetically after those that are.
 _REWARD_ORDER = [
     "total_reward",
