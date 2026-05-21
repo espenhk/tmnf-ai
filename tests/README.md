@@ -66,6 +66,10 @@
   - [test\_sc2\_play.py — `play_sc2.py` script](#test_sc2_playpy--play_sc2py-script)
   - [test\_sc2\_simple64\_training.py — Simple64 ladder integration](#test_sc2_simple64_trainingpy--simple64-ladder-integration)
   - [test\_sc2\_analytics.py — SC2-specific analytics plots and flags](#test_sc2_analyticspy--sc2-specific-analytics-plots-and-flags)
+- [Rocket League](#rocket-league)
+  - [test\_rocket\_league\_obs\_spec.py — Rocket League observation spec (70-dim)](#test_rocket_league_obs_specpy--rocket-league-observation-spec-70-dim)
+  - [test\_rocket\_league\_reward.py — Rocket League reward calc](#test_rocket_league_rewardpy--rocket-league-reward-calc)
+  - [test\_rocket\_league\_env.py — Rocket League env wrapper (mocked rlgym)](#test_rocket_league_envpy--rocket-league-env-wrapper-mocked-rlgym)
 - [CLI / misc](#cli--misc)
   - [cli/test\_game\_flag.py — `--game` CLI flag in `main.py`](#clitest_game_flagpy----game-cli-flag-in-mainpy)
   - [assetto\_corsa/test\_smoke.py — Assetto Corsa smoke tests (against fake client)](#assetto_corsatest_smokepy--assetto-corsa-smoke-tests-against-fake-client)
@@ -705,6 +709,35 @@ handful of iterations only).
 - `save_experiment_results` now also writes `reward_component_breakdown.png` (regression-guarded in `test_writes_sc2_plots`)
 - `save_grid_summary`: forwards config-normalized rewards **and per-component contributions** using `v / max(abs(weight), 1.0)` — weights ≥ 1.0 are divided (making large-weight components comparable across grid-search runs), weights < 1.0 use the raw value (which already encodes the weight, so dividing would amplify by ×1000); wires SC2 extra-plot hook into framework summary generation; covers no-components fallback, multi-sim normalization, malformed YAML fallback, non-mapping YAML fallback, non-numeric weight fallback, allow-listed `scout` component (no unmapped-key warning), step_penalty with sub-1.0 weight passes through raw (-0.5 not -500), idle_penalty with sub-1.0 weight passes through raw, any sub-1.0 weight (0.0001 or 0.001) both use scale=1.0, the new `unit_loss` / `damage_taken` / `passive_under_fire` components normalize through their config weights without unmapped-key warnings, realistic positive reward stays positive after normalization (313.5 ✓), and emits SC2 cross-run charts + summary links; passes `task_metric_fn`, `task_metric_fmt` (percentage formatter) to framework; `attack_bonus` mapped to `attack_bonus` config key in normalisation
 - `_sc2_task_metric`: empty sims → 0.0; win+finish counted as success; loss/timeout/None/other not counted; all-wins → 1.0; `_GS_SUCCESS_REASONS` constant contains win+finish, excludes loss+timeout
+
+## Rocket League
+
+`games/rocket_league/` — single-agent RL for Rocket League via RLGym.
+
+**Tested.** The 70-dim observation spec (all groups: self car, ball, opponent,
+relative features, boost pads); the reward calculator (velocity-to-ball dense
+shaping, one-shot touch bonus that resets each episode, goal-scored /
+goal-conceded sparse rewards, step penalty, combined additive total); and the
+env wrapper (obs/action spaces, episode time-limit get/set, step 5-tuple, info
+dict keys, boost detection from action[6], timeout truncation, close delegation)
+— all exercised against a mocked `rlgym` so no Rocket League install is required.
+
+**Not tested.** The actual RLGym + Bakkesmod + Rocket League binary plumbing;
+real episode rollouts and goal-detection signals from the game process; the
+`vel_towards_ball` computation accuracy against live game data.
+
+### test_rocket_league_obs_spec.py — Rocket League observation spec (70-dim)
+- ObsSpec instance; dim matches base; dim=70; names length; scales shape+positive; obs_spec_list match; names unique; first=car_pos_x; boost_amount present; ball features present; opponent features present; relative features present; boost pad features present (10)
+- car features are indices 0–17; ball features are 18–26; opponent features are 27–44; boost pads are 60–69
+- with_zero_lidar same; with_lidar extends dim
+
+### test_rocket_league_reward.py — Rocket League reward calc
+- defaults; custom values; from_yaml; unknown key raises; loads bundled config
+- step penalty; vel_to_ball; touch bonus fires once per episode; touch bonus resets after episode reset; goal scored; goal conceded; boost weight; combined additive total
+
+### test_rocket_league_env.py — Rocket League env wrapper (mocked rlgym)
+- obs/action space shape+bounds; episode time-limit get/set; reset obs+info; step 5-tuple; info keys; boost flag from action[6]; timeout truncation; close delegates to rlgym env
+- discrete actions shape (≥9, 8-dim); probe count=6, shape; warmup shape; action bounds respected
 
 ## CLI / misc
 

@@ -146,6 +146,14 @@ _ABBREV = {
     "airborne_penalty": "ap",
     "crash_threshold_m": "ct",
     "lidar_wall_weight": "lww",
+    # rocket_league reward params
+    "vel_to_ball_weight": "vtb",
+    "boost_weight": "bw",
+    "touch_bonus": "tb",
+    "goal_weight": "gw",
+    "concede_penalty": "cp",
+    # rocket_league training params
+    "tick_skip": "ts",
     # curiosity params (issue #24)
     "curiosity_type": "ck",
     "curiosity_weight": "cwgt",

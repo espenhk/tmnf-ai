@@ -17,6 +17,17 @@ formatting, internal refactors with no behaviour change — can be skipped.
 
 ## [Unreleased]
 
+### Added
+- **Rocket League integration** (`--game rocket_league`): single-agent RL via
+  [RLGym](https://rlgym.org/).  70-dim observation (car/ball/opponent state +
+  relative features + boost pad availability), 8-dim continuous action space
+  (throttle/steer/pitch/yaw/roll/jump/boost/handbrake), and a dense+sparse
+  reward calculator (velocity-to-ball, ball touch, goal scored/conceded).
+  Requires Rocket League (commercial, Windows) + Bakkesmod + `pip install rlgym`.
+  See `games/rocket_league/README.md` for install instructions.
+  New reward config keys: `vel_to_ball_weight`, `boost_weight`, `touch_bonus`,
+  `goal_weight`, `concede_penalty`.  New training param: `tick_skip`.
+
 
 ---
 
