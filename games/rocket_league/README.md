@@ -66,7 +66,7 @@ without affecting other runs.
 |---|---|---|
 | 0–17  | **Self car** | pos x/y/z, vel x/y/z, ang\_vel x/y/z, forward x/y/z, up x/y/z, on\_ground, has\_flip, boost\_amount |
 | 18–26 | **Ball** | pos x/y/z, vel x/y/z, ang\_vel x/y/z |
-| 27–44 | **Opponent car** | same layout as self car |
+| 27–44 | **Opponent car (single)** | same layout as self car |
 | 45–47 | **Relative ball position** | ball\_pos − car\_pos |
 | 48–50 | **Relative ball velocity** | ball\_vel − car\_vel |
 | 51    | `dist_to_ball` | Euclidean distance from car to ball |
@@ -74,6 +74,9 @@ without affecting other runs.
 | 53–56 | **Goal distances** | Ball/car to opponent/own goal |
 | 57–59 | **Relative opponent pos** | opp\_pos − car\_pos |
 | 60–69 | **Boost pads** | Binary availability of 10 nearest pads |
+
+Current scope: one controlled car vs one opponent car. Friendly teammate cars are
+not included in the observation yet (3v3/self-play support is deferred).
 
 See `games/rocket_league/obs_spec.py` for the full spec with normalisation
 scales.

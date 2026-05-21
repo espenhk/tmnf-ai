@@ -9,8 +9,8 @@ Requirements
   ``games/rocket_league/README.md``.
 - Python package: ``pip install rlgym``
 
-If ``rlgym`` is not installed, importing this module raises ``ImportError``.
-``main.py`` converts that to a descriptive ``ValueError``.
+If ``rlgym`` is not installed, importing this module raises ``ImportError``
+with setup guidance.
 
 Observation
 -----------
@@ -230,9 +230,9 @@ class RocketLeagueEnv(BaseGameEnv):
     def _compute_vel_towards_ball(self, obs: np.ndarray) -> float:
         """Return the car's velocity component directed towards the ball (UU/s)."""
         # car velocity: indices 3–5
-        car_vel = obs[3:6] * np.array([2300., 2300., 2300.], dtype=np.float32)
+        car_vel = obs[3:6]
         # relative ball pos: indices 45–47 (already ball_pos - car_pos)
-        rel_ball = obs[45:48] * np.array([4096., 5120., 2044.], dtype=np.float32)
+        rel_ball = obs[45:48]
         dist = float(np.linalg.norm(rel_ball))
         if dist < 1e-6:
             return 0.0
@@ -243,6 +243,7 @@ class RocketLeagueEnv(BaseGameEnv):
 def make_env(
     experiment_dir: str | Path,
     max_episode_time_s: float = 300.0,
+    tick_skip: int = 8,
 ) -> RocketLeagueEnv:
     """Factory that wires up a ``RocketLeagueEnv`` from an experiment directory.
 
@@ -257,4 +258,5 @@ def make_env(
     return RocketLeagueEnv(
         reward_config=reward_config,
         max_episode_time_s=max_episode_time_s,
+        tick_skip=int(tick_skip),
     )

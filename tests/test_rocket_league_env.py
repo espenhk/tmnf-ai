@@ -36,8 +36,18 @@ class TestRocketLeagueEnvSpaces(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         import sys
+        cls._old_modules = {k: sys.modules.get(k) for k in _MODULE_PATCHES}
         for mod, mock in _MODULE_PATCHES.items():
             sys.modules[mod] = mock
+
+    @classmethod
+    def tearDownClass(cls):
+        import sys
+        for mod, old in cls._old_modules.items():
+            if old is None:
+                sys.modules.pop(mod, None)
+            else:
+                sys.modules[mod] = old
 
     def setUp(self):
         from games.rocket_league.obs_spec import BASE_OBS_DIM
@@ -71,8 +81,18 @@ class TestRocketLeagueEnvEpisodeTime(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         import sys
+        cls._old_modules = {k: sys.modules.get(k) for k in _MODULE_PATCHES}
         for mod, mock in _MODULE_PATCHES.items():
             sys.modules[mod] = mock
+
+    @classmethod
+    def tearDownClass(cls):
+        import sys
+        for mod, old in cls._old_modules.items():
+            if old is None:
+                sys.modules.pop(mod, None)
+            else:
+                sys.modules[mod] = old
 
     def test_get_episode_time_limit(self):
         env = _make_env(max_episode_time_s=60.0)
@@ -90,8 +110,18 @@ class TestRocketLeagueEnvStepLogic(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         import sys
+        cls._old_modules = {k: sys.modules.get(k) for k in _MODULE_PATCHES}
         for mod, mock in _MODULE_PATCHES.items():
             sys.modules[mod] = mock
+
+    @classmethod
+    def tearDownClass(cls):
+        import sys
+        for mod, old in cls._old_modules.items():
+            if old is None:
+                sys.modules.pop(mod, None)
+            else:
+                sys.modules[mod] = old
 
     def setUp(self):
         from games.rocket_league.obs_spec import BASE_OBS_DIM
@@ -164,6 +194,15 @@ class TestRocketLeagueEnvStepLogic(unittest.TestCase):
     def test_close_calls_underlying_env(self):
         self.env.close()
         _mock_rlgym_env.close.assert_called()
+
+    def test_tick_skip_forwarded_to_rlgym_make(self):
+        _make_env(tick_skip=12)
+        _mock_rlgym.make.assert_called_with(tick_skip=12, team_size=1, self_play=False)
+
+    def test_make_env_factory_forwards_tick_skip(self):
+        from games.rocket_league.env import make_env
+        make_env(experiment_dir=".", tick_skip=10)
+        _mock_rlgym.make.assert_called_with(tick_skip=10, team_size=1, self_play=False)
 
 
 class TestRocketLeagueActions(unittest.TestCase):

@@ -31,6 +31,15 @@ formatting, internal refactors with no behaviour change — can be skipped.
   supported policy type (`hill_climbing`, `neural_net`, `epsilon_greedy`,
   `mcts`, `genetic`) under `games/rocket_league/config/`.
 
+### Fixed
+- **Rocket League tick-skip wiring**: `tick_skip` now propagates from
+  `training_params.yaml` through `RocketLeagueAdapter` into
+  `rlgym.make(tick_skip=...)`, so grid-search/template values affect simulator
+  stepping as intended.
+- **Rocket League reward scaling**: `vel_towards_ball` no longer re-scales
+  observation entries in `RocketLeagueEnv._compute_vel_towards_ball()`, avoiding
+  inflated dense reward from double-scaling.
+
 
 
 ---

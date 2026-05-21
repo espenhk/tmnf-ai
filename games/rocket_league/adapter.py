@@ -51,6 +51,7 @@ class RocketLeagueAdapter:
             return make_env(
                 experiment_dir=experiment_dir,
                 max_episode_time_s=training_params["in_game_episode_s"],
+                tick_skip=int(tick_skip),
             )
 
         return GameSpec(
