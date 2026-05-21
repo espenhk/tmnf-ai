@@ -26,12 +26,13 @@
 # matrix automatically, so it handles the belief-weight subspace well; the
 # main risk is early divergence if initial_sigma is too large — [0.1, 0.3]
 # is the safe window for these parameter counts.
+#gs_sc2_cmaes_v1__arprotoss__pop50__sigma0.1
 
-base_name: "gs_sc2_cmaes_v1"
+base_name: "gs_sc2_cmaes_v2"
 game: sc2
 
 training_params:
-  map_name: Simple64
+  map_name: DefeatZerglingsAndBanelings
   in_game_episode_s: 120.0
   step_mul: 1
   screen_size: 64
@@ -42,7 +43,7 @@ training_params:
   policy_type: sc2_cmaes
   obs_spec_preset: rich
   enable_belief: true
-  population_size: [15, 25, 50]
-  initial_sigma: [0.1, 0.3, 0.5]
+  population_size: 50
+  initial_sigma: 0.1
   policy_params:
-    eval_episodes: 5
+    eval_episodes: 2

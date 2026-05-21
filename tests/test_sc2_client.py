@@ -607,7 +607,7 @@ class TestSC2ClientActionFallback(unittest.TestCase):
         from games.sc2 import client as client_mod
         # action_to_function_call also imports pysc2 internally; replace it
         # with a stub that returns a FakeFunctionCall with the obvious mapping.
-        def _fake_action_to_call(action, screen_size):
+        def _fake_action_to_call(action, screen_size, minimap_size=None):
             fn_idx = int(action[0])
             fn_id = {
                 0: _FakeFunctions.no_op.id,
@@ -1304,7 +1304,7 @@ class TestSC2ClientLastFnIdx(unittest.TestCase):
         self.addCleanup(patcher.stop)
 
         from games.sc2 import client as client_mod
-        def _fake_atfc(action, screen_size):
+        def _fake_atfc(action, screen_size, minimap_size=None):
             fn_idx = int(action[0])
             fn_id = {
                 0: _FakeFunctions.no_op.id,

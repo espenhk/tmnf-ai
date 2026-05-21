@@ -20,6 +20,11 @@ Only write the combined summary without re-running individual plots::
     python redo_analytics.py experiments/a03/exp1 experiments/a03/exp2 \\
         --summary-name combined --no-individual
 
+Only write the summary (skip individual plots, works for a single experiment too)::
+
+    python redo_analytics.py experiments/a03/exp1 experiments/a03/exp2 \\
+        --summary-only
+
 Always write a combined summary even for a single experiment::
 
     python redo_analytics.py experiments/a03/exp1 \\
@@ -107,12 +112,27 @@ def _load_analytics_fns(game: str):
 # Core function (importable for testing)
 # ---------------------------------------------------------------------------
 
+def _normalize_paths(data: "ExperimentData", experiment_dir: str) -> None:
+    """Remap stored path fields to local copies when the stored path is missing."""
+    for attr, filename in (
+        ("weights_file", "policy_weights.yaml"),
+        ("reward_config_file", "reward_config.yaml"),
+    ):
+        stored = getattr(data, attr)
+        if stored and not os.path.exists(stored):
+            candidate = os.path.join(experiment_dir, filename)
+            if os.path.exists(candidate):
+                setattr(data, attr, candidate)
+                logger.debug("Remapped %s → %s", attr, candidate)
+
+
 def redo_analytics(
     experiment_dirs: list[str],
     game: str | None = None,
     summary_name: str | None = None,
     summary_dir: str | None = None,
     no_individual: bool = False,
+    summary_only: bool = False,
 ) -> None:
     """Re-generate analytics for one or more completed experiments.
 
@@ -135,12 +155,23 @@ def redo_analytics(
     no_individual:
         Skip regenerating individual experiment results; only write the
         combined summary (requires *summary_name* or multiple experiments).
+    summary_only:
+        Skip individual experiment results and write only the summary.
+        Implies *no_individual* and forces a summary even for a single
+        experiment (using the experiment name as the summary name when
+        *summary_name* is not given).
     """
+    if summary_only:
+        no_individual = True
     from framework.analytics import infer_varied_summary_keys, load_experiment_data
 
-    # Load all experiments.
-    loaded: list[tuple[str, "ExperimentData"]] = []  # (experiment_dir, ExperimentData)
     effective_game: str | None = game
+    save_experiment_results = None
+    # Slimmed records accumulate for summary; probe/cold-start data and all
+    # per-sim bulk fields (trace, weights, time-series) are stripped so peak
+    # memory per record is small regardless of how long the run was.
+    summary_runs: list[tuple[str, "ExperimentData"]] = []
+    successful_dirs: list[str] = []
 
     for d in experiment_dirs:
         try:
@@ -155,40 +186,33 @@ def redo_analytics(
             effective_game = _detect_game(data.training_params)
             logger.info("Auto-detected game: %s", effective_game)
 
-        # Normalize path fields: if the stored path doesn't exist (e.g. because
-        # the experiment was moved or generated on another machine), fall back to
-        # a same-named file inside the experiment directory itself.
-        for attr, filename in (
-            ("weights_file", "policy_weights.yaml"),
-            ("reward_config_file", "reward_config.yaml"),
-        ):
-            stored = getattr(data, attr)
-            if stored and not os.path.exists(stored):
-                candidate = os.path.join(d, filename)
-                if os.path.exists(candidate):
-                    setattr(data, attr, candidate)
-                    logger.debug("Remapped %s → %s", attr, candidate)
+        if save_experiment_results is None:
+            save_experiment_results, _ = _load_analytics_fns(effective_game)
 
-        loaded.append((d, data))
+        _normalize_paths(data, d)
+
         best = max((s.reward for s in data.greedy_sims), default=float("-inf"))
         logger.info("  Loaded %-50s  best_reward=%+.1f", data.experiment_name, best)
+        successful_dirs.append(d)
 
-    if not loaded:
-        logger.error("No experiment data loaded — nothing to do.")
-        return
+        # Extract summary record before any heavy processing so it's always
+        # collected even when no_individual=True.
+        summary_runs.append((data.experiment_name, data.slim_for_summary()))
 
-    effective_game = effective_game or "tmnf"
-    save_experiment_results, save_grid_summary = _load_analytics_fns(effective_game)
-
-    # Regenerate individual results.
-    if not no_individual:
-        for d, data in loaded:
+        if not no_individual:
             results_dir = os.path.join(d, "results")
             logger.info("Regenerating %s → %s/", data.experiment_name, results_dir)
             save_experiment_results(data, results_dir)
 
-    # Combined summary when requested or when multiple experiments are present.
-    do_summary = len(loaded) > 1 or summary_name is not None
+        del data  # release full data before loading the next experiment
+
+    if not successful_dirs:
+        logger.error("No experiment data loaded — nothing to do.")
+        return
+
+    effective_game = effective_game or "tmnf"
+
+    do_summary = len(successful_dirs) > 1 or summary_name is not None or summary_only
     if not do_summary:
         if no_individual:
             raise ValueError(
@@ -197,17 +221,19 @@ def redo_analytics(
             )
         return
 
-    name = summary_name or "combined"
+    _, save_grid_summary = _load_analytics_fns(effective_game)
+
+    name = summary_name or (
+        summary_runs[0][0] if summary_only and len(summary_runs) == 1 else "combined"
+    )
     if summary_dir is None:
-        parent = os.path.commonpath([d for d, _ in loaded])
+        parent = os.path.commonpath(successful_dirs)
         summary_dir = os.path.join(parent, f"{name}__summary")
 
-    all_runs = [(data.experiment_name, data) for _, data in loaded]
+    varied_keys = infer_varied_summary_keys(summary_runs)
 
-    varied_keys = infer_varied_summary_keys(all_runs)
-
-    logger.info("Writing summary (%d experiment(s)) → %s/summary.md", len(all_runs), summary_dir)
-    save_grid_summary(all_runs, varied_keys, summary_dir, name)
+    logger.info("Writing summary (%d experiment(s)) → %s/summary.md", len(summary_runs), summary_dir)
+    save_grid_summary(summary_runs, varied_keys, summary_dir, name)
 
 
 # ---------------------------------------------------------------------------
@@ -262,6 +288,14 @@ def main() -> None:
         help="Skip regenerating individual experiment results; only write the combined summary.",
     )
     parser.add_argument(
+        "--summary-only",
+        action="store_true",
+        help=(
+            "Skip individual experiment results and write only the summary. "
+            "Implies --no-individual and forces a summary even for a single experiment."
+        ),
+    )
+    parser.add_argument(
         "--log-level",
         default="INFO",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
@@ -279,6 +313,7 @@ def main() -> None:
         experiment_dirs=args.experiment_dirs,
         game=args.game,
         summary_name=args.summary_name,
+        summary_only=args.summary_only,
         summary_dir=args.summary_dir,
         no_individual=args.no_individual,
     )

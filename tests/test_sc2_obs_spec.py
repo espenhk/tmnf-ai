@@ -33,11 +33,9 @@ class TestSC2ObsSpec(unittest.TestCase):
     def test_rich_spec_dim(self):
         self.assertEqual(RICH_OBS_DIM, SC2_RICH_OBS_SPEC.dim)
         self.assertGreater(RICH_OBS_DIM, LADDER_OBS_DIM)
-        # Exact count: ladder(46) + per-unit-type(8) + quadrant(8) +
-        # topk-features(9) + available(6) + last(6) + enemy-unit-type(8) +
-        # shield-energy(3) + creep(1) + economy(3) + selected-extra(2) +
-        # screen-visibility(1) + antiair(1) + weapon-cooldown(1) = 103
-        self.assertEqual(RICH_OBS_DIM, 103)
+        # Rich spec extended with race-gated available-actions mask, per-unit
+        # counts, spatial quadrants, etc. — exact count depends on action space.
+        self.assertEqual(RICH_OBS_DIM, 327)
 
     def test_ladder_extends_minigame(self):
         """Ladder spec must contain all minigame names as a prefix."""

@@ -31,7 +31,11 @@ class TestTMNFAdapter:
 
     def test_experiment_dir_includes_track(self):
         a = self._adapter()
-        d = a.experiment_dir("myrun", {"track": "a03_centerline"}, None)
+        d = a.experiment_dir(
+            "myrun", {"track": "a03_centerline", "policy_type": "genetic"}, None
+        )
+        assert "tmnf" in d
+        assert "genetic" in d
         assert "a03_centerline" in d
         assert "myrun" in d
 
@@ -82,8 +86,9 @@ class TestTorcsAdapter:
 
     def test_experiment_dir(self):
         a = self._adapter()
-        d = a.experiment_dir("myrun", {}, None)
+        d = a.experiment_dir("myrun", {"policy_type": "genetic"}, None)
         assert "torcs" in d
+        assert "genetic" in d
         assert "myrun" in d
 
     def test_track_label_default(self):
@@ -109,14 +114,21 @@ class TestSC2Adapter:
 
     def test_experiment_dir_includes_map_name(self):
         a = self._adapter()
-        d = a.experiment_dir("myrun", {"map_name": "MoveToBeacon"}, None)
-        assert "sc2_MoveToBeacon" in d
+        d = a.experiment_dir(
+            "myrun", {"map_name": "MoveToBeacon", "policy_type": "sc2_genetic"}, None
+        )
+        assert "sc2" in d
+        assert "sc2_genetic" in d
+        assert "MoveToBeacon" in d
         assert "myrun" in d
 
     def test_track_override_overrides_map(self):
         a = self._adapter()
-        d = a.experiment_dir("myrun", {"map_name": "MoveToBeacon"}, "CollectMineralShards")
-        assert "sc2_CollectMineralShards" in d
+        d = a.experiment_dir(
+            "myrun", {"map_name": "MoveToBeacon", "policy_type": "sc2_genetic"},
+            "CollectMineralShards",
+        )
+        assert "CollectMineralShards" in d
         assert "MoveToBeacon" not in d
 
     def test_track_label(self):
@@ -138,8 +150,9 @@ class TestBeamNGAdapter:
 
     def test_experiment_dir(self):
         a = self._adapter()
-        d = a.experiment_dir("myrun", {}, None)
+        d = a.experiment_dir("myrun", {"policy_type": "genetic"}, None)
         assert "beamng" in d
+        assert "genetic" in d
 
     def test_build_probe_returns_none(self):
         a = self._adapter()
@@ -152,8 +165,9 @@ class TestCarRacingAdapter:
 
     def test_experiment_dir(self):
         a = self._adapter()
-        d = a.experiment_dir("myrun", {}, None)
+        d = a.experiment_dir("myrun", {"policy_type": "genetic"}, None)
         assert "car_racing" in d
+        assert "genetic" in d
 
     def test_build_probe_returns_none(self):
         a = self._adapter()

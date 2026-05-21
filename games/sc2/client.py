@@ -11,6 +11,7 @@ unit tests can mock the client without installing the SC2 binary.
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
 import numpy as np
@@ -326,6 +327,21 @@ class SC2Client:
             self._sc2_env.close()
             self._sc2_env = None
 
+    def save_replay(self, replay_dir: str, prefix: str) -> str | None:
+        """Save the most recently played episode as an SC2 replay file.
+
+        Returns the path to the saved file, or None when the SC2 process is
+        not running or the save fails.
+        """
+        if self._sc2_env is None:
+            return None
+        try:
+            os.makedirs(replay_dir, exist_ok=True)
+            return self._sc2_env.save_replay(replay_dir, prefix=prefix)
+        except Exception as exc:
+            logger.warning("SC2Client.save_replay failed: %s", exc)
+            return None
+
     @property
     def last_fn_idx(self) -> int:
         """fn_idx of the action actually sent to PySC2 in the last step.
@@ -360,6 +376,12 @@ class SC2Client:
         from absl import flags as _absl_flags  # type: ignore[import-untyped]
         if not _absl_flags.FLAGS.is_parsed():
             _absl_flags.FLAGS([''])
+
+        # Issue #254: serialise map-file reads across all SC2 binaries
+        # running on this host (distributed local workers, parallel-eval
+        # workers, etc.) so they don't race on the same .SC2Map file.
+        from games.sc2.map_access_gate import acquire_map_access_slot
+        acquire_map_access_slot()
 
         if self._play_mode:
             # Human (via SC2 UI) vs AI agent.  PySC2 only takes step actions
@@ -423,7 +445,9 @@ class SC2Client:
         """
         from pysc2.lib import actions as pysc2_actions  # type: ignore[import-untyped]
 
-        fn_call = action_to_function_call(action, self._screen_size)
+        fn_call = action_to_function_call(
+            action, self._screen_size, self._minimap_size
+        )
 
         fn_idx = int(action[0])
         fn_name = FUNCTION_IDS.get(fn_idx, "no_op")

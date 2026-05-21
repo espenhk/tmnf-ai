@@ -17,12 +17,149 @@ formatting, internal refactors with no behaviour change — can be skipped.
 
 ## [Unreleased]
 
+
+---
+
+## [0.1.5] - 2026-05-21
+
+### Changed
+- **Live GUI** (`framework/live_monitor.py`): window shrunk from 1200×850 to 960×720; reward and observation panels are now independently scrollable (mousewheel supported); reward components are displayed in a fixed logical order (no more jumping); scalar observations are shown in stable obs-spec order rather than sorted by magnitude; subtle vertical grid lines added to all bar charts; a new "Last 10 actions" panel shows the most recent actions in a fixed sidebar.
+- `framework/training.py`: `live_monitor.on_step()` now receives the current `action` so the actions panel can display it.
+
+---
+
+## [0.1.4] - 2026-05-21
+
+### Documentation
+
+- Add `docs/framework/` — one Markdown page per framework-side protocol
+  (`GameAdapter`, the `GameSpec`/`RunConfig`/`ProbeSpec`/`WarmupSpec`/
+  `PolicyExtras` config bundles, `BaseGameEnv`, `RewardCalculatorBase`,
+  `BasePolicy`, `ObsSpec`), each with method contracts and a worked
+  example. Linked bidirectionally from `CONTRIBUTING.md` ("Adding a new
+  game") and `CLAUDE.md` (#220).
+
+---
+
+## [0.1.3] - 2026-05-20
+
+### Fixed
+- SC2: agents on BuildMarines, Simple64, and every other non-movement map were
+  unable to train units, construct buildings, or issue any race-specific command
+  because `FUNCTION_IDS` only contained 6 entries (movement + harvest).
+  `FUNCTION_IDS` now covers all 118 Terran, Protoss, and Zerg build / train /
+  morph / ability commands used in standard PySC2 play (fn_idx 0–117).
+  `SPATIAL_FN_IDS` is auto-derived as the frozenset of fn_ids whose names end in
+  `_screen` or `_minimap` (55 entries); every spatial function now gets a full
+  `N×N` (`SCREEN_GRID_RESOLUTION²`, default 8×8 = 64 rows) block in
+  `DISCRETE_ACTIONS`, giving a uniform `[command × location]` layout (3 583 rows
+  total).  Race gating (`RACE_FUNCTION_IDS`, `fn_ids_for_race()`, private
+  `_TERRAN_FN_IDS` / `_PROTOSS_FN_IDS` / `_ZERG_FN_IDS` sets) ensures that
+  agents only ever see the actions valid for their race — this permanent mask is
+  applied in every SC2 policy's `__call__` before the per-step
+  `available_fn_ids` mask.  All four multi-head SC2 policies
+  (`SC2GeneticPolicy`, `SC2CMAESPolicy`, `SC2LSTMEvolutionPolicy`, and the
+  `SC2MultiHeadLinearPolicy` base) accept and propagate a `race` parameter.
+  `N_FUNCTION_IDS` grows from 6 to 118 automatically; existing weight files
+  migrate cleanly via the zero-default path.  (Closes #276)
+
+---
+
+## [0.1.2] - 2026-05-20
+
+---
+
+## [0.1.1] - 2026-05-20
+
+### Documentation
+- `README.md` now links directly to the
+  `good first issue` filter, `CONTRIBUTING.md` documents the canonical
+  issue-label taxonomy, and the shared issue template now applies the
+  default `triage` label on newly opened issues.
+- PR template (`.github/PULL_REQUEST_TEMPLATE.md`) now carries a
+  `Closes #<issue>` line near the top so PRs auto-close their issue on
+  merge.  `CLAUDE.md` gains a **Pull requests** section requiring every
+  PR description to be filled in from the template with that
+  `Closes #<issue>` link.
+- `CLAUDE.md` brought back in sync with the codebase:
+  - Documents all six supported games (adds CarRacing, BeamNG, Assetto
+    Corsa alongside TMNF / TORCS / SC2) in the intro, repository-structure
+    tree, and run examples.
+  - Corrects the master-config location — configs are per-game under
+    `games/<game>/config/`, not a top-level `config/` directory.
+  - Refreshes the **Dependencies** section for the current Poetry group
+    layout (core vs `tmnf` / `tmnf-test` / `torcs` / optional `sc2` /
+    `assetto_corsa`, plus CarRacing/BeamNG out-of-group deps).
+  - Adds the `sc2_neural_net` policy, the `log_stats_every_n_sims`
+    training param, the SC2 `--eval` mode, the `attack_friendly_penalty`
+    and `small_selection_bonus` SC2 reward keys, the
+    `grid_search --local-workers` / `--local-worker-stagger` flags, the
+    SC2 map-access-gate env vars, and the `main.py` `--track` / `--workers`
+    / `--log-level` override flags.
+  - Updates the `move_exploration_bonus` / `move_repeat_penalty`
+    descriptions to match the issue #253 unit-position tracking fix.
+
 ### Added
 - `POLICY_REGISTRY` and `register_policy` decorator in `framework/policies.py`; the five built-in policies (`hill_climbing`, `neural_net`, `epsilon_greedy`, `mcts`, `genetic`) are now self-describing with `POLICY_TYPE`, `LOOP_TYPE`, `VALID_POLICY_PARAMS`, and `_construct_or_resume`. `framework/training.py:_make_policy` is now a single `POLICY_REGISTRY` lookup plus a game-compatibility check (Phases B–D of #224).
 - Phase C of #224: all game-specific policies migrated to thin registered subclasses. `games/tmnf/policies.py` now registers `neural_dqn`, `cmaes`, `reinforce`, and `lstm` as `@register_policy` subclasses of the framework algorithm classes; `games/sc2/sc2_policies.py` registers `sc2_genetic`, `sc2_reinforce`, `sc2_cmaes`, and `sc2_lstm`. Factory closures and loop-dispatch entries in both adapters removed for the migrated types; `build_extras` in TMNF adapter now returns `None`. Net: ~2 500 lines of duplicated algorithm code deleted.
 - `BasePolicy.compatible_with(game_name)` class hook returning `(ok, migration_hint)`; the continuous-action framework policies (`hill_climbing`, `neural_net`, `genetic`) override it to reject SC2, replacing the SC2 adapter's free-function check. `GameSpec` gains a `game_name` field so the check has the game identity (Phase D of #224, #231).
 - `_GradEntry` namedtuple exported from `framework/reinforce.py` and used by `TwoHeadREINFORCEPolicy` for per-step trajectory storage; re-exported from `games/sc2/sc2_policies.py` for backward compatibility.
 - `framework/README.md`: developer guide documenting the policy registry, all five algorithm modules, per-algorithm adaptation hooks, and a worked example showing how to create a new game's policies from scratch.
+- New post-merge workflow `.github/workflows/auto-version-bump.yml` that
+  automatically runs after a PR is merged into `main`, infers release bump
+  type from PR-template checkboxes (`Patch` default, `Minor`, `Major`),
+  computes the next SemVer, and runs `scripts/release.py --no-tag` to bump
+  `pyproject.toml` + `framework/version.py` and roll `## [Unreleased]` into
+  a dated version section.
+- Analytics reports now surface code version tags more prominently:
+  single-run `results.md` includes a dedicated **Code Version** block, and
+  grid-search `summary.md` includes a **Code Versions** section plus a
+  per-experiment `Code version` stat row.
+- Optional live training GUI (`--live-gui`) for both `main.py` and
+  `grid_search.py`. The window updates during training (not post-run only):
+  - reward-component bar chart per step with a 5-step rolling average, plus
+    total step reward;
+  - live observation visualizations using feature-aware layouts (scalar bars,
+    x/y pair vectors, indexed strips, and quadrant grids when detected).
+- **SC2 `attack_bonus` reward component** (issue #251).  New opt-in reward
+  config key `attack_bonus` (default `0.0`) awards a flat bonus whenever the
+  agent issues `Attack_screen` (fn_idx 3), regardless of whether the target
+  is a visible enemy unit (click-to-attack) or open ground (A-move).  Acts as
+  a simpler alternative to enabling both `attack_move_bonus` and
+  `click_attack_bonus` separately; all three can be active simultaneously.
+  The contribution is tracked as a separate `"attack_bonus"` entry in
+  `reward_components` and is normalised in cross-experiment grid-search
+  summaries alongside the existing attack bonus components.
+- **Analytics: reward component breakdown charts** (issue #252).
+  - `framework.analytics.plot_reward_component_breakdown` — diverging stacked
+    bar chart (one bar per greedy sim, positive components above zero, negative
+    below) written to `reward_component_breakdown.png` alongside the existing
+    per-component line chart.
+  - `games.sc2.analytics.plot_gs_reward_component_breakdown` — cross-experiment
+    diverging horizontal bar chart (one row per experiment, showing mean per-sim
+    component contributions) written to `comparison_reward_breakdown.png` in the
+    grid-search summary directory and linked from `summary.md`.
+- **SC2 periodic stats logging** (issue #240).  Training now logs reward
+  component totals and action-frequency ratios every `log_stats_every_n_sims`
+  sims (default `10`, set to `0` to disable).  Covers all four SC2 greedy
+  loops (`_greedy_loop`, `_greedy_loop_cmaes`, `_greedy_loop_genetic`,
+  `_greedy_loop_q_learning`).  New training param: `log_stats_every_n_sims`
+  (integer, default `10`, stored in `training_params.yaml`).
+- **SC2 intra-run parallel evaluation** (issue #229).
+  Population-based SC2 policies (`sc2_genetic`, `sc2_cmaes`, `sc2_lstm`,
+  `sc2_cnn`) can now evaluate individuals concurrently across multiple
+  local SC2 binaries.  Set `n_workers > 1` in `training_params.yaml`
+  to spawn a persistent worker pool (one SC2 env per worker, spawn
+  start method) — each generation's offspring are scored in parallel
+  while the distribution update remains generation-synchronous (genetic
+  and cmaes loop dispatch).
+  New config keys: `n_workers` (default `1`),
+  `worker_start_stagger_s` (default `5.0`),
+  `worker_warmup_timeout_s` (default `90.0`),
+  `worker_base_seed` (default `0`).  See the *Intra-run parallel
+  evaluation* subsection in `CLAUDE.md` for sizing guidance.
+- `framework.parallel_eval.ParallelEvaluator` — game-agnostic worker
+  pool used internally by `train_rl` when `n_workers > 1`.
 
 ### Changed
 - Phase D of #224 (#231): removed the `PolicyExtras` infrastructure. `framework/training.py:_make_policy` is now a single `POLICY_REGISTRY` lookup plus a compatibility check; `train_rl` no longer takes an `extras=` parameter and reads the greedy-loop type directly from `policy.LOOP_TYPE`. `GameAdapter.build_extras` and all per-game implementations are deleted; each adapter now registers its policy types via a side-effect import inside `build_game_spec`. The remaining SC2 policies (`sc2_cnn`, `sc2_neural_net`, `sc2_neural_dqn`) are now `@register_policy` classes. Misconfigured/unknown `policy_type` values fail fast before the game is launched.
@@ -30,9 +167,78 @@ formatting, internal refactors with no behaviour change — can be skipped.
 - `SC2LSTMEvolutionPolicy` is now a thin subclass of `framework.lstm.LSTMEvolutionPolicy` (which gained an optional `_template` keyword argument); all isotropic-ES mechanics are inherited, eliminating ~200 lines of duplicated ES code. The inner `SC2LSTMPolicy` individual is injected via `_template`.
 - `framework.lstm.LSTMEvolutionPolicy.__init__` accepts a new keyword-only `_template` parameter: when supplied, it is used as the inner individual instead of constructing a `LSTMCore`. Existing call sites are unaffected (default `None`).
 - Fixed `TwoHeadREINFORCEPolicy` handling of `hidden_sizes=[]`: the constructor now uses `list(hidden_sizes) if hidden_sizes is not None else [128, 64]` instead of `list(hidden_sizes or [128, 64])`, which incorrectly treated an empty list as falsy.
+- Experiment output directories now use nested folders instead of encoding
+  policy/grid params into one long experiment folder name:
+  `experiments/<game>/<policy>/<map>/<experiment_name>/<param_1>__<param_2>...`.
+  Single runs now live at `experiments/<game>/<policy>/<map>/<experiment_name>/`,
+  and grid-search runs place the varied-parameter suffix in the final folder.
+- Distributed grid-search coordinator now supports LAN-focused multi-machine
+  home setups out of the box:
+  - New `--bind-host` / `distribute.bind_host` to select the interface/IP the
+    coordinator listens on.
+  - New LAN-only default request filter (loopback/private/link-local source
+    IPs only); override with `--allow-non-lan` /
+    `distribute.allow_non_lan` when explicitly required.
+  - Distributed runs now default to `local_workers=1`, so the driver/coordinator
+    machine contributes one local worker by default while remote workers can
+    join over the LAN.
+- **SC2 `move_exploration_bonus` now decays explored cells** (issue #262).
+  The grid-cell visit tracking added in #253 marked a cell explored *once per
+  episode*, which (a) paid the agent to blanket-roam the whole screen to
+  collect every per-cell bonus and (b) went permanently silent once the screen
+  was covered, making *freezing in place* optimal — observed in training as
+  units spamming moves everywhere and then hyperfixating in a small area. A
+  cell now **expires** `move_exploration_decay_steps` env steps after the
+  friendly-unit centroid last left it, so returning to a stale area is
+  rewarded again and the bonus never goes silent. A stationary centroid keeps
+  refreshing its own cell every step, so the anti-command-spam guarantee from
+  #253 is preserved. Two new reward-config keys (both with sensible defaults,
+  so existing configs keep working):
+  - `move_exploration_grid_size` (int, default `8`) — cells per axis of the
+    screen grid, replacing the previously hard-coded 8×8.
+  - `move_exploration_decay_steps` (int, default `50`) — env steps before an
+    explored cell may be rewarded again; `0` restores the previous permanent
+    once-per-episode behaviour. Because the default is non-zero, the bonus can
+    now pay more than `grid_size²` times per episode, increasing its effective
+    magnitude versus pre-#262 runs — retune `move_exploration_bonus` if needed.
+
+  The bundled `games/sc2/config/reward_config.yaml` is retuned to match: the
+  `move_exploration_bonus` is lowered (`1.0` → `0.15`) and
+  `move_exploration_decay_steps` raised (`50` → `120`) so the term re-rewards
+  only genuine relocation and stays a minority contributor, and `score_weight`
+  is raised (`10.0` → `100.0`) so task score dominates the shaping terms.
 
 ### Removed
 - **Breaking (SC2 only):** the legacy bare-name SC2 policy types `cmaes`, `reinforce`, `lstm`, and `neural_dqn` are no longer constructible on the `sc2` game — they were only reachable through the now-deleted `build_extras` factories and cannot share the registry names used by their TMNF counterparts. Selecting one now fails with the standard "Unknown policy_type" error; use the `sc2_`-prefixed equivalents (`sc2_cmaes`, `sc2_reinforce`, `sc2_lstm`, `sc2_neural_dqn`). This pulls forward the breaking change originally scheduled for Phase E of #224.
+
+### Fixed
+- SC2 `.SC2Map` file race when multiple PySC2 binaries boot on the same
+  host (issue #254). `games.sc2.client.SC2Client._make_sc2_env` now
+  routes every `SC2Env` construction through a cross-process
+  *map-access gate* (`games.sc2.map_access_gate.acquire_map_access_slot`)
+  that enforces a minimum 5 s gap between consecutive grants. This
+  covers not only the initial worker launches but every subsequent
+  SC2 reboot — distributed local workers picking up successive
+  experiments, intra-run parallel-eval workers (`n_workers > 1`), and
+  any future SC2 multi-instance scenarios. The gate uses an
+  `fcntl.flock`-serialised timestamp file under the system temp dir
+  and is tunable via two env vars:
+  - `GAMER_AI_SC2_MAP_GAP_S` — gap in seconds (default `5.0`; set to
+    `0` to disable, e.g. for single-process runs).
+  - `GAMER_AI_SC2_MAP_LOCK_PATH` — custom timestamp-file path (mainly
+    useful for tests).
+
+  As a complementary defence-in-depth, `grid_search.py --distribute
+  --local-workers N` also launches the local worker subprocesses with a
+  cascading 5 s delay (first immediate, second waits 5 s, third waits
+  another 5 s, …). Tunable via the new `--local-worker-stagger` CLI
+  flag or `distribute.local_worker_stagger` config key (default `5.0`;
+  set to `0` to disable).
+- `move_exploration_bonus` exploit: bonus now tracks actual unit centroid
+  positions on an 8×8 screen grid rather than move command targets, so
+  spamming `Move_screen` to many locations without moving units yields no
+  repeated reward. Grid cells are marked visited whenever friendly units are
+  visible, and the bonus fires at most once per grid cell per episode.
 - Versioning + release system. `framework/version.py` resolves a
   runtime `code_version` string of the form
   `<PACKAGE_VERSION>+g<sha7>[.dirty]`; the value is persisted in every
@@ -233,3 +439,5 @@ formatting, internal refactors with no behaviour change — can be skipped.
 
 ### Fixed
 - Test dependency wiring and a batch of failing tests (#100).
+
+---

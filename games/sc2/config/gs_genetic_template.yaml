@@ -37,18 +37,19 @@ base_name: "gs_sc2_genetic_v1"
 game: sc2
 
 training_params:
-  map_name: Simeple64
-  in_game_episode_s: 120.0
   step_mul: 1
+  map_name: Simple64
+  in_game_episode_s: 600.0
   screen_size: 64
   minimap_size: 64
   max_apm: 300
   agent_race: terran
-  n_sims: 50          # 50 generations; total episodes = n_sims × population_size × eval_episodes
+  n_sims: 100          # 50 generations; total episodes = n_sims × population_size × eval_episodes
   policy_type: sc2_genetic
-  obs_spec_preset: [minigame, ladder]   # 13-dim minigame vs 43-dim ladder
-  population_size: [20, 40]
+  obs_spec_preset: rich
+  enable_belief: true
+  population_size: [20, 40, 100]
   elite_k: 5
-  eval_episodes: [2, 4]    # higher = less reward variance per fitness estimate
+  eval_episodes: 2    # higher = less reward variance per fitness estimate
   mutation_scale: [0.05, 0.1, 0.2]
   mutation_share: [0.3, 1.0]     # sparse vs dense mutation

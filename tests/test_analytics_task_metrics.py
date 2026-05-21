@@ -9,9 +9,12 @@ Covers:
 - _gs_stats() task-metric keys.
 - plot_task_metrics() / plot_reward_components() are no-ops when matplotlib
   is absent (regression guard).
+- plot_reward_component_breakdown(): diverging stacked bar per sim.
 """
 from __future__ import annotations
 
+import os
+import tempfile
 import unittest
 
 from framework.analytics import (
@@ -19,7 +22,9 @@ from framework.analytics import (
     ExperimentData,
     _task_metrics_table_md,
     _greedy_table_md,
+    _summary_md,
     _gs_stats,
+    plot_reward_component_breakdown,
 )
 
 
@@ -337,6 +342,95 @@ class TestSaveGridSummaryTaskMetric(unittest.TestCase):
                               task_metric_fmt="{:.1%}".format)
             md = open(os.path.join(d, "summary.md"), encoding="utf-8").read()
         self.assertIn("50.0%", md)
+
+    def test_summary_includes_code_versions_section_and_per_run_version(self):
+        import tempfile, os
+        from framework.analytics import save_grid_summary
+
+        runs = self._make_runs({"exp_a": [0.5], "exp_b": [0.4]})
+        runs[0][1].code_version = "0.1.2+gabc1234"
+        runs[1][1].code_version = "0.1.3+gdef5678"
+
+        with tempfile.TemporaryDirectory() as d:
+            save_grid_summary(runs, [], d, "gs")
+            md = open(os.path.join(d, "summary.md"), encoding="utf-8").read()
+
+        self.assertIn("## Code Versions", md)
+        self.assertIn("`0.1.2+gabc1234`", md)
+        self.assertIn("`0.1.3+gdef5678`", md)
+        self.assertIn("| Code version | `0.1.2+gabc1234` |", md)
+
+
+class TestRunSummaryCodeVersion(unittest.TestCase):
+    def test_summary_md_has_dedicated_code_version_section(self):
+        exp = _make_experiment([_make_sim(1)])
+        exp.code_version = "0.1.2+gabc1234"
+        md = _summary_md(exp)
+        self.assertIn("### Code Version", md)
+        self.assertIn("`0.1.2+gabc1234`", md)
+
+
+# ---------------------------------------------------------------------------
+# plot_reward_component_breakdown (issue #252)
+# ---------------------------------------------------------------------------
+
+class TestPlotRewardComponentBreakdown(unittest.TestCase):
+
+    def test_renders_to_file(self):
+        sims = [
+            _make_sim(1, reward_components={"progress": 10.0, "step_penalty": -1.0}),
+            _make_sim(2, reward_components={"progress": 12.0, "step_penalty": -1.5},
+                      improved=True),
+            _make_sim(3, reward_components={"progress": 8.0, "step_penalty": -0.5}),
+        ]
+        data = _make_experiment(sims)
+        with tempfile.TemporaryDirectory() as d:
+            plot_reward_component_breakdown(data, d)
+            self.assertIn("reward_component_breakdown.png", os.listdir(d))
+
+    def test_skips_when_no_component_data(self):
+        sims = [_make_sim(i) for i in range(1, 4)]  # reward_components=None
+        data = _make_experiment(sims)
+        with tempfile.TemporaryDirectory() as d:
+            plot_reward_component_breakdown(data, d)
+            self.assertNotIn("reward_component_breakdown.png", os.listdir(d))
+
+    def test_skips_when_no_sims(self):
+        data = _make_experiment([])
+        with tempfile.TemporaryDirectory() as d:
+            plot_reward_component_breakdown(data, d)
+            self.assertEqual(os.listdir(d), [])
+
+    def test_skips_when_all_components_zero(self):
+        sims = [_make_sim(1, reward_components={"progress": 0.0, "step_penalty": 0.0})]
+        data = _make_experiment(sims)
+        with tempfile.TemporaryDirectory() as d:
+            plot_reward_component_breakdown(data, d)
+            self.assertNotIn("reward_component_breakdown.png", os.listdir(d))
+
+    def test_positive_only_components(self):
+        sims = [_make_sim(1, reward_components={"progress": 15.0, "bonus": 5.0})]
+        data = _make_experiment(sims)
+        with tempfile.TemporaryDirectory() as d:
+            plot_reward_component_breakdown(data, d)
+            self.assertIn("reward_component_breakdown.png", os.listdir(d))
+
+    def test_negative_only_components(self):
+        sims = [_make_sim(1, reward_components={"step_penalty": -2.0, "crash": -10.0})]
+        data = _make_experiment(sims)
+        with tempfile.TemporaryDirectory() as d:
+            plot_reward_component_breakdown(data, d)
+            self.assertIn("reward_component_breakdown.png", os.listdir(d))
+
+    def test_partial_none_sims_use_zero_for_missing_keys(self):
+        sims = [
+            _make_sim(1, reward_components={"progress": 10.0}),
+            _make_sim(2),  # reward_components=None → treated as all-zero
+        ]
+        data = _make_experiment(sims)
+        with tempfile.TemporaryDirectory() as d:
+            plot_reward_component_breakdown(data, d)
+            self.assertIn("reward_component_breakdown.png", os.listdir(d))
 
 
 if __name__ == "__main__":

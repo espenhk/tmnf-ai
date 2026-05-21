@@ -3,8 +3,8 @@
 SC2MultiHeadLinearPolicy
     Multi-output linear policy for SC2.  Two weight matrices are maintained:
 
-    * **fn_idx head** — shape ``(N_FUNCTION_IDS, obs_dim)`` → 6 scores, one per
-      available function ID.  ``argmax`` gives the selected function.
+    * **fn_idx head** — shape ``(N_FUNCTION_IDS, obs_dim)`` → one score per
+      function ID.  ``argmax`` gives the selected function.
     * **spatial head** — shape ``(2, obs_dim)`` → two scalar scores fed
       through a sigmoid to produce continuous ``(x, y) ∈ [0, 1]²`` screen
       coordinates (issue #122).  Continuous output lets the policy target
@@ -39,7 +39,7 @@ from framework.lstm import LSTMEvolutionPolicy as _FrameworkLSTMEvo
 from framework.obs_spec import ObsSpec
 from framework.policies import BasePolicy, GeneticPolicy, register_policy, trainer_state_path
 from framework.reinforce import TwoHeadREINFORCEPolicy as _FrameworkTwoHeadREINFORCE, _GradEntry  # noqa: F401 — _GradEntry re-exported for test compatibility
-from games.sc2.actions import DISCRETE_ACTIONS, FUNCTION_IDS, build_available_actions_mask
+from games.sc2.actions import DISCRETE_ACTIONS, FUNCTION_IDS, build_available_actions_mask, fn_ids_for_race
 from games.sc2.obs_spec import SC2_MINIGAME_OBS_SPEC
 
 logger = logging.getLogger(__name__)
@@ -49,7 +49,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 #: Number of function IDs exposed by the SC2 action set.
-N_FUNCTION_IDS: int = len(FUNCTION_IDS)   # 6
+N_FUNCTION_IDS: int = len(FUNCTION_IDS)
 
 #: Number of rows in the spatial (x, y) sigmoid head.
 N_SPATIAL_ROWS: int = 2
@@ -90,6 +90,11 @@ class SC2MultiHeadLinearPolicy:
         Weight matrix of shape ``(N_SPATIAL_ROWS, obs_dim)`` whose rows are
         the linear-projection coefficients for ``x`` and ``y`` respectively.
         If *None* a random initialisation is used.
+    race :
+        Agent race (``"terran"``, ``"protoss"``, ``"zerg"``, or
+        ``"random"``).  fn_ids outside the race's applicable set are
+        permanently masked to ``-inf`` so the policy never selects them.
+        Defaults to ``"random"`` (all fn_ids enabled).
     """
 
     def __init__(
@@ -97,6 +102,7 @@ class SC2MultiHeadLinearPolicy:
         obs_spec: ObsSpec,
         fn_weights: np.ndarray | None = None,
         spatial_weights: np.ndarray | None = None,
+        race: str = "random",
     ) -> None:
         self._obs_spec = obs_spec
         obs_dim = obs_spec.dim
@@ -113,8 +119,13 @@ class SC2MultiHeadLinearPolicy:
             else rng.standard_normal((N_SPATIAL_ROWS, obs_dim)).astype(np.float32)
         )
 
-        # Cache of available fn_ids from the most recent on_episode_start() /
-        # update() call.  None means all functions are available (no masking).
+        # Permanent race mask — fn_ids outside the race's applicable set are
+        # always masked, regardless of what PySC2 reports as available.
+        self._race: str = race
+        self._race_fn_ids: frozenset[int] = fn_ids_for_race(race)
+
+        # Per-step cache of fn_ids from the most recent on_episode_start() /
+        # update() call.  None means all functions are available.
         self._available_fn_ids: set[int] | None = None
 
     # ------------------------------------------------------------------
@@ -140,14 +151,16 @@ class SC2MultiHeadLinearPolicy:
         fn_scores = self._fn_weights @ norm_obs   # (N_FUNCTION_IDS,)
         sp_scores = self._sp_weights @ norm_obs   # (2,) — raw x and y logits
 
-        # Mask unavailable function IDs so argmax never selects them.
-        if self._available_fn_ids is not None:
-            for i in range(N_FUNCTION_IDS):
-                if i not in self._available_fn_ids:
-                    fn_scores[i] = -np.inf
-            # If all scored to -inf (empty set), fall back to no_op (idx 0).
-            if not np.any(np.isfinite(fn_scores)):
-                fn_scores[0] = 0.0
+        # Apply permanent race mask and per-step availability mask.
+        for i in range(N_FUNCTION_IDS):
+            if i not in self._race_fn_ids:
+                fn_scores[i] = -np.inf
+            elif self._available_fn_ids is not None and i not in self._available_fn_ids:
+                fn_scores[i] = -np.inf
+        # If all masked (e.g. race set is empty or nothing available), fall
+        # back to no_op (idx 0) which is always a valid PySC2 action.
+        if not np.any(np.isfinite(fn_scores)):
+            fn_scores[0] = 0.0
 
         fn_idx = int(np.argmax(fn_scores))
         x      = _sigmoid(float(sp_scores[0]))
@@ -191,7 +204,12 @@ class SC2MultiHeadLinearPolicy:
             yaml.dump(self.to_cfg(), f, default_flow_style=False, sort_keys=False)
 
     @classmethod
-    def from_cfg(cls, cfg: dict, obs_spec: ObsSpec) -> "SC2MultiHeadLinearPolicy":
+    def from_cfg(
+        cls,
+        cfg: dict,
+        obs_spec: ObsSpec,
+        race: str = "random",
+    ) -> "SC2MultiHeadLinearPolicy":
         """Reconstruct a policy from a ``to_cfg()`` dict.
 
         Unknown keys and missing observation features default to 0.0 so that
@@ -201,6 +219,11 @@ class SC2MultiHeadLinearPolicy:
         to all-zero ``x_weights`` / ``y_weights`` because the old 9-cell
         argmax encoding has no meaningful projection onto the new continuous
         head.
+
+        The *race* parameter gates which fn_ids are active at inference time;
+        it does not affect which weights are loaded (all rows are always
+        restored from the file so the champion can be evaluated under any race
+        without losing weights).
         """
         names   = obs_spec.names
         obs_dim = obs_spec.dim
@@ -218,14 +241,20 @@ class SC2MultiHeadLinearPolicy:
             for j, n in enumerate(names):
                 sp_weights[i, j] = float(row_cfg.get(n, 0.0))
 
-        return cls(obs_spec, fn_weights=fn_weights, spatial_weights=sp_weights)
+        return cls(obs_spec, fn_weights=fn_weights, spatial_weights=sp_weights,
+                   race=race)
 
     @classmethod
-    def load(cls, path: str, obs_spec: ObsSpec) -> "SC2MultiHeadLinearPolicy":
+    def load(
+        cls,
+        path: str,
+        obs_spec: ObsSpec,
+        race: str = "random",
+    ) -> "SC2MultiHeadLinearPolicy":
         """Load from a YAML file written by :meth:`save`."""
         with open(path) as f:
             cfg = yaml.safe_load(f) or {}
-        return cls.from_cfg(cfg, obs_spec)
+        return cls.from_cfg(cfg, obs_spec, race=race)
 
     # ------------------------------------------------------------------
     # Flat-weight interface (for CMA-ES interoperability)
@@ -247,7 +276,8 @@ class SC2MultiHeadLinearPolicy:
         fn_size    = N_FUNCTION_IDS * obs_dim
         fn_weights = flat[:fn_size].reshape(N_FUNCTION_IDS, obs_dim).astype(np.float32)
         sp_weights = flat[fn_size:].reshape(N_SPATIAL_ROWS, obs_dim).astype(np.float32)
-        return SC2MultiHeadLinearPolicy(self._obs_spec, fn_weights, sp_weights)
+        return SC2MultiHeadLinearPolicy(self._obs_spec, fn_weights, sp_weights,
+                                        race=self._race)
 
     # ------------------------------------------------------------------
     # Mutation
@@ -366,6 +396,7 @@ class SC2GeneticPolicy(GeneticPolicy):
         mutation_scale: float = 0.1,
         mutation_share: float = 0.3,
         eval_episodes: int = 2,
+        race: str = "random",
     ) -> None:
         # Pass the flat row-names as head_names so the parent's
         # initialize_random() builds the correct {row_name}_weights keys.
@@ -378,6 +409,7 @@ class SC2GeneticPolicy(GeneticPolicy):
             mutation_share  = mutation_share,
             eval_episodes   = eval_episodes,
         )
+        self._race = race
 
     # ------------------------------------------------------------------
     # Individual factory — override to use SC2MultiHeadLinearPolicy
@@ -385,7 +417,7 @@ class SC2GeneticPolicy(GeneticPolicy):
 
     def _make_member(self, cfg: dict) -> SC2MultiHeadLinearPolicy:  # type: ignore[override]
         """Build an SC2MultiHeadLinearPolicy from a ``to_cfg()`` dict."""
-        return SC2MultiHeadLinearPolicy.from_cfg(cfg, self._obs_spec)
+        return SC2MultiHeadLinearPolicy.from_cfg(cfg, self._obs_spec, race=self._race)
 
     # ------------------------------------------------------------------
     # Population seed from a saved champion file
@@ -393,7 +425,7 @@ class SC2GeneticPolicy(GeneticPolicy):
 
     def initialize_from_file(self, path: str) -> None:
         """Load champion from YAML and seed the population by mutation."""
-        champion = SC2MultiHeadLinearPolicy.load(path, self._obs_spec)
+        champion = SC2MultiHeadLinearPolicy.load(path, self._obs_spec, race=self._race)
         self.initialize_from_champion(champion)
         logger.info("[SC2GeneticPolicy] seeded population from champion at %s", path)
 
@@ -434,11 +466,12 @@ class SC2GeneticPolicy(GeneticPolicy):
             mutation_scale  = float(cfg.get("mutation_scale", 0.1)),
             mutation_share  = float(cfg.get("mutation_share", 0.3)),
             eval_episodes   = int(cfg.get("eval_episodes", 2)),
+            race            = cfg.get("race", "random"),
         )
         champion_cfg = cfg.get("champion_weights")
         if champion_cfg and isinstance(champion_cfg, dict):
             policy._champion = SC2MultiHeadLinearPolicy.from_cfg(
-                champion_cfg, obs_spec
+                champion_cfg, obs_spec, race=policy._race
             )
             policy._champion_reward = float(cfg.get("champion_reward", float("-inf")))
         return policy
@@ -917,6 +950,7 @@ class SC2CMAESPolicy(_FrameworkCMAES):
         initial_sigma: float = 0.5,
         eval_episodes: int = 2,
         seed: int | None = None,
+        race: str = "random",
     ) -> None:
         _tpl = SC2MultiHeadLinearPolicy(obs_spec)
         n_params = len(_tpl.to_flat())
@@ -931,13 +965,18 @@ class SC2CMAESPolicy(_FrameworkCMAES):
             eval_episodes=eval_episodes,
             seed=seed,
         )
+        self._race: str = race
+        self._race_fn_ids: frozenset[int] = fn_ids_for_race(race)
         self._available_fn_ids: set[int] | None = None
+
 
     def _build_fn_mask(self, available_fn_ids: set[int] | None) -> np.ndarray:
         mask = np.ones(N_FUNCTION_IDS, dtype=bool)
-        if available_fn_ids is not None:
-            for i in range(N_FUNCTION_IDS):
-                mask[i] = i in available_fn_ids
+        for i in range(N_FUNCTION_IDS):
+            if i not in self._race_fn_ids:
+                mask[i] = False
+            elif available_fn_ids is not None and i not in available_fn_ids:
+                mask[i] = False
         if not mask.any():
             mask[0] = True
         return mask
@@ -1055,12 +1094,15 @@ class SC2LSTMPolicy:
         hidden_size: int = 64,
         reset_on_episode: bool = True,
         seed: int | None = None,
+        race: str = "random",
     ) -> None:
         self._obs_spec        = obs_spec
         self._hidden_size     = hidden_size
         self._obs_dim         = obs_spec.dim
         self._scales          = obs_spec.scales
         self._reset_on_episode = reset_on_episode
+        self._race: str                  = race
+        self._race_fn_ids: frozenset[int] = fn_ids_for_race(race)
 
         h    = hidden_size
         c_in = h + self._obs_dim
@@ -1128,6 +1170,8 @@ class SC2LSTMPolicy:
         obj._obs_dim          = self._obs_dim
         obj._scales           = self._scales
         obj._reset_on_episode = self._reset_on_episode
+        obj._race             = self._race
+        obj._race_fn_ids      = self._race_fn_ids
         obj._rng              = np.random.default_rng()
         obj._available_fn_ids = None
 
@@ -1198,11 +1242,12 @@ class SC2LSTMPolicy:
         fn_logits   = out[:N_FUNCTION_IDS].copy().astype(np.float64)
         sp_logits   = out[N_FUNCTION_IDS:].astype(np.float64)
 
-        # Available-actions masking on fn head.
-        if self._available_fn_ids is not None:
-            for k in range(N_FUNCTION_IDS):
-                if k not in self._available_fn_ids:
-                    fn_logits[k] = -np.inf
+        # Permanent race mask + per-step available-actions mask.
+        for k in range(N_FUNCTION_IDS):
+            if k not in self._race_fn_ids:
+                fn_logits[k] = -np.inf
+            elif self._available_fn_ids is not None and k not in self._available_fn_ids:
+                fn_logits[k] = -np.inf
         if not np.isfinite(fn_logits).any():
             fn_logits[0] = 0.0  # fallback to no_op
 
@@ -1249,13 +1294,15 @@ class SC2LSTMPolicy:
             yaml.dump(self.to_cfg(), f, default_flow_style=False, sort_keys=False)
 
     @classmethod
-    def from_cfg(cls, cfg: dict, obs_spec: ObsSpec) -> "SC2LSTMPolicy":
+    def from_cfg(cls, cfg: dict, obs_spec: ObsSpec, race: str = "random") -> "SC2LSTMPolicy":
         obj = object.__new__(cls)
         obj._obs_spec         = obs_spec
         obj._hidden_size      = int(cfg["hidden_size"])
         obj._obs_dim          = obs_spec.dim
         obj._scales           = obs_spec.scales
         obj._reset_on_episode = bool(cfg.get("reset_on_episode", True))
+        obj._race             = race
+        obj._race_fn_ids      = fn_ids_for_race(obj._race)
         obj._available_fn_ids = None
         obj._W_f   = np.array(cfg["W_f"],   dtype=np.float32)
         obj._b_f   = np.array(cfg["b_f"],   dtype=np.float32)
@@ -1324,11 +1371,13 @@ class SC2LSTMEvolutionPolicy(_FrameworkLSTMEvo):
         initial_sigma: float = 0.03,
         reset_on_episode: bool = True,
         seed: int | None = None,
+        race: str = "random",
     ) -> None:
         template = SC2LSTMPolicy(
             obs_spec         = obs_spec,
             hidden_size      = hidden_size,
             reset_on_episode = reset_on_episode,
+            race             = race,
         )
         super().__init__(
             obs_spec         = obs_spec,

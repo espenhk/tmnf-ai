@@ -219,16 +219,16 @@ class TestSC2LinearPolicyActionEncoding(unittest.TestCase):
         return np.ones(_OBS_DIM, dtype=np.float32)
 
     def test_fn_idx_in_valid_range(self):
-        """fn_idx must be in [0, N_FUNCS-1] = [0, 5], not clipped to [-1,1]."""
+        """fn_idx must be in [0, N_FUNCTION_IDS-1], not clipped to [-1,1]."""
+        from games.sc2.sc2_policies import N_FUNCTION_IDS
         rng = np.random.default_rng(0)
         for _ in range(20):
             policy = SC2LinearPolicy(_OBS_SPEC, _HEAD_NAMES)
-            # Set large positive weights so sigmoid output is near 1 → fn_idx ≈ 5
             for head in _HEAD_NAMES:
                 policy._weights[head] = rng.standard_normal(_OBS_DIM).astype(np.float32) * 5.0
             action = policy(self._obs())
             self.assertGreaterEqual(float(action[0]), 0.0)
-            self.assertLessEqual(float(action[0]), 5.0)
+            self.assertLessEqual(float(action[0]), N_FUNCTION_IDS - 1)
 
     def test_x_y_are_continuous_not_binary(self):
         """x and y must be in (0, 1), not forced to {0, 1} extremes."""
@@ -272,12 +272,13 @@ class TestSC2LinearPolicyActionEncoding(unittest.TestCase):
 
     def test_cmaes_offspring_emit_valid_sc2_actions(self):
         """SC2CMAESPolicy offspring must emit valid SC2 action vectors."""
+        from games.sc2.sc2_policies import N_FUNCTION_IDS
         policy = SC2CMAESPolicy(obs_spec=_OBS_SPEC, population_size=4)
         offspring = policy.sample_population()
         for ind in offspring:
             action = ind(self._obs())
             self.assertGreaterEqual(float(action[0]), 0.0)
-            self.assertLessEqual(float(action[0]), 5.0)
+            self.assertLessEqual(float(action[0]), N_FUNCTION_IDS - 1)
 
 
 # ---------------------------------------------------------------------------

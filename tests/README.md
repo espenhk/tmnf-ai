@@ -17,7 +17,9 @@
   - [test\_game\_adapter.py — TMNF/TORCS/SC2/BeamNG adapter abstractions](#test_game_adapterpy--tmnftorcssc2beamng-adapter-abstractions)
   - [test\_grid\_search.py — Cartesian-product expansion + naming](#test_grid_searchpy--cartesian-product-expansion--naming)
   - [test\_info\_gain.py — staleness-based intrinsic reward](#test_info_gainpy--staleness-based-intrinsic-reward)
+  - [test\_live\_monitor.py — live GUI monitor helpers](#test_live_monitorpy--live-gui-monitor-helpers)
   - [test\_obs\_memory.py — frame-stacking observation wrapper](#test_obs_memorypy--frame-stacking-observation-wrapper)
+  - [test\_parallel\_eval.py — intra-run parallel evaluator (issue #229)](#test_parallel_evalpy--intra-run-parallel-evaluator-issue-229)
   - [test\_reward.py — TMNF reward calculator + curiosity glue](#test_rewardpy--tmnf-reward-calculator--curiosity-glue)
   - [test\_train\_rl\_signature.py — public `train_rl()` API](#test_train_rl_signaturepy--public-train_rl-api)
   - [test\_new\_best\_logging.py — `_log_new_best_details` + `_print_episode_summary`](#test_new_best_loggingpy--_log_new_best_details--_print_episode_summary)
@@ -46,10 +48,11 @@
   - [test\_torcs\_analytics.py — TORCS plots/report](#test_torcs_analyticspy--torcs-plotsreport)
 - [SC2](#sc2)
   - [test\_sc2\_obs\_spec.py — SC2 obs spec](#test_sc2_obs_specpy--sc2-obs-spec)
-  - [test\_sc2\_actions.py — discrete action grid](#test_sc2_actionspy--discrete-action-grid)
+  - [test\_sc2\_actions.py — discrete action grid + race gating](#test_sc2_actionspy--discrete-action-grid--race-gating)
   - [test\_sc2\_reward.py — SC2 reward calc](#test_sc2_rewardpy--sc2-reward-calc)
   - [test\_sc2\_client.py — PySC2 client wrapper](#test_sc2_clientpy--pysc2-client-wrapper)
   - [test\_sc2\_env.py — SC2 env wrapper](#test_sc2_envpy--sc2-env-wrapper)
+  - [test\_sc2\_replay.py — SC2 replay saving on new-best events (issue #210)](#test_sc2_replaypy--sc2-replay-saving-on-new-best-events-issue-210)
   - [test\_sc2\_apm\_limiter.py — token-bucket APM limiter + SC2Env integration](#test_sc2_apm_limiterpy--token-bucket-apm-limiter--sc2env-integration)
   - [test\_sc2\_belief\_integration.py — fog-of-war belief system wired into SC2Env (issue #111)](#test_sc2_belief_integrationpy--fog-of-war-belief-system-wired-into-sc2env-issue-111)
   - [test\_sc2\_cmaes\_policy.py — `SC2CMAESPolicy` (CMA-ES over multi-head linear policy)](#test_sc2_cmaes_policypy--sc2cmaespolicy-cma-es-over-multi-head-linear-policy)
@@ -124,12 +127,22 @@ graceful skip of missing experiments), plus `cross_grid_report.py`
 (recursive `<policy>/vX/` discovery, copied-summary link rewriting, and
 cross-grid family comparison tables).
 
+The intra-run parallel evaluator (`framework/parallel_eval.py`, issue #229)
+is unit-tested end-to-end against a picklable dummy env / policy: worker
+pool spawn (spawn context), per-individual ordering, crash isolation,
+sentinel shutdown, determinism under fixed seed, per-candidate
+episode-time-limit dispatch, and the `train_rl` guard
+(`_maybe_build_evaluator`).  The underlying PySC2 binary spawn path is
+opt-in via `RUN_SC2_TESTS=1`.
+
 **Not tested.** Real distributed training across multiple machines (only the
 in-process HTTP loopback is exercised); actual matplotlib rendering or PNG
 diff'ing (analytics tests assert files appear, not their contents); the Azure
 Terraform stack under `infrastructure/`; the Windows bootstrap script
 `setup_and_run.ps1` (PowerShell-only; cannot run on Linux CI); long convergence
-behaviour of the actual `train_rl()` loop end-to-end on a real env.
+behaviour of the actual `train_rl()` loop end-to-end on a real env;
+the actual PySC2 binary spawn path under `ParallelEvaluator` — only the
+worker mechanics are unit-tested with a dummy env.
 
 ### test_cmaes_distribution.py — `CMAESDistribution` pure-math unit tests
 - Init: n / λ / μ=λ/2 / recombination weights sum=1 and decreasing / σ stored / C=I / ps+pc=0 / gen=0 / μ_eff > 1
@@ -151,6 +164,7 @@ behaviour of the actual `train_rl()` loop end-to-end on a real env.
 - summary table: progress / finish-time / dash-on-no-finish / lateral-offset columns
 - `plot_gs_reward_trajectories`: chart written by `save_grid_summary` / referenced in summary.md / no crash with empty sims
 - `save_grid_summary` task-metric plugin: default uses track progress with `.4f` format; custom fn replaces label+value; custom fn drives ranking; explicit `task_metric_fmt` overrides format independently of fn
+- `plot_reward_component_breakdown`: renders to file / skips when no component data / skips when no sims / skips when all-zero / positive-only / negative-only / partial-None sims use zero for missing keys
 
 ### test_belief.py — fog-of-war belief encoder
 - initial encode all zero; update sets value+confidence; project decays confidence
@@ -188,6 +202,7 @@ behaviour of the actual `train_rl()` loop end-to-end on a real env.
 - HTTP: serves all combos / status endpoint / result accepted + done event
 - unknown combo rejected; duplicate result ignored; stale worker re-queued; heartbeat prevents requeue
 - empty queue returns immediately; unauthorized rejected
+- LAN source-IP filtering: private/loopback/link-local clients allowed by default; public IPs rejected with 403 unless `allow_non_lan=True`
 - game-filter: X-Worker-Game header returns matching combo; 204 when no match; preserves queue order for non-matching items
 - skip endpoint: POST /skip returns in-progress item to queue; unknown item is no-op
 - ComboSpec.game defaults to 'tmnf'; explicit game values round-trip correctly
@@ -201,20 +216,26 @@ behaviour of the actual `train_rl()` loop end-to-end on a real env.
 
 ### test_game_adapter.py — TMNF/TORCS/SC2/BeamNG adapter abstractions
 - registry: all games registered; adapter instantiable
-- TMNF: experiment_dir includes track / track override / track_label default+override / build_probe / build_warmup / decorate_reward_cfg
-- TORCS: experiment_dir root / dir / track_label default+override / build_probe/warmup = None
-- SC2: experiment_dir includes map_name / track override / track_label / build_probe/warmup = None
+- TMNF: experiment_dir includes game/policy/track hierarchy, track override, track_label default+override, build_probe/build_warmup, decorate_reward_cfg
+- TORCS: experiment_dir root/dir includes game/policy/map hierarchy, track_label default+override, build_probe/warmup = None
+- SC2: experiment_dir includes game/policy/map hierarchy, track override, track_label, build_probe/warmup = None
 - BeamNG: experiment_dir / build_probe = None
 - AssettoCorsa: experiment_dir / build_probe = None
 
 (SC2 policy/param validation moved to test_policy_registry.py with the
 `compatible_with` hook in Phase D — `build_extras` was deleted.)
 
+### test_sc2_map_access_gate.py — Cross-process SC2 map-access serialiser (issue #254)
+- single-process: first call returns 0 wait / second call within gap waits remainder / second call after gap waits 0 / `gap_s=0` short-circuits with no I/O / negative `gap_s` treated as disabled / corrupt or empty timestamp file treated as "no prior access" / future timestamp clamped to now (clock-skew robustness)
+- env-var configuration: `GAMER_AI_SC2_MAP_LOCK_PATH` overrides lock path / `GAMER_AI_SC2_MAP_GAP_S` overrides gap / invalid value falls back to default with warning / negative value falls back to default / `0` disables the gate
+- multi-process: three concurrent fork()-spawned workers are serialised so each consecutive grant is ≥ `gap_s` apart (POSIX-only)
+- real-clock integration: a single end-to-end call against the real `time.sleep` / `time.time` confirms the test-seam wiring matches actual behaviour
+
 ### test_grid_search.py — Cartesian-product expansion + naming
 - expansion: no variation / single training axis / single reward axis / cartesian product / fixed params preserved
 - flat dict: contains varied / no-flat-key when not varied
-- naming: no varied / single varied / negative-float `n` prefix / multiple varied / unknown key passthrough
-- local distributed helpers: launching expected `distributed.worker` subprocess commands / launch-failure cleanup for already-started workers / best-effort worker shutdown (graceful terminate + timeout kill) / non-negative integer parsing used for `--local-workers` and `distribute.local_workers`
+- naming: no varied / single varied / negative-float `n` prefix / multiple varied / unknown key passthrough / split `<base>__<params>` into nested folder components
+- local distributed helpers: launching expected `distributed.worker` subprocess commands (including custom coordinator host wiring) / cascading start-stagger between consecutive worker spawns (issue #254; first immediate, subsequent wait `start_stagger_s` each) / no stagger sleep when `start_stagger_s=0` / launch-failure cleanup for already-started workers / best-effort worker shutdown (graceful terminate + timeout kill) / non-negative integer parsing used for `--local-workers` and `distribute.local_workers`
 - abbreviation coverage: every default game `training_params.yaml` + `reward_config.yaml` key has a short folder-name abbreviation; all promoted top-level policy params do too
 - nested policy_params: passthrough / top-level promoted / top-level overrides nested / all keys mapped / correct names
 - promoted-keys: no params returns empty / lstm hidden_size / reinforce baseline / genetic mutation_scale + mutation_share / keys in map with correct names
@@ -224,6 +245,13 @@ behaviour of the actual `train_rl()` loop end-to-end on a real env.
 ### test_info_gain.py — staleness-based intrinsic reward
 - initial staleness all 1; never-observed = max; just-observed near zero; grows linearly
 - reward fires stale→fresh; zero when weight=0; reset restores
+
+### test_live_monitor.py — live GUI monitor helpers
+- reward-component extraction prefers per-step components and falls back to differencing cumulative episode totals
+- rolling-average values are computed from the latest 5 steps
+- observation grouping detects x/y pairs, indexed vectors, quadrant grids, and scalar fallbacks
+- reward ordering keeps known keys in fixed logical order and appends unknown keys alphabetically
+- action formatting shows up to six vector entries before truncating with an ellipsis
 
 ### test_obs_memory.py — frame-stacking observation wrapper
 - shape; reset fills initial; step shifts frames; k=1 passthrough; invalid k raises; most-recent zero-padded; clear
@@ -235,6 +263,18 @@ behaviour of the actual `train_rl()` loop end-to-end on a real env.
 - Track fields: default name / centerline path / custom / from yaml / backward-compat / default config back-compat
 - Curiosity: ICM adds positive intrinsic / scales w/ n_ticks / skipped when obs missing / reset propagates / yaml accepts new keys
 - `compute_with_components`: scalar matches / sum=total / keys present / progress / centerline / finish-bonus / finish-time over-par / no-finish / step-penalty / accel-bonus / curiosity zero w/o module
+
+### test_parallel_eval.py — intra-run parallel evaluator (issue #229)
+- `ParallelEvaluator` returns results sorted by `individual_idx` regardless of submission order
+- matches a serial-reference evaluation byte-for-byte on dummy env + dummy policy
+- `eval_episodes>1` reports the per-episode mean reward and summed total_steps
+- worker crash on one individual returns `-inf` for that idx; other workers keep serving
+- `close()` joins all workers (no zombies); idempotent across repeat calls; rejects post-close `evaluate()`
+- empty candidate list → empty result; `n_workers=0` raises; more candidates than workers all evaluated
+- determinism: identical `base_seed` produces identical results
+- `episode_time_limit_s` reaches workers without crashing the dispatch
+- `_maybe_build_evaluator` returns None for `n_workers=1`, raises `ValueError` for non-population policies and `q_learning` loop dispatch, caps `n_workers` at `population_size` with a warning, and accepts `cmaes` loop dispatch for `sc2_cmaes` / `sc2_lstm` / `sc2_cnn`
+- SC2 binary spawn smoke test is opt-in (skipped unless `RUN_SC2_TESTS=1`); the worker mechanics are exercised entirely against the dummy env in the unit tests
 
 ### test_train_rl_signature.py — public `train_rl()` API
 - accepts game+config params; accepts optional specs (probe/warmup); `extras` param removed (Phase D); accepts control flags; no legacy flat params; `GameSpec` requires explicit `game_name` (no empty-default bypass)
@@ -440,20 +480,29 @@ section because both the minigame and Simple64 ladder paths,
 plus six policy variants and three obs encodings (flat / dict / spatial),
 have to be covered.
 
-**Tested.** All three observation specs (15-dim minigame, 45-dim ladder,
-97-dim rich) and the get-spec dispatch; the minimap enemy centroid
+**Tested.** All three observation specs (15-dim minigame, 46-dim ladder,
+103-dim rich) and the get-spec dispatch; the minimap enemy centroid
 (`minimap_enemy_cx/cy`) that enables the policy to locate the beacon even
 when it is off the current camera view (beacon-idling fix); the `_action_to_call`
 no-spam fix (blocked Move_screen issues select_army once, then no_op on
-consecutive blocked steps); the 9-cell discrete action grid
-(centre = `select_army`, others = `Move_screen`); the SC2 reward calculator
+consecutive blocked steps); the 118-entry `FUNCTION_IDS` table and the
+`DISCRETE_ACTIONS` uniform `[command × location]` grid (3 583 rows: every
+spatial fn_id gets a full 8×8 = 64-cell block, every non-spatial fn_id gets 1
+row); `SPATIAL_FN_IDS` derivation; race gating (`RACE_FUNCTION_IDS`,
+`fn_ids_for_race()`, pairwise-disjoint race-specific sets); the SC2 reward calculator
 (score delta, win bonus, loss penalty, economy weight, idle penalty, step
 penalty); the SC2 client wrapper (flat-obs construction, score-delta
 threading, player_relative centroid, terminal-outcome handling, ladder
-visibility tracking with fog distinction, and the rich-preset extractors added
+visibility tracking with fog distinction, the rich-preset extractors added
 in issue #135: enemy unit-type counts, shield/energy screen summaries, creep
-coverage fraction, and economy-pipeline features); the SC2 env wrapper (reset /
-step / done / info / custom reward config); the APM limiter (`ApmLimiter`
+coverage fraction, and economy-pipeline features, and `save_replay` delegation
+to PySC2 including None-guard, makedirs-inside-try, and exception safety); the
+SC2 env wrapper (reset / step / done / info / custom reward config /
+`save_replay` passthrough); replay saving on new-best events (`_try_save_replay`
+for single-episode loops, candidate-pattern helpers `_save_candidate_replay` /
+`_finalize_candidate_replay` / `_discard_candidate_replay` for multi-episode
+loops: sequential naming, candidate-file exclusion from counts, exception
+safety throughout); the APM limiter (`ApmLimiter`
 token-bucket: construction, no-op exemption, burst cap, rolling refill,
 env integration including throttled action substitution and per-episode
 counters); the full lifecycle of
@@ -482,9 +531,15 @@ handful of iterations only).
 - rich spec contains new rich-only feature names (selected_avg_shields/energy, screen_visibility_frac, screen_unit_density_aa_mean, self_weapon_cooldown_mean); not present in ladder
 - alert_count present in ladder and rich; absent from minigame
 
-### test_sc2_actions.py — discrete action grid
-- shape / dtype / xy in unit square; centre = select_army; others = move_screen
-- probe actions count / shape; warmup shape / select_army; function_ids table complete
+### test_sc2_actions.py — discrete action grid + race gating
+- `TestSC2Actions`: shape (`_N_SPATIAL × N² + _N_NON_SPATIAL` rows, 4 cols) / dtype float32 / x+y in unit square
+- row 0 = no_op; row 1 = select_army; fn_idx_row_layout — each fn_id has N² rows if spatial, 1 row otherwise, in ascending fn_idx order
+- spatial actions span unit square (x and y both reach near 0 and near 1) for every spatial fn_id
+- Move_screen cells unique (scoped to the Move_screen N² block, not all of DISCRETE_ACTIONS)
+- probe actions count=5 / shape (4,) / include no_op; warmup shape (4,) / is select_army; function_ids table complete
+- SPATIAL_FN_IDS contains exactly the fn_ids whose names end in `_screen` or `_minimap`
+- `TestRaceGating` (9 tests): all four race keys exist in RACE_FUNCTION_IDS; each race's ids are a subset of FUNCTION_IDS; random race = all fn_ids; race-specific sets (_TERRAN / _PROTOSS / _ZERG) are pairwise disjoint; unknown race falls back to all fn_ids; Terran has Build_Barracks_screen (8) not Build_Nexus_screen (50); Protoss has Build_Nexus_screen (50) not Build_Barracks_screen (8); Zerg has Build_Hatchery_screen (82) not Build_Barracks_screen (8); all three named races include Move_screen (2) and no_op (0)
+- `TestActionToFunctionCall`: fake PySC2 module validates encoding branches — `_quick` emits queue-only args, `select_point_screen` and `select_rect_screen` emit screen coords, `_minimap` actions scale with `minimap_size` (not `screen_size`), and `_screen` actions keep using `screen_size`
 
 ### test_sc2_reward.py — SC2 reward calc
 - defaults; from_yaml; unknown raises; loads bundled config
@@ -493,12 +548,14 @@ handful of iterations only).
 - attack_move_bonus: fires when Attack_screen target is on empty ground with enemies visible; skipped for Move_screen / no enemy; disabled by default; n_ticks scaling; persists across consecutive no_op steps until another non-no_op action is issued
 - click_attack_bonus: fires when Attack_screen target is on/near enemy centroid; skipped when target far from enemy / no enemy; disabled by default; n_ticks scaling; persists across consecutive no_op steps until another non-no_op action is issued
 - cooldown: default=8; same target always fires; rapid switch withheld; fires again after cooldown elapsed; reset() clears state; both bonuses mutually exclusive
-- movement shaping: exploration bonus for varied `Move_screen` targets above the minimum-distance threshold; stutter-step below threshold earns no bonus and triggers the repeat penalty instead; move exactly at threshold gets bonus but not penalty; repeat-target penalty; penalty for moving to friendly centroid; self-penalty skipped when no friendly units are visible
+- movement shaping: exploration bonus fires on first `Move_screen` command when the unit centroid is in a new grid cell (actual-visit tracking, default 8×8); visited cells are updated on any step with visible friendlies (not only `Move_screen`), so later move commands do not re-earn bonus for already-occupied cells; bonus does not fire a second time when centroid stays in the same cell; bonus fires again when centroid moves to a new cell; exploit regression — spamming move commands to far targets while units stay put yields at most one bonus; no bonus when no friendly units are visible; repeat penalty still fires for tiny command moves below the distance threshold; command move at threshold does not trigger the repeat penalty; penalty for moving to friendly centroid; self-penalty skipped when no friendly units are visible; `TestSC2IdleBonus._make_calc` disables move-shaping terms so idle-bonus isolation tests are not affected
+- exploration decay (#262): a cell vacated for longer than `move_exploration_decay_steps` is rewarded again on return; a centroid that never leaves its cell is rewarded once even past the decay window (refreshes its own timestamp each step → no command-spam farming); `decay_steps == 0` keeps once-per-episode behaviour (no re-reward); `move_exploration_grid_size` controls cell granularity (a 2×2 grid merges centroids an 8×8 grid separates)
 - attack_friendly_penalty: fires when Attack_screen targets near friendly centroid; skipped for target far from friendly / no friendly on screen / Move_screen; disabled when zero; n_ticks scaling; appears in components dict; default is strongly negative
 - unit_loss_penalty: fires per unit lost (army_count drop); zero when no loss / army grows; disabled by default; appears in components dict
 - damage_taken_penalty: fires per HP+shield point lost across visible friendlies; zero when unchanged / healing; safe default when info keys absent; disabled by default; appears in components dict
 - passive_under_fire_penalty: fires on no_op or Move_screen when enemies within attack range; suppressed by Attack_screen; skipped when enemy out of range / no enemy / no self; respects explicit self_attack_range_px; n_ticks scaling; disabled by default; appears in components dict
 - small_selection_bonus: fires on unit-targeted commands when selection is a single unit or less than half of visible friendly units; skipped for non-unit-targeted actions and exactly-half selections; appears in components dict
+- attack_bonus: fires on any Attack_screen (fn_idx 3) regardless of target type; persists across carried attack no_op steps; skipped for pure no_op (no prior attack); disabled by default; appears in components dict
 - components sum: new terms included in total (extended sum test)
 
 ### test_sc2_client.py — PySC2 client wrapper
@@ -524,6 +581,14 @@ handful of iterations only).
 - reset returns obs+info; step 5-tuple; score-delta reward; done terminates; loss outcome
 - close calls client.close; info keys; prev_score threaded; prev_army_count + prev_total_self_hp seeded from reset and updated each step; executed `last_fn_idx` (not merely requested fn_idx) drives reward-shaping metadata; skipped-frame counters (default 0, per-step accumulation from game_loop deltas); custom reward config
 - end-screen analytics: series absent on mid-episode step; present on terminal step; supply_capped_fraction correct; army series value; resource series sums minerals+vespene; starting units excluded from build order; new units produce events; empty build order when no unit_counts
+
+### test_sc2_replay.py — SC2 replay saving on new-best events (issue #210)
+- `SC2Client.save_replay`: returns None when SC2 env not running; delegates to pysc2 save_replay with correct dir and prefix keyword; `os.makedirs` inside try block so directory creation failures are swallowed; swallows SC2 exceptions and returns None
+- `SC2Env.save_replay`: thin delegation to client
+- `_try_save_replay` (single-episode loops): no-op for envs without save_replay (non-SC2 games); first new-best → `_best-01` prefix; second new-best → `_best-02` when one confirmed .SC2Replay exists; candidate (`_`-prefixed) files excluded from sequential count; replay_dir always `<experiment_dir>/replays/`; only `.SC2Replay` files counted; exception swallowed
+- `_save_candidate_replay`: no-op for non-SC2; calls save_replay with `_candidate` prefix; exception swallowed, returns None
+- `_finalize_candidate_replay`: no-op when path is None or file missing; renames to next sequential `_best-N.SC2Replay`; candidate files excluded from confirmed-best count; two confirmed → `_best-02`
+- `_discard_candidate_replay`: no-op on None or missing path; deletes existing file
 
 ### test_sc2_apm_limiter.py — token-bucket APM limiter + SC2Env integration
 - Construction: valid / zero/negative max_apm raises / zero/negative burst_s raises / max_tokens formula / starts full
@@ -553,7 +618,7 @@ handful of iterations only).
 - Action: shape (4,) / fn_idx in [0, N_FUNCTION_IDS) / x,y in [0,1] / hidden state advances after step
 - Masking: never selects unavailable fn / set via on_episode_start info / updated via update kwargs / fallback to no_op when all masked
 - Hidden state reset: reset_on_episode=True zeros state on episode start + end / reset_on_episode=False carries state across resets
-- Serialisation: to_cfg / from_cfg round-trip lossless / save / load round-trip / policy_type = "sc2_lstm"
+- Serialisation: to_cfg / from_cfg round-trip lossless / save / load round-trip / policy_type = "sc2_lstm" / explicit `race=` argument to `from_cfg` takes precedence over any stored cfg race
 - Evolution: population size / individuals are SC2LSTMPolicy / call raises before generation / champion set after one generation / σ adapts / wrong reward count raises / flat_dim mismatch raises / initialize_from_champion sets mean / on_episode_start forwarded to champion / save writes yaml / trainer-state round-trip / dim mismatch raises
 
 ### test_sc2_genetic_policy.py — `SC2MultiHeadLinearPolicy` + genetic trainer
@@ -633,7 +698,10 @@ handful of iterations only).
 - `plot_army_count`: renders to file / skips when no series / skips when no sims
 - `plot_build_order`: renders to file / skips when no build order / skips when no sims / single unit type / multiple unit types
 - `save_experiment_results`: writes results.md / writes SC2 plots (incl. skipped_frames) / mentions game / no crash empty sims / no racing plots written
-- `save_grid_summary`: forwards config-normalized rewards using `v / max(abs(weight), 1.0)` — weights ≥ 1.0 are divided (making large-weight components comparable across grid-search runs), weights < 1.0 use the raw value (which already encodes the weight, so dividing would amplify by ×1000); wires SC2 extra-plot hook into framework summary generation; covers no-components fallback, multi-sim normalization, malformed YAML fallback, non-mapping YAML fallback, non-numeric weight fallback, allow-listed `scout` component (no unmapped-key warning), step_penalty with sub-1.0 weight passes through raw (-0.5 not -500), idle_penalty with sub-1.0 weight passes through raw, any sub-1.0 weight (0.0001 or 0.001) both use scale=1.0, the new `unit_loss` / `damage_taken` / `passive_under_fire` components normalize through their config weights without unmapped-key warnings, realistic positive reward stays positive after normalization (313.5 ✓), and emits SC2 cross-run charts + summary links; passes `task_metric_fn`, `task_metric_fmt` (percentage formatter) to framework
+- `plot_reward_component_breakdown` (framework): diverging stacked bar per sim — renders to file / skips when no component data / positive stack above zero / negative stack below zero / zero-everywhere components omitted (tested in `test_analytics_task_metrics.py`)
+- `plot_gs_reward_component_breakdown`: cross-experiment diverging horizontal bar — renders to file / skips when no component data / skips empty runs / skips all-zero components / single experiment / written by `save_grid_summary` / linked in summary.md
+- `save_experiment_results` now also writes `reward_component_breakdown.png` (regression-guarded in `test_writes_sc2_plots`)
+- `save_grid_summary`: forwards config-normalized rewards **and per-component contributions** using `v / max(abs(weight), 1.0)` — weights ≥ 1.0 are divided (making large-weight components comparable across grid-search runs), weights < 1.0 use the raw value (which already encodes the weight, so dividing would amplify by ×1000); wires SC2 extra-plot hook into framework summary generation; covers no-components fallback, multi-sim normalization, malformed YAML fallback, non-mapping YAML fallback, non-numeric weight fallback, allow-listed `scout` component (no unmapped-key warning), step_penalty with sub-1.0 weight passes through raw (-0.5 not -500), idle_penalty with sub-1.0 weight passes through raw, any sub-1.0 weight (0.0001 or 0.001) both use scale=1.0, the new `unit_loss` / `damage_taken` / `passive_under_fire` components normalize through their config weights without unmapped-key warnings, realistic positive reward stays positive after normalization (313.5 ✓), and emits SC2 cross-run charts + summary links; passes `task_metric_fn`, `task_metric_fmt` (percentage formatter) to framework; `attack_bonus` mapped to `attack_bonus` config key in normalisation
 - `_sc2_task_metric`: empty sims → 0.0; win+finish counted as success; loss/timeout/None/other not counted; all-wins → 1.0; `_GS_SUCCESS_REASONS` constant contains win+finish, excludes loss+timeout
 
 ## CLI / misc

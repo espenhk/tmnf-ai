@@ -119,6 +119,20 @@ class GreedySimResult:
                     normalized_action_counts[key] = value
             self.action_counts = normalized_action_counts
 
+    def slim(self) -> "GreedySimResult":
+        """Return a copy with large nested fields stripped (for summary use)."""
+        import dataclasses
+        return dataclasses.replace(
+            self,
+            trace=None,
+            weights=None,
+            army_count_series=None,
+            resource_series=None,
+            build_order=None,
+            obs_averages=None,
+            xy_hist=None,
+        )
+
     @classmethod
     def from_dict(cls, data: dict) -> "GreedySimResult":
         data = dict(data)
@@ -168,6 +182,20 @@ class ExperimentData:
     early_stopped: bool = False          # True if patience-based early stopping fired
     early_stop_sim: int | None = None    # sim index where early stopping fired
     code_version: str = ""               # framework.version.code_version() at run time
+
+    def slim_for_summary(self) -> "ExperimentData":
+        """Return a copy with per-sim bulk data stripped, suitable for summary generation.
+
+        Drops probe_results and cold_start_restarts (unused by summary functions)
+        and strips each GreedySimResult down to its scalar fields via slim().
+        """
+        import dataclasses
+        return dataclasses.replace(
+            self,
+            probe_results=[],
+            cold_start_restarts=[],
+            greedy_sims=[s.slim() for s in self.greedy_sims],
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -437,6 +465,83 @@ def plot_reward_components(data: ExperimentData, results_dir: str) -> None:
     _save(fig, os.path.join(results_dir, "reward_components.png"))
 
 
+def plot_reward_component_breakdown(data: ExperimentData, results_dir: str) -> None:
+    """Diverging stacked bar chart of reward components per greedy sim.
+
+    Each sim gets one vertical bar stack: positive contributions for a
+    component rise above zero, negative contributions descend below zero.
+    Each component gets a consistent colour from the tab10 palette across
+    both the positive and negative portions of its stack.  Components whose
+    total is zero in every sim are omitted.
+
+    Written to ``reward_component_breakdown.png``.  Complements the line chart
+    in ``reward_components.png`` by showing how the *mix* of contributions
+    changes across sims (push-pull view).
+    """
+    if not _HAS_MPL:
+        return
+    sims = data.greedy_sims
+    if not sims:
+        return
+    if not any(s.reward_components for s in sims):
+        return
+
+    all_keys: list[str] = []
+    seen: set[str] = set()
+    for s in sims:
+        if s.reward_components:
+            for k in s.reward_components:
+                if k not in seen:
+                    all_keys.append(k)
+                    seen.add(k)
+
+    xs = [s.sim for s in sims]
+    series: dict[str, list[float]] = {k: [] for k in all_keys}
+    for s in sims:
+        comps = s.reward_components or {}
+        for k in all_keys:
+            series[k].append(comps.get(k, 0.0))
+
+    active_keys = [k for k in all_keys if any(v != 0.0 for v in series[k])]
+    if not active_keys:
+        return
+
+    n_keys = len(active_keys)
+    cmap = cm.tab10(np.linspace(0, 1, min(n_keys, 10)))
+    colors = {k: cmap[i % len(cmap)] for i, k in enumerate(active_keys)}
+
+    fig, ax = plt.subplots(figsize=(max(8, len(xs) * 0.2), 5))
+    pos_bottoms = np.zeros(len(sims))
+    neg_bottoms = np.zeros(len(sims))
+    labeled: set[str] = set()
+
+    for k in active_keys:
+        vals = np.array(series[k])
+        pos_vals = np.where(vals > 0, vals, 0.0)
+        neg_vals = np.where(vals < 0, vals, 0.0)
+        color = colors[k]
+        label = k if k not in labeled else None
+        if pos_vals.any():
+            ax.bar(xs, pos_vals, bottom=pos_bottoms, color=color,
+                   label=label, width=0.8, edgecolor="none", alpha=0.85)
+            labeled.add(k)
+            label = None
+            pos_bottoms = pos_bottoms + pos_vals
+        if neg_vals.any():
+            ax.bar(xs, neg_vals, bottom=neg_bottoms, color=color,
+                   label=label, width=0.8, edgecolor="none", alpha=0.85)
+            labeled.add(k)
+            neg_bottoms = neg_bottoms + neg_vals
+
+    ax.axhline(0, color="black", linewidth=0.8)
+    ax.set_title(f"{data.experiment_name} — Reward Component Breakdown per Sim")
+    ax.set_xlabel("Simulation")
+    ax.set_ylabel("Reward contribution (episode sum)")
+    ax.legend(fontsize=8, loc="best", ncol=max(1, n_keys // 5))
+    fig.tight_layout()
+    _save(fig, os.path.join(results_dir, "reward_component_breakdown.png"))
+
+
 # ---------------------------------------------------------------------------
 # Markdown tables
 # ---------------------------------------------------------------------------
@@ -556,10 +661,10 @@ def _timings_md(data: ExperimentData) -> str:
 
 
 def _summary_md(data: ExperimentData) -> str:
-    lines = ["## Run Parameters\n\n", "### Training\n\n",
-             "| Parameter | Value |\n", "|-----------|-------|\n"]
+    lines = ["## Run Parameters\n\n"]
     if data.code_version:
-        lines.append(f"| code_version | `{data.code_version}` |\n")
+        lines += ["### Code Version\n\n", f"`{data.code_version}`\n\n"]
+    lines += ["### Training\n\n", "| Parameter | Value |\n", "|-----------|-------|\n"]
     if data.track:
         lines.append(f"| track | {data.track} |\n")
     for k, v in data.training_params.items():
@@ -794,6 +899,18 @@ def save_grid_summary(
     lines = [
         f"# Grid Search Summary: {base_name}\n\n",
         f"{len(runs)} experiments.\n\n",
+    ]
+    versions_to_runs: dict[str, list[str]] = {}
+    for name, data in runs:
+        version = data.code_version or "unknown"
+        versions_to_runs.setdefault(version, []).append(name)
+    lines += [
+        "## Code Versions\n\n",
+    ]
+    for version in sorted(versions_to_runs):
+        names = ", ".join(sorted(versions_to_runs[version]))
+        lines.append(f"- `{version}` ({len(versions_to_runs[version])}): {names}\n")
+    lines += ["\n",
         "## Rankings by Task Metrics (config-independent)\n\n",
         f"Ranked by {task_metric_label}, then by best reward.\n\n",
         "![Task metrics comparison](comparison_task_metrics.png)\n\n",
@@ -855,6 +972,7 @@ def save_grid_summary(
         bft = f"{s['best_finish_time_s']:.1f}s" if s["best_finish_time_s"] is not None else "—"
         lines += [
             "| Stat | Value |\n|---|---|\n",
+            f"| Code version | `{data.code_version or 'unknown'}` |\n",
             f"| {task_metric_label} | {_fmt_task(s['task_metric'])} |\n",
             f"| Finish rate | {s['finish_rate']:.1%} |\n",
             f"| Best finish time | {bft} |\n",

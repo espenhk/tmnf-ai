@@ -9,6 +9,27 @@ from framework.run_config import GameSpec, ProbeSpec, WarmupSpec
 logger = logging.getLogger(__name__)
 
 
+# ---------------------------------------------------------------------------
+# Picklable env factory (used by framework.parallel_eval for issue #229)
+# ---------------------------------------------------------------------------
+
+class _SC2EnvFactory:
+    """Zero-arg env factory that survives pickle (closures don't).
+
+    Holds the kwargs needed to call ``games.sc2.env.make_env`` and defers
+    the heavy SC2 import until ``__call__`` so importing this adapter
+    module doesn't pull in PySC2.
+    """
+
+    def __init__(self, **kwargs):
+        self._kwargs = kwargs
+
+    def __call__(self):
+        from games.sc2.env import make_env
+        return make_env(**self._kwargs)
+
+
+
 def _get_obs_spec(map_name: str, preset: str | None, enable_belief: bool):
     """Return the obs spec for *map_name*, extending with belief dims when requested."""
     from games.sc2.obs_spec import get_spec
@@ -39,13 +60,15 @@ class SC2Adapter:
         track_override: str | None,
     ) -> str:
         map_name = self._map_name(training_params, track_override)
-        return f"experiments/sc2_{map_name}/{experiment_name}"
+        policy = training_params.get("policy_type", "sc2_genetic")
+        return f"experiments/sc2/{policy}/{map_name}/{experiment_name}"
 
     def experiment_dir_root(
         self, training_params: dict, track_override: str | None,
     ) -> str:
         map_name = self._map_name(training_params, track_override)
-        return f"experiments/sc2_{map_name}"
+        policy = training_params.get("policy_type", "sc2_genetic")
+        return f"experiments/sc2/{policy}/{map_name}"
 
     def track_label(
         self, training_params: dict, track_override: str | None,
@@ -105,29 +128,30 @@ class SC2Adapter:
             screen_layers  = []
             minimap_layers = []
 
-        def _make_env():
-            from games.sc2.env import make_env
-            return make_env(
-                experiment_dir=experiment_dir,
-                map_name=map_name,
-                max_episode_time_s=training_params["in_game_episode_s"],
-                step_mul=training_params.get("step_mul", 1),
-                screen_size=training_params.get("screen_size", 64),
-                minimap_size=training_params.get("minimap_size", 64),
-                agent_race=training_params.get("agent_race", "random"),
-                bot_difficulty=training_params.get("bot_difficulty", "very_easy"),
-                screen_layers=screen_layers,
-                minimap_layers=minimap_layers,
-                obs_spec_preset=obs_spec_preset,
-                enable_belief=enable_belief,
-                max_apm=training_params.get("max_apm", None),
-                apm_burst_s=training_params.get("apm_burst_s", 2.0),
-            )
+        # Use a picklable factory class (not a closure) so the
+        # multiprocessing.spawn workers in framework.parallel_eval can
+        # reconstruct it after pickling.  Issue #229.
+        make_env_fn = _SC2EnvFactory(
+            experiment_dir=experiment_dir,
+            map_name=map_name,
+            max_episode_time_s=training_params["in_game_episode_s"],
+            step_mul=training_params.get("step_mul", 1),
+            screen_size=training_params.get("screen_size", 64),
+            minimap_size=training_params.get("minimap_size", 64),
+            agent_race=training_params.get("agent_race", "random"),
+            bot_difficulty=training_params.get("bot_difficulty", "very_easy"),
+            screen_layers=screen_layers,
+            minimap_layers=minimap_layers,
+            obs_spec_preset=obs_spec_preset,
+            enable_belief=enable_belief,
+            max_apm=training_params.get("max_apm", None),
+            apm_burst_s=training_params.get("apm_burst_s", 2.0),
+        )
 
         return GameSpec(
             experiment_name=experiment_name,
             track=self.track_label(training_params, track_override),
-            make_env_fn=_make_env,
+            make_env_fn=make_env_fn,
             obs_spec=obs_spec,
             head_names=["fn_idx", "x", "y", "queue"],
             discrete_actions=DISCRETE_ACTIONS,
@@ -142,6 +166,7 @@ class SC2Adapter:
 
     def build_warmup(self, training_params: dict) -> WarmupSpec | None:
         return None
+
 
 
 def make_adapter() -> SC2Adapter:

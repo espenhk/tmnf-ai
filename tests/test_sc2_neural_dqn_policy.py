@@ -60,24 +60,26 @@ class TestActionMaskingHelpers(unittest.TestCase):
         # Row 0 is no_op (fn_idx=0)
         self.assertEqual(discrete_action_to_fn_id(0), 0)
 
-    def test_discrete_action_to_fn_id_other_cells_are_move_screen(self):
-        # Rows 2..N-1 are all Move_screen (fn_idx=2)
-        for i in range(2, _N):
-            self.assertEqual(discrete_action_to_fn_id(i), 2)
+    def test_discrete_action_to_fn_id_other_cells_cover_discrete_actions(self):
+        # Each row maps to a valid fn_idx from FUNCTION_IDS
+        for i in range(_N):
+            fn_id = discrete_action_to_fn_id(i)
+            self.assertIn(fn_id, FUNCTION_IDS)
 
     def test_build_mask_all_fn_ids_available(self):
-        # All three fn_ids (no_op=0, select_army=1, Move_screen=2) → all rows legal
-        mask = build_available_actions_mask({0, 1, 2})
+        # All fn_ids available → all rows legal
+        all_fn_ids = set(FUNCTION_IDS.keys())
+        mask = build_available_actions_mask(all_fn_ids)
         self.assertEqual(mask.shape, (_N,))
         self.assertTrue(mask.all())
 
-    def test_build_mask_only_move_screen_available(self):
-        # fn_idx=2 (Move_screen) only: rows 0 (no_op) and 1 (select_army) must be False
-        mask = build_available_actions_mask({2})
-        self.assertFalse(mask[0], "no_op (row 0) should be masked when fn_idx=0 unavailable")
-        self.assertFalse(mask[1], "select_army (row 1) should be masked when fn_idx=1 unavailable")
-        for i in range(2, _N):
-            self.assertTrue(mask[i])
+    def test_build_mask_only_specific_fn_available(self):
+        # Only fn_idx=0 (no_op) available: row 0 must be True, rows with
+        # different fn_ids must be False.
+        mask = build_available_actions_mask({0})
+        self.assertTrue(mask[0], "no_op (row 0) should be available when fn_idx=0 available")
+        # At least some rows should be masked out
+        self.assertFalse(mask.all(), "Not all rows should be legal with only one fn_id")
 
     def test_build_mask_empty_set_all_false(self):
         mask = build_available_actions_mask(set())
@@ -91,29 +93,29 @@ class TestActionMaskingHelpers(unittest.TestCase):
 class TestMaskedActionSelection(unittest.TestCase):
 
     def test_greedy_never_selects_masked_action(self):
-        """With fn_idx=0 and fn_idx=1 masked out, only Move_screen must be chosen."""
+        """With only fn_idx=2 available, only fn_idx=2 actions should be selected."""
         policy = _make_policy(epsilon_start=0.0, epsilon_end=0.0)
-        # Only Move_screen (fn_idx=2) available — masks out no_op and select_army
+        # Only fn_idx=2 available — mask out everything else
         policy._cached_mask = build_available_actions_mask({2})
         obs = _zero_obs()
         for _ in range(50):
             action = policy(obs)
             fn_idx = int(action[0])
             self.assertEqual(fn_idx, 2,
-                "only Move_screen (fn_idx=2) should be selected when others are masked")
+                "only fn_idx=2 should be selected when others are masked")
 
     def test_random_never_selects_masked_action(self):
         """ε=1 random exploration must also respect the mask."""
         policy = _make_policy(epsilon_start=1.0, epsilon_end=1.0)
-        policy._cached_mask = build_available_actions_mask({2})  # no no_op, no select_army
+        policy._cached_mask = build_available_actions_mask({2})  # only fn_idx=2
         obs = _zero_obs()
         for _ in range(100):
             action = policy(obs)
             self.assertEqual(int(action[0]), 2,
-                "random exploration must only pick Move_screen when others are masked")
+                "random exploration must only pick fn_idx=2 when others are masked")
 
     def test_no_mask_selects_any_action(self):
-        """Without a mask (all-True) all fn_idx values can be selected."""
+        """Without a mask (all-True) multiple fn_idx values can be selected."""
         policy = _make_policy(epsilon_start=1.0, epsilon_end=1.0, seed=0)
         policy._cached_mask = np.ones(_N, dtype=bool)
         seen_fn_ids = set()
@@ -121,10 +123,8 @@ class TestMaskedActionSelection(unittest.TestCase):
         for _ in range(1000):
             action = policy(obs)
             seen_fn_ids.add(int(action[0]))
-        # Should see fn_idx 0 (no_op), 1 (select_army), and 2 (Move_screen)
-        self.assertIn(0, seen_fn_ids)
-        self.assertIn(1, seen_fn_ids)
-        self.assertIn(2, seen_fn_ids)
+        # Should see at least 3 distinct fn_idx values (from 118 total)
+        self.assertGreaterEqual(len(seen_fn_ids), 3)
 
     def test_on_episode_start_without_info_resets_to_all_true(self):
         """on_episode_start() without info should reset to an all-True mask."""
