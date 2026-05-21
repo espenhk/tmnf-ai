@@ -17,6 +17,11 @@ formatting, internal refactors with no behaviour change — can be skipped.
 
 ## [Unreleased]
 
+
+---
+
+## [0.1.5] - 2026-05-21
+
 ### Changed
 - **Live GUI** (`framework/live_monitor.py`): window shrunk from 1200×850 to 960×720; reward and observation panels are now independently scrollable (mousewheel supported); reward components are displayed in a fixed logical order (no more jumping); scalar observations are shown in stable obs-spec order rather than sorted by magnitude; subtle vertical grid lines added to all bar charts; a new "Last 10 actions" panel shows the most recent actions in a fixed sidebar.
 - `framework/training.py`: `live_monitor.on_step()` now receives the current `action` so the actions panel can display it.
