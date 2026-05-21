@@ -542,7 +542,7 @@ handful of iterations only).
 - probe actions count=5 / shape (4,) / include no_op; warmup shape (4,) / is select_army; function_ids table complete
 - SPATIAL_FN_IDS contains exactly the fn_ids whose names end in `_screen` or `_minimap`
 - `TestRaceGating` (9 tests): all four race keys exist in RACE_FUNCTION_IDS; each race's ids are a subset of FUNCTION_IDS; random race = all fn_ids; race-specific sets (_TERRAN / _PROTOSS / _ZERG) are pairwise disjoint; unknown race falls back to all fn_ids; Terran has Build_Barracks_screen (8) not Build_Nexus_screen (50); Protoss has Build_Nexus_screen (50) not Build_Barracks_screen (8); Zerg has Build_Hatchery_screen (82) not Build_Barracks_screen (8); all three named races include Move_screen (2) and no_op (0)
-- `TestActionToFunctionCall`: fake PySC2 module validates encoding branches — `_quick` emits queue-only args, `select_point_screen` and `select_rect_screen` emit screen coords, `_minimap` actions scale with `minimap_size` (not `screen_size`), and `_screen` actions keep using `screen_size`
+- `TestActionToFunctionCall`: fake PySC2 module validates encoding branches — `_quick` emits queue-only args, `select_point` and `select_rect` emit screen coords, `_minimap` actions scale with `minimap_size` (not `screen_size`), and `_screen` actions keep using `screen_size`
 
 ### test_sc2_reward.py — SC2 reward calc
 - defaults; from_yaml; unknown raises; loads bundled config

@@ -24,6 +24,12 @@ formatting, internal refactors with no behaviour change — can be skipped.
   action space, progress + centerline + off-track reward.  Registered as
   `--game iracing` in `main.py` and `grid_search.py`.
 
+### Fixed
+- **SC2 action names**: Renamed `select_point_screen` → `select_point`
+  and `select_rect_screen` → `select_rect` in `FUNCTION_IDS` to match
+  actual PySC2 function names.  Fixes `KeyError` in integration tests
+  when epsilon-greedy or other policies select these actions.
+
 ---
 
 ## [0.2.0] - 2026-05-21
