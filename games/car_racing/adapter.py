@@ -10,7 +10,9 @@ class CarRacingAdapter:
     config_dir = "games/car_racing/config"
 
     def experiment_dir(
-        self, experiment_name: str, training_params: dict,
+        self,
+        experiment_name: str,
+        training_params: dict,
         track_override: str | None,
     ) -> str:
         policy = training_params.get("policy_type", "hill_climbing")
@@ -18,34 +20,45 @@ class CarRacingAdapter:
         return f"experiments/car_racing/{policy}/{track}/{experiment_name}"
 
     def experiment_dir_root(
-        self, training_params: dict, track_override: str | None,
+        self,
+        training_params: dict,
+        track_override: str | None,
     ) -> str:
         policy = training_params.get("policy_type", "hill_climbing")
         track = self.track_label(training_params, track_override)
         return f"experiments/car_racing/{policy}/{track}"
 
     def track_label(
-        self, training_params: dict, track_override: str | None,
+        self,
+        training_params: dict,
+        track_override: str | None,
     ) -> str:
         return track_override or "car_racing"
 
     def decorate_reward_cfg(
-        self, reward_cfg: dict, training_params: dict,
+        self,
+        reward_cfg: dict,
+        training_params: dict,
         track_override: str | None,
     ) -> None:
         pass
 
     def build_game_spec(
-        self, experiment_name: str, experiment_dir: str,
-        weights_file: str, reward_cfg_file: str,
-        training_params: dict, track_override: str | None,
+        self,
+        experiment_name: str,
+        experiment_dir: str,
+        weights_file: str,
+        reward_cfg_file: str,
+        training_params: dict,
+        track_override: str | None,
     ) -> GameSpec:
-        from games.car_racing.obs_spec import CAR_RACING_OBS_SPEC
         from games.car_racing.actions import DISCRETE_ACTIONS
         from games.car_racing.analytics import save_experiment_results
+        from games.car_racing.obs_spec import CAR_RACING_OBS_SPEC
 
         def _make_env():
             from games.car_racing.env import make_env
+
             return make_env(
                 experiment_dir=experiment_dir,
                 max_episode_time_s=training_params["in_game_episode_s"],

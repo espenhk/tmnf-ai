@@ -846,4 +846,3 @@ Ranked by Win/Success Rate, then by best reward.
 ![Skipped-frames comparison](comparison_skipped_frames.png)
 
 ![Reward component breakdown](comparison_reward_breakdown.png)
-

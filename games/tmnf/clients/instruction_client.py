@@ -4,8 +4,8 @@ from tminterface.interface import TMInterface
 
 from games.tmnf.clients.base import Phase, PhaseAwareClient
 from games.tmnf.instructions import InputState, apply_action, parse_instructions
-from games.tmnf.track import Centerline
 from games.tmnf.state import StateData
+from games.tmnf.track import Centerline
 
 logger = logging.getLogger(__name__)
 
@@ -62,10 +62,7 @@ class InstructionClient(PhaseAwareClient):
 
             case Phase.RUNNING:
                 elapsed_s = (_time - self._phase_start_ms) / 1000.0
-                while (
-                    self._next_idx < len(self.instructions)
-                    and self.instructions[self._next_idx].time_s <= elapsed_s
-                ):
+                while self._next_idx < len(self.instructions) and self.instructions[self._next_idx].time_s <= elapsed_s:
                     instr = self.instructions[self._next_idx]
                     logger.debug("[t=%.2fs] %s", elapsed_s, instr.action)
                     apply_action(instr.action, self._input)

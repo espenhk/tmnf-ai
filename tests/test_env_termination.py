@@ -1,4 +1,5 @@
 """Unit tests for per-episode termination reason tracking in TMNFEnv.step()."""
+
 import time
 import unittest
 from unittest.mock import MagicMock, patch
@@ -6,13 +7,13 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 
 from games.tmnf.env import TMNFEnv
-from games.tmnf.reward import RewardConfig, RewardCalculator
+from games.tmnf.reward import RewardConfig
 from games.tmnf.state import Vec3
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_step_state(
     *,
@@ -88,8 +89,8 @@ def _do_step(env: TMNFEnv, step_state: MagicMock) -> tuple:
 # Tests
 # ---------------------------------------------------------------------------
 
-class TestTerminationReason(unittest.TestCase):
 
+class TestTerminationReason(unittest.TestCase):
     def test_finish(self):
         env = _make_env()
         step = _make_step_state(finished=True, track_progress=1.0)

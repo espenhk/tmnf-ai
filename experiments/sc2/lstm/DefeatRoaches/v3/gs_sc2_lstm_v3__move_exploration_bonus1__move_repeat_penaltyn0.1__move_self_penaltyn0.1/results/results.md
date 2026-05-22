@@ -138,4 +138,3 @@ Best reward: **+1772.1**
 
 
 ![Reward trajectory](reward_trajectory.png)
-

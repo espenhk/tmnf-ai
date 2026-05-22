@@ -209,4 +209,3 @@ Ranked by best track progress, then by best reward.
 ![Reward trajectory](../gs_sc2_lstm_v2__hsize128__sigma0.03/results/reward_trajectory.png)
 
 ![Task metrics](../gs_sc2_lstm_v2__hsize128__sigma0.03/results/task_metrics.png)
-

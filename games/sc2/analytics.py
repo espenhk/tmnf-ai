@@ -19,6 +19,7 @@ game supports:
 Entry point called by main.py / grid_search.py:
     save_experiment_results(data: ExperimentData, results_dir: str) -> None
 """
+
 from __future__ import annotations
 
 import dataclasses
@@ -27,10 +28,12 @@ import os
 
 try:
     import matplotlib
-    matplotlib.use('Agg', force=True)
-    import matplotlib.pyplot as plt
+
+    matplotlib.use("Agg", force=True)
     import matplotlib.cm as cm
+    import matplotlib.pyplot as plt
     from matplotlib.figure import Figure
+
     _HAS_MPL = True
 except ImportError:
     _HAS_MPL = False
@@ -40,17 +43,20 @@ import yaml
 
 from framework.analytics import (
     ExperimentData,
-    plot_probe_rewards,
-    plot_cold_start_rewards,
-    plot_greedy_rewards,
-    plot_reward_components,
-    plot_reward_component_breakdown,
-    plot_reward_trajectory,
-    _probe_table_md,
+    GreedySimResult,
     _cold_start_table_md,
     _greedy_table_md,
-    _timings_md,
+    _probe_table_md,
     _summary_md,
+    _timings_md,
+    plot_cold_start_rewards,
+    plot_greedy_rewards,
+    plot_probe_rewards,
+    plot_reward_component_breakdown,
+    plot_reward_components,
+    plot_reward_trajectory,
+)
+from framework.analytics import (
     save_grid_summary as _framework_save_grid_summary,
 )
 from games.sc2.actions import FUNCTION_IDS
@@ -61,8 +67,8 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Feature flags (Part 1)
 # ---------------------------------------------------------------------------
-SUPPORTS_THROTTLE: bool = False   # no accel/brake distribution plots for SC2
-SUPPORTS_PATH:     bool = False   # no pos_x / pos_z path-trace plots for SC2
+SUPPORTS_THROTTLE: bool = False  # no accel/brake distribution plots for SC2
+SUPPORTS_PATH: bool = False  # no pos_x / pos_z path-trace plots for SC2
 
 _REWARD_COMPONENT_TO_CFG_KEY: dict[str, str] = {
     "score": "score_weight",
@@ -91,6 +97,7 @@ _WARNED_NON_NUMERIC_WEIGHT: bool = False
 # Action-label helpers
 # ---------------------------------------------------------------------------
 
+
 def _action_label(fn_idx: int) -> str:
     """Short human-readable label for a FUNCTION_IDS fn_idx integer."""
     return FUNCTION_IDS.get(fn_idx, f"fn{fn_idx}")
@@ -99,6 +106,7 @@ def _action_label(fn_idx: int) -> str:
 # ---------------------------------------------------------------------------
 # 2a — Action-frequency breakdown
 # ---------------------------------------------------------------------------
+
 
 def plot_action_frequency(data: ExperimentData, results_dir: str) -> None:
     """Bar chart of per-sim action-type counts + aggregate bar + entropy line.
@@ -130,10 +138,7 @@ def plot_action_frequency(data: ExperimentData, results_dir: str) -> None:
     cmap_colors = [cm.tab10(i / max(n_fns - 1, 1)) for i in range(n_fns)]
 
     # Build per-sim count matrix (n_sims × n_fns).
-    counts_mat = np.array([
-        [s.action_counts.get(k, 0) for k in all_fn]
-        for s in sims
-    ], dtype=float)
+    counts_mat = np.array([[s.action_counts.get(k, 0) for k in all_fn] for s in sims], dtype=float)
 
     # Normalise rows to fractions.
     row_totals = counts_mat.sum(axis=1, keepdims=True)
@@ -150,16 +155,14 @@ def plot_action_frequency(data: ExperimentData, results_dir: str) -> None:
     # Aggregate totals.
     agg_counts = counts_mat.sum(axis=0)
 
-    fig, axes = plt.subplots(3, 1, figsize=(max(10, len(xs) * 0.25), 12),
-                              gridspec_kw={"height_ratios": [3, 1.5, 1.5]})
+    fig, axes = plt.subplots(3, 1, figsize=(max(10, len(xs) * 0.25), 12), gridspec_kw={"height_ratios": [3, 1.5, 1.5]})
 
     # --- Panel 1: stacked bar per sim ---
     ax1 = axes[0]
     left = np.zeros(len(sims))
     for i, (fn, label, color) in enumerate(zip(all_fn, labels, cmap_colors)):
         vals = fracs_mat[:, i]
-        ax1.bar(xs, vals, bottom=left, color=color, label=label,
-                width=0.8, edgecolor="none")
+        ax1.bar(xs, vals, bottom=left, color=color, label=label, width=0.8, edgecolor="none")
         left += vals
     ax1.set_xlim(min(xs) - 0.5, max(xs) + 0.5)
     ax1.set_ylim(0, 1)
@@ -176,13 +179,11 @@ def plot_action_frequency(data: ExperimentData, results_dir: str) -> None:
     ax2.set_ylabel("Total steps")
     ax2.tick_params(axis="x", rotation=20)
     for j, v in enumerate(agg_counts):
-        ax2.text(j, v + max(agg_counts) * 0.01, f"{int(v)}", ha="center",
-                 va="bottom", fontsize=8)
+        ax2.text(j, v + max(agg_counts) * 0.01, f"{int(v)}", ha="center", va="bottom", fontsize=8)
 
     # --- Panel 3: entropy over training ---
     ax3 = axes[2]
-    ax3.plot(xs, entropy, color="#3498db", linewidth=1.6, marker="o",
-             markersize=3, label="action entropy (bits)")
+    ax3.plot(xs, entropy, color="#3498db", linewidth=1.6, marker="o", markersize=3, label="action entropy (bits)")
     ax3.set_title("Action Entropy per Sim")
     ax3.set_xlabel("Simulation")
     ax3.set_ylabel("H (bits)")
@@ -197,12 +198,12 @@ def plot_action_frequency(data: ExperimentData, results_dir: str) -> None:
 # ---------------------------------------------------------------------------
 
 _OBS_FEATURE_LABELS: dict[str, str] = {
-    "army_count":         "Army count",
-    "food_used":          "Food used",
-    "food_cap":           "Food cap",
-    "minerals":           "Minerals",
-    "vespene":            "Vespene",
-    "screen_self_count":  "Screen self (px)",
+    "army_count": "Army count",
+    "food_used": "Food used",
+    "food_cap": "Food cap",
+    "minerals": "Minerals",
+    "vespene": "Vespene",
+    "screen_self_count": "Screen self (px)",
     "screen_enemy_count": "Screen enemy (px)",
 }
 
@@ -221,15 +222,13 @@ def plot_obs_averages(data: ExperimentData, results_dir: str) -> None:
 
     # Determine which features to plot.
     all_feats = list(_OBS_FEATURE_LABELS.keys())
-    active = [f for f in all_feats
-              if any(s.obs_averages.get(f, 0.0) != 0.0 for s in sims)]
+    active = [f for f in all_feats if any(s.obs_averages.get(f, 0.0) != 0.0 for s in sims)]
     if not active:
         return
 
     xs = [s.sim for s in sims]
     n = len(active)
-    fig, axes = plt.subplots(n, 1, figsize=(max(10, len(xs) * 0.2), 3 * n),
-                              sharex=True)
+    fig, axes = plt.subplots(n, 1, figsize=(max(10, len(xs) * 0.2), 3 * n), sharex=True)
     if n == 1:
         axes = [axes]
 
@@ -239,11 +238,9 @@ def plot_obs_averages(data: ExperimentData, results_dir: str) -> None:
         ax.plot(xs, ys, color=color, linewidth=1.4)
         ax.set_ylabel(_OBS_FEATURE_LABELS.get(feat, feat), fontsize=9)
         improvement_xs = [s.sim for s in sims if s.improved]
-        improvement_ys = [s.obs_averages.get(feat, 0.0)
-                          for s in sims if s.improved]
+        improvement_ys = [s.obs_averages.get(feat, 0.0) for s in sims if s.improved]
         if improvement_xs:
-            ax.scatter(improvement_xs, improvement_ys, color="#27ae60",
-                       s=40, zorder=4, marker="^")
+            ax.scatter(improvement_xs, improvement_ys, color="#27ae60", s=40, zorder=4, marker="^")
 
     axes[-1].set_xlabel("Simulation")
     fig.suptitle(f"{data.experiment_name} — Game-State Feature Averages", fontsize=11)
@@ -254,6 +251,7 @@ def plot_obs_averages(data: ExperimentData, results_dir: str) -> None:
 # ---------------------------------------------------------------------------
 # 2d — Spatial target heatmap
 # ---------------------------------------------------------------------------
+
 
 def plot_spatial_heatmap(data: ExperimentData, results_dir: str) -> None:
     """Aggregate 8×8 heatmap of (x, y) action targets across all greedy sims.
@@ -276,8 +274,7 @@ def plot_spatial_heatmap(data: ExperimentData, results_dir: str) -> None:
 
     fig, ax = plt.subplots(figsize=(6, 6))
     # Log-scale: log1p so zero cells show as 0.
-    img = ax.imshow(np.log1p(agg), cmap="YlOrRd", origin="upper",
-                    extent=[0, 1, 1, 0], aspect="equal")
+    img = ax.imshow(np.log1p(agg), cmap="YlOrRd", origin="upper", extent=[0, 1, 1, 0], aspect="equal")
     fig.colorbar(img, ax=ax, label="log1p(steps)")
     ax.set_title(f"{data.experiment_name} — Action Target Heatmap (all greedy sims)")
     ax.set_xlabel("Screen X (normalised)")
@@ -295,11 +292,11 @@ def plot_spatial_heatmap(data: ExperimentData, results_dir: str) -> None:
 # ---------------------------------------------------------------------------
 
 _OUTCOME_COLORS: dict[str, str] = {
-    "win":     "#27ae60",
-    "finish":  "#2ecc71",
+    "win": "#27ae60",
+    "finish": "#2ecc71",
     "timeout": "#f39c12",
-    "loss":    "#c0392b",
-    "other":   "#95a5a6",
+    "loss": "#c0392b",
+    "other": "#95a5a6",
 }
 
 # Outcomes treated as success for the win/success-rate task metric.
@@ -340,8 +337,7 @@ def plot_outcome_breakdown(data: ExperimentData, results_dir: str) -> None:
     bottom = np.zeros(len(xs))
     for cat in active_cats:
         vals = np.array(data_map[cat], dtype=float)
-        ax.bar(xs, vals, bottom=bottom, color=_OUTCOME_COLORS[cat],
-               label=cat, width=1.0, edgecolor="none")
+        ax.bar(xs, vals, bottom=bottom, color=_OUTCOME_COLORS[cat], label=cat, width=1.0, edgecolor="none")
         bottom += vals
 
     ax.set_ylim(0, 1.05)
@@ -356,6 +352,7 @@ def plot_outcome_breakdown(data: ExperimentData, results_dir: str) -> None:
 # ---------------------------------------------------------------------------
 # 2f — Skipped frames per sim
 # ---------------------------------------------------------------------------
+
 
 def plot_skipped_frames(data: ExperimentData, results_dir: str) -> None:
     """Bar chart of skipped frames per greedy sim."""
@@ -375,8 +372,7 @@ def plot_skipped_frames(data: ExperimentData, results_dir: str) -> None:
     improved_xs = [s.sim for s in sims if s.improved]
     improved_ys = [max(0, int(s.skipped_frames or 0)) for s in sims if s.improved]
     if improved_xs:
-        ax.scatter(improved_xs, improved_ys, color="#2c3e50", s=40,
-                   zorder=4, marker="^", label="improved")
+        ax.scatter(improved_xs, improved_ys, color="#2c3e50", s=40, zorder=4, marker="^", label="improved")
         ax.legend(fontsize=9)
 
     ax.set_ylim(0, max(1.0, float(max(ys) * 1.1)))
@@ -391,6 +387,7 @@ def plot_skipped_frames(data: ExperimentData, results_dir: str) -> None:
 # 2g — Supply-capped fraction per sim
 # ---------------------------------------------------------------------------
 
+
 def plot_supply_capped(data: ExperimentData, results_dir: str) -> None:
     """Bar chart showing the fraction of each greedy sim spent supply-capped.
 
@@ -404,10 +401,9 @@ def plot_supply_capped(data: ExperimentData, results_dir: str) -> None:
     if not sims:
         return
 
-    xs     = [s.sim for s in sims]
-    ys     = [s.supply_capped_fraction for s in sims]
-    colors = ["#e74c3c" if v > 0.5 else "#f39c12" if v > 0.25 else "#27ae60"
-              for v in ys]
+    xs = [s.sim for s in sims]
+    ys = [s.supply_capped_fraction for s in sims]
+    colors = ["#e74c3c" if v > 0.5 else "#f39c12" if v > 0.25 else "#27ae60" for v in ys]
 
     fig, ax = plt.subplots(figsize=(max(8, len(xs) * 0.15), 4))
     ax.bar(xs, ys, color=colors, edgecolor="none", width=1.0)
@@ -416,17 +412,14 @@ def plot_supply_capped(data: ExperimentData, results_dir: str) -> None:
     improved_xs = [s.sim for s in sims if s.improved]
     improved_ys = [s.supply_capped_fraction for s in sims if s.improved]
     if improved_xs:
-        ax.scatter(improved_xs, improved_ys, color="#2c3e50", s=40,
-                   zorder=4, marker="^", label="improved")
+        ax.scatter(improved_xs, improved_ys, color="#2c3e50", s=40, zorder=4, marker="^", label="improved")
         ax.legend(fontsize=9)
 
     ax.set_ylim(0, 1.0)
     ax.set_title(f"{data.experiment_name} — Time Supply-Capped per Greedy Sim")
     ax.set_xlabel("Simulation")
     ax.set_ylabel("Fraction of steps supply-capped")
-    ax.yaxis.set_major_formatter(
-        plt.FuncFormatter(lambda v, _: f"{100*v:.0f}%")
-    )
+    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f"{100 * v:.0f}%"))
     fig.tight_layout()
     _save(fig, os.path.join(results_dir, "supply_capped.png"))
 
@@ -434,6 +427,7 @@ def plot_supply_capped(data: ExperimentData, results_dir: str) -> None:
 # ---------------------------------------------------------------------------
 # 2h — Resources available over time (best run)
 # ---------------------------------------------------------------------------
+
 
 def _best_sim(data: ExperimentData) -> "GreedySimResult | None":
     """Return the last improved greedy sim, or the last sim if none improved."""
@@ -465,13 +459,9 @@ def plot_resource_series(data: ExperimentData, results_dir: str) -> None:
 
     # Average line.
     avg = sum(ys) / len(ys)
-    ax.axhline(avg, color="#e74c3c", linestyle="--", linewidth=1.0,
-               label=f"avg {avg:.0f}")
+    ax.axhline(avg, color="#e74c3c", linestyle="--", linewidth=1.0, label=f"avg {avg:.0f}")
 
-    ax.set_title(
-        f"{data.experiment_name} — Resources Available Over Time"
-        f" (sim {best.sim}, reward {best.reward:+.1f})"
-    )
+    ax.set_title(f"{data.experiment_name} — Resources Available Over Time (sim {best.sim}, reward {best.reward:+.1f})")
     ax.set_xlabel("Game time (s)")
     ax.set_ylabel("Minerals + Vespene")
     ax.legend(fontsize=9)
@@ -482,6 +472,7 @@ def plot_resource_series(data: ExperimentData, results_dir: str) -> None:
 # ---------------------------------------------------------------------------
 # 2i — Army count over time (best run)
 # ---------------------------------------------------------------------------
+
 
 def plot_army_count(data: ExperimentData, results_dir: str) -> None:
     """Line chart of army count over game time for the best greedy sim.
@@ -503,10 +494,7 @@ def plot_army_count(data: ExperimentData, results_dir: str) -> None:
     ax.fill_between(xs, ys, alpha=0.2, color="#27ae60")
     ax.plot(xs, ys, color="#27ae60", linewidth=1.4)
 
-    ax.set_title(
-        f"{data.experiment_name} — Army Count Over Time"
-        f" (sim {best.sim}, reward {best.reward:+.1f})"
-    )
+    ax.set_title(f"{data.experiment_name} — Army Count Over Time (sim {best.sim}, reward {best.reward:+.1f})")
     ax.set_xlabel("Game time (s)")
     ax.set_ylabel("Army count (units)")
     fig.tight_layout()
@@ -516,6 +504,7 @@ def plot_army_count(data: ExperimentData, results_dir: str) -> None:
 # ---------------------------------------------------------------------------
 # 2j — Build order (best run)
 # ---------------------------------------------------------------------------
+
 
 def _game_time_to_mmss(game_time_s: float) -> str:
     """Convert a float game-time in seconds to ``mm:ss`` string."""
@@ -537,7 +526,7 @@ def plot_build_order(data: ExperimentData, results_dir: str) -> None:
     if best is None or not best.build_order:
         return
 
-    events = best.build_order   # [[game_time_s, unit_name], ...]
+    events = best.build_order  # [[game_time_s, unit_name], ...]
 
     # Collect unique unit names in order of first appearance.
     seen: dict[str, int] = {}
@@ -566,10 +555,7 @@ def plot_build_order(data: ExperimentData, results_dir: str) -> None:
     ax2.set_xticks(tick_positions)
     ax2.set_xticklabels([_game_time_to_mmss(v) for v in tick_positions], fontsize=8)
 
-    ax.set_title(
-        f"{data.experiment_name} — Build Order"
-        f" (sim {best.sim}, reward {best.reward:+.1f})"
-    )
+    ax.set_title(f"{data.experiment_name} — Build Order (sim {best.sim}, reward {best.reward:+.1f})")
     ax.grid(axis="x", linestyle=":", linewidth=0.5, alpha=0.6)
     fig.tight_layout()
     _save(fig, os.path.join(results_dir, "build_order.png"))
@@ -578,6 +564,7 @@ def plot_build_order(data: ExperimentData, results_dir: str) -> None:
 # ---------------------------------------------------------------------------
 # Grid-search SC2-specific summary plots
 # ---------------------------------------------------------------------------
+
 
 def _entropy_from_counts(action_counts: dict[int, int] | None) -> float | None:
     """Return action entropy in bits for one sim's action-count mapping."""
@@ -609,11 +596,7 @@ def plot_gs_action_entropy(
         return
     rows: list[tuple[str, float]] = []
     for name, data in runs:
-        entropies = [
-            e
-            for e in (_entropy_from_counts(s.action_counts) for s in data.greedy_sims)
-            if e is not None
-        ]
+        entropies = [e for e in (_entropy_from_counts(s.action_counts) for s in data.greedy_sims) if e is not None]
         if entropies:
             rows.append((name, float(np.mean(entropies))))
     if not rows:
@@ -670,10 +653,7 @@ def plot_gs_outcome_breakdown(
         vals = np.array([r[1][cat] for r in rows], dtype=float)
         if np.all(vals == 0):
             continue
-        ax.barh(
-            y, vals, left=left, label=cat,
-            color=_OUTCOME_COLORS[cat], edgecolor="white", linewidth=0.5
-        )
+        ax.barh(y, vals, left=left, label=cat, color=_OUTCOME_COLORS[cat], edgecolor="white", linewidth=0.5)
         left += vals
     ax.set_yticks(y)
     ax.set_yticklabels(names, fontsize=7)
@@ -694,11 +674,7 @@ def plot_gs_supply_capped(
         return
     rows: list[tuple[str, float]] = []
     for name, data in runs:
-        values = [
-            float(s.supply_capped_fraction)
-            for s in data.greedy_sims
-            if s.supply_capped_fraction is not None
-        ]
+        values = [float(s.supply_capped_fraction) for s in data.greedy_sims if s.supply_capped_fraction is not None]
         if values:
             rows.append((name, float(np.mean(values))))
     if not rows:
@@ -712,7 +688,7 @@ def plot_gs_supply_capped(
     fig, ax = plt.subplots(figsize=(10, max(4, len(rows) * 0.45)))
     bars = ax.barh(names, values, color=colors, edgecolor="white", linewidth=0.5)
     for bar, v in zip(bars, values):
-        ax.text(v, bar.get_y() + bar.get_height() / 2, f"  {100*v:.1f}%", va="center", fontsize=8)
+        ax.text(v, bar.get_y() + bar.get_height() / 2, f"  {100 * v:.1f}%", va="center", fontsize=8)
     ax.set_xlim(0, 1.0)
     ax.set_xlabel("Mean supply-capped fraction")
     ax.set_title("SC2 Grid Search — Supply-Capped Time per Experiment")
@@ -730,11 +706,7 @@ def plot_gs_skipped_frames(
         return
     rows: list[tuple[str, float]] = []
     for name, data in runs:
-        values = [
-            float(max(0, int(s.skipped_frames or 0)))
-            for s in data.greedy_sims
-            if s.skipped_frames is not None
-        ]
+        values = [float(max(0, int(s.skipped_frames or 0))) for s in data.greedy_sims if s.skipped_frames is not None]
         if values:
             rows.append((name, float(np.mean(values))))
     if not rows:
@@ -823,10 +795,7 @@ def plot_gs_reward_component_breakdown(
         return
 
     # Drop components that are zero in every experiment.
-    active_keys = [
-        k for k in all_keys
-        if any(r[1].get(k, 0.0) != 0.0 for r in rows)
-    ]
+    active_keys = [k for k in all_keys if any(r[1].get(k, 0.0) != 0.0 for r in rows)]
     if not active_keys:
         return
 
@@ -852,14 +821,12 @@ def plot_gs_reward_component_breakdown(
         color = colors[k]
         label = k if k not in labeled else None
         if pos_vals.any():
-            ax.barh(y, pos_vals, left=pos_lefts, color=color,
-                    label=label, height=0.7, edgecolor="none", alpha=0.85)
+            ax.barh(y, pos_vals, left=pos_lefts, color=color, label=label, height=0.7, edgecolor="none", alpha=0.85)
             labeled.add(k)
             label = None
             pos_lefts = pos_lefts + pos_vals
         if neg_vals.any():
-            ax.barh(y, neg_vals, left=neg_lefts, color=color,
-                    label=label, height=0.7, edgecolor="none", alpha=0.85)
+            ax.barh(y, neg_vals, left=neg_lefts, color=color, label=label, height=0.7, edgecolor="none", alpha=0.85)
             labeled.add(k)
             neg_lefts = neg_lefts + neg_vals
 
@@ -896,12 +863,13 @@ def _append_sc2_grid_summary_section(summary_dir: str) -> None:
     lines = ["\n## SC2-specific cross-run charts\n\n"]
     lines.extend(f"![{alt}]({filename})\n\n" for filename, alt in present)
     with open(summary_path, "a", encoding="utf-8") as f:
-        f.writelines(lines)
+        f.write("".join(lines).rstrip("\n") + "\n")
 
 
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
 
 def _save(fig: "Figure", path: str) -> None:
     fig.savefig(path, dpi=150, bbox_inches="tight")
@@ -934,10 +902,7 @@ def _safe_scale(weight: float | int | None) -> float:
         scale = abs(float(weight or 0.0))
     except (TypeError, ValueError):
         if not _WARNED_NON_NUMERIC_WEIGHT:
-            logger.warning(
-                "SC2 reward normalisation: non-numeric reward weight encountered; "
-                "using neutral scale 1.0."
-            )
+            logger.warning("SC2 reward normalisation: non-numeric reward weight encountered; using neutral scale 1.0.")
             _WARNED_NON_NUMERIC_WEIGHT = True
         return 1.0
     return max(scale, 1.0) if scale > 1e-12 else 1.0
@@ -954,9 +919,7 @@ def _normalised_reward_for_sim(sim, reward_cfg: dict[str, float | int]) -> float
     return float(sum(normalised_components.values()))
 
 
-def _normalised_reward_components_for_sim(
-    sim, reward_cfg: dict[str, float | int]
-) -> dict[str, float] | None:
+def _normalised_reward_components_for_sim(sim, reward_cfg: dict[str, float | int]) -> dict[str, float] | None:
     """Return normalized per-component contributions, or ``None`` if unavailable."""
     if not sim.reward_components:
         return None
@@ -1018,14 +981,12 @@ def _normalise_rewards_for_summary(data: ExperimentData) -> ExperimentData:
                 reward_cfg.update(string_key_cfg)
             else:
                 logger.warning(
-                    "SC2 reward normalisation: reward config %s is not a mapping; "
-                    "falling back to defaults.",
+                    "SC2 reward normalisation: reward config %s is not a mapping; falling back to defaults.",
                     data.reward_config_file,
                 )
         except (yaml.YAMLError, TypeError, ValueError) as exc:
             logger.warning(
-                "SC2 reward normalisation: failed to parse reward config %s (%s); "
-                "falling back to neutral scales.",
+                "SC2 reward normalisation: failed to parse reward config %s (%s); falling back to neutral scales.",
                 data.reward_config_file,
                 exc,
             )
@@ -1046,6 +1007,7 @@ def _normalise_rewards_for_summary(data: ExperimentData) -> ExperimentData:
 # ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
+
 
 def save_experiment_results(data: ExperimentData, results_dir: str) -> None:
     """Generate SC2-specific and generic plots; write results.md to *results_dir*."""
@@ -1125,7 +1087,7 @@ def save_experiment_results(data: ExperimentData, results_dir: str) -> None:
 
     report_path = os.path.join(results_dir, "results.md")
     with open(report_path, "w", encoding="utf-8") as f:
-        f.writelines(sections)
+        f.write("".join(sections).rstrip("\n") + "\n")
 
     n = len(os.listdir(results_dir))
     logger.info("Saved %d file(s) to %s/ (report: results.md)", n, results_dir)
@@ -1138,10 +1100,7 @@ def save_grid_summary(
     base_name: str,
 ) -> None:
     """Grid search summary with config-normalized SC2 rewards for fair comparison."""
-    normalised_runs = [
-        (name, _normalise_rewards_for_summary(data))
-        for name, data in runs
-    ]
+    normalised_runs = [(name, _normalise_rewards_for_summary(data)) for name, data in runs]
 
     def _sc2_extra(r: list[tuple[str, ExperimentData]], d: str) -> None:
         plot_gs_action_entropy(r, d)
@@ -1152,7 +1111,10 @@ def save_grid_summary(
         plot_gs_reward_component_breakdown(r, d)
 
     _framework_save_grid_summary(
-        normalised_runs, varied_keys, summary_dir, base_name,
+        normalised_runs,
+        varied_keys,
+        summary_dir,
+        base_name,
         extra_plots_fn=_sc2_extra,
         task_metric_fn=_sc2_task_metric,
         task_metric_label="Win/Success Rate",

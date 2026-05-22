@@ -11,15 +11,15 @@ import os
 
 from framework.analytics import (
     ExperimentData,
-    plot_probe_rewards,
-    plot_cold_start_rewards,
-    plot_greedy_rewards,
-    plot_reward_trajectory,
-    _probe_table_md,
     _cold_start_table_md,
     _greedy_table_md,
-    _timings_md,
+    _probe_table_md,
     _summary_md,
+    _timings_md,
+    plot_cold_start_rewards,
+    plot_greedy_rewards,
+    plot_probe_rewards,
+    plot_reward_trajectory,
 )
 
 logger = logging.getLogger(__name__)
@@ -56,7 +56,7 @@ def save_experiment_results(data: ExperimentData, results_dir: str) -> None:
 
     report_path = os.path.join(results_dir, "results.md")
     with open(report_path, "w", encoding="utf-8") as f:
-        f.writelines(sections)
+        f.write("".join(sections).rstrip("\n") + "\n")
 
     n = len(os.listdir(results_dir))
     logger.info("Saved %d file(s) to %s/ (report: results.md)", n, results_dir)

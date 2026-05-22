@@ -1,4 +1,5 @@
 """Tests for cross_grid_report.py — recursive cross-grid summary collation."""
+
 from __future__ import annotations
 
 import os
@@ -88,9 +89,7 @@ def _write_summary(version_dir: str, summary_name: str, run_name: str) -> str:
         f.write(b"png")
     with open(os.path.join(summary_dir, "summary.md"), "w", encoding="utf-8") as f:
         f.write(
-            "# Summary\n\n"
-            "![Comparison](comparison_rewards.png)\n\n"
-            f"![Run](../{run_name}/results/greedy_best_run.png)\n"
+            f"# Summary\n\n![Comparison](comparison_rewards.png)\n\n![Run](../{run_name}/results/greedy_best_run.png)\n"
         )
     return summary_dir
 

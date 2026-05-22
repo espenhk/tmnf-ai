@@ -21,6 +21,7 @@ Options:
     --re-initialize      Re-initialize weights for every experiment
     --log-level LEVEL    DEBUG/INFO/WARNING/ERROR (default: INFO)
 """
+
 from __future__ import annotations
 
 import argparse
@@ -34,12 +35,13 @@ import urllib.error
 import urllib.request
 
 from framework.env_loader import load_dotenv
+
 load_dotenv()
 
 from distributed.protocol import (
+    DEFAULT_GAME,
     ComboSpec,
     ResultPayload,
-    DEFAULT_GAME,
     combo_from_dict,
     experiment_to_json,
     result_to_dict,
@@ -51,6 +53,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # HTTP helpers (stdlib only — no requests dependency)
 # ---------------------------------------------------------------------------
+
 
 def _http_get(url: str, headers: dict | None = None) -> tuple[int, bytes]:
     req = urllib.request.Request(url, headers=headers or {})
@@ -85,11 +88,13 @@ def _http_post(url: str, body: dict | str, headers: dict | None = None) -> tuple
 # Heartbeat thread
 # ---------------------------------------------------------------------------
 
+
 class _HeartbeatThread(threading.Thread):
     """Sends POST /heartbeat to the coordinator at a fixed interval."""
 
-    def __init__(self, coordinator_url: str, combo_name: str, worker_id: str,
-                 interval: float, auth_headers: dict) -> None:
+    def __init__(
+        self, coordinator_url: str, combo_name: str, worker_id: str, interval: float, auth_headers: dict
+    ) -> None:
         super().__init__(daemon=True, name="worker-heartbeat")
         self._url = f"{coordinator_url.rstrip('/')}/heartbeat"
         self._name = combo_name
@@ -101,8 +106,7 @@ class _HeartbeatThread(threading.Thread):
     def run(self) -> None:
         while not self._stop_event.wait(timeout=self._interval):
             try:
-                _http_post(self._url, {"name": self._name, "worker_id": self._worker_id},
-                           headers=self._auth_headers)
+                _http_post(self._url, {"name": self._name, "worker_id": self._worker_id}, headers=self._auth_headers)
             except Exception as exc:
                 logger.debug("Heartbeat failed: %s", exc)
 
@@ -113,6 +117,7 @@ class _HeartbeatThread(threading.Thread):
 # ---------------------------------------------------------------------------
 # Core worker loop
 # ---------------------------------------------------------------------------
+
 
 def run_worker(
     coordinator_url: str,
@@ -149,7 +154,6 @@ def run_worker(
     from framework.game_adapter import GAME_ADAPTERS
     from framework.run_config import RunConfig
     from framework.training import train_rl
-
     from grid_search import _build_policy_params, _setup_experiment_dir
 
     logger.info("Worker %s connecting to %s", worker_id, base)
@@ -176,7 +180,8 @@ def run_worker(
                         return
                     logger.info(
                         "Queue empty but grid not complete (%d/%d done) — waiting for re-queue",
-                        s.get("done", 0), s.get("total", 0),
+                        s.get("done", 0),
+                        s.get("total", 0),
                     )
                     time.sleep(5)
                     continue
@@ -198,7 +203,9 @@ def run_worker(
         if game_filter and job_game != game_filter:
             logger.info(
                 "Skipping %s (game=%s, worker accepts only %s) — returning to coordinator",
-                spec.name, job_game, game_filter,
+                spec.name,
+                job_game,
+                game_filter,
             )
             # Return the item to the coordinator so another worker can take it.
             try:
@@ -216,9 +223,7 @@ def run_worker(
         # For TMNF the track comes from training_params["track"]; for other
         # games spec.track carries an explicit override (may be None).
         track_override = spec.track if spec.track else None
-        experiment_dir, weights_file, reward_cfg_file = _setup_experiment_dir(
-            adapter, spec.name, t, r, track_override
-        )
+        experiment_dir, weights_file, reward_cfg_file = _setup_experiment_dir(adapter, spec.name, t, r, track_override)
 
         # --- start heartbeat ---
         hb = _HeartbeatThread(base, spec.name, worker_id, heartbeat_interval, auth_headers)
@@ -229,8 +234,12 @@ def run_worker(
         t_with_pp["policy_params"] = _build_policy_params(t)
         try:
             game_spec = adapter.build_game_spec(
-                spec.name, experiment_dir, weights_file, reward_cfg_file,
-                t_with_pp, track_override,
+                spec.name,
+                experiment_dir,
+                weights_file,
+                reward_cfg_file,
+                t_with_pp,
+                track_override,
             )
             data = train_rl(
                 game=game_spec,
@@ -256,8 +265,7 @@ def run_worker(
         # --- post result to coordinator ---
         payload = ResultPayload(name=spec.name, data_json=experiment_to_json(data))
         try:
-            status, _ = _http_post(f"{base}/result", json.dumps(result_to_dict(payload)),
-                                   headers=auth_headers)
+            status, _ = _http_post(f"{base}/result", json.dumps(result_to_dict(payload)), headers=auth_headers)
             if status != 200:
                 logger.error("POST /result returned %d for %s", status, spec.name)
         except Exception as exc:
@@ -268,27 +276,40 @@ def run_worker(
 # CLI entry point
 # ---------------------------------------------------------------------------
 
+
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Distributed grid-search worker — polls coordinator for work"
+    parser = argparse.ArgumentParser(description="Distributed grid-search worker — polls coordinator for work")
+    parser.add_argument(
+        "--coordinator", required=True, metavar="URL", help="Coordinator base URL, e.g. http://192.168.1.10:5555"
     )
-    parser.add_argument("--coordinator", required=True, metavar="URL",
-                        help="Coordinator base URL, e.g. http://192.168.1.10:5555")
-    parser.add_argument("--token", default=None, metavar="SECRET",
-                        help="Shared secret; falls back to TMNF_GRID_TOKEN env var")
-    parser.add_argument("--game", default=None, metavar="GAME",
-                        choices=["tmnf", "torcs", "sc2", "beamng", "car_racing"],
-                        help="Only accept work items for this game (default: accept all games)")
-    parser.add_argument("--worker-id", default=socket.gethostname(), metavar="ID",
-                        help="Identifier shown in coordinator status (default: hostname)")
-    parser.add_argument("--heartbeat-interval", type=float, default=15.0, metavar="S",
-                        help="Seconds between heartbeat POSTs (default: 15)")
-    parser.add_argument("--no-interrupt", action="store_true",
-                        help="Skip all 'Press Enter' prompts")
-    parser.add_argument("--re-initialize", action="store_true",
-                        help="Ignore existing weights files and restart from scratch")
-    parser.add_argument("--log-level", default="INFO",
-                        choices=["DEBUG", "INFO", "WARNING", "ERROR"])
+    parser.add_argument(
+        "--token", default=None, metavar="SECRET", help="Shared secret; falls back to TMNF_GRID_TOKEN env var"
+    )
+    parser.add_argument(
+        "--game",
+        default=None,
+        metavar="GAME",
+        choices=["tmnf", "torcs", "sc2", "beamng", "car_racing"],
+        help="Only accept work items for this game (default: accept all games)",
+    )
+    parser.add_argument(
+        "--worker-id",
+        default=socket.gethostname(),
+        metavar="ID",
+        help="Identifier shown in coordinator status (default: hostname)",
+    )
+    parser.add_argument(
+        "--heartbeat-interval",
+        type=float,
+        default=15.0,
+        metavar="S",
+        help="Seconds between heartbeat POSTs (default: 15)",
+    )
+    parser.add_argument("--no-interrupt", action="store_true", help="Skip all 'Press Enter' prompts")
+    parser.add_argument(
+        "--re-initialize", action="store_true", help="Ignore existing weights files and restart from scratch"
+    )
+    parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"])
     args = parser.parse_args()
 
     logging.basicConfig(

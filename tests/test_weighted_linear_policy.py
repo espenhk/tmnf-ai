@@ -1,9 +1,10 @@
 """Tests for WeightedLinearPolicy in tmnf/policies.py."""
+
 import unittest
 
 import numpy as np
-
 from helpers import make_wlp
+
 from games.tmnf.obs_spec import BASE_OBS_DIM
 from games.tmnf.policies import WeightedLinearPolicy
 
@@ -11,7 +12,6 @@ _N = BASE_OBS_DIM
 
 
 class TestWeightedLinearPolicy(unittest.TestCase):
-
     def assert_action_vector(self, action):
         self.assertIsInstance(action, np.ndarray)
         self.assertEqual(action.shape, (3,))
@@ -96,12 +96,11 @@ class TestWeightedLinearPolicy(unittest.TestCase):
         p = make_wlp(steer_weights=sw)
         mutated = p.mutated(scale=1.0)
         orig = list(p.to_cfg()["steer_weights"].values())
-        mut  = list(mutated.to_cfg()["steer_weights"].values())
+        mut = list(mutated.to_cfg()["steer_weights"].values())
         self.assertFalse(np.allclose(orig, mut))
 
     def test_obs_scales_length_matches_obs_names(self):
-        self.assertEqual(len(WeightedLinearPolicy.OBS_SCALES),
-                         len(WeightedLinearPolicy.OBS_NAMES))
+        self.assertEqual(len(WeightedLinearPolicy.OBS_SCALES), len(WeightedLinearPolicy.OBS_NAMES))
 
     def test_action_is_int(self):
         p = make_wlp()

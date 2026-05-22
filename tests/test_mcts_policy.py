@@ -1,4 +1,5 @@
 """Tests for MCTSPolicy in tmnf/policies.py."""
+
 import unittest
 
 import numpy as np
@@ -16,7 +17,6 @@ def _state_key(obs: np.ndarray) -> tuple:
 
 
 class TestMCTSPolicy(unittest.TestCase):
-
     def test_action_in_range(self):
         p = MCTSPolicy()
         self.assertIn(_action_to_idx(p(_zero_obs())), range(25))
@@ -48,7 +48,7 @@ class TestMCTSPolicy(unittest.TestCase):
         obs = _zero_obs()
         next_obs = _zero_obs()
         for _ in range(5):
-            p.update(obs, action=3, reward= 100.0, next_obs=next_obs, done=True)
+            p.update(obs, action=3, reward=100.0, next_obs=next_obs, done=True)
             p.update(obs, action=0, reward=-100.0, next_obs=next_obs, done=True)
         self.assertEqual(_action_to_idx(p(obs)), 3)
 

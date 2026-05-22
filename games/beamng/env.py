@@ -33,7 +33,7 @@ from gymnasium import spaces
 
 from framework.base_env import BaseGameEnv
 from games.beamng.obs_spec import BASE_OBS_DIM
-from games.beamng.reward import BeamNGRewardConfig, BeamNGRewardCalculator
+from games.beamng.reward import BeamNGRewardCalculator, BeamNGRewardConfig
 
 logger = logging.getLogger(__name__)
 

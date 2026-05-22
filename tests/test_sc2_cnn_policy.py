@@ -2,23 +2,24 @@
 
 All tests mock PySC2 / the SC2Client so they run without a game binary.
 """
+
 import unittest
 from unittest.mock import MagicMock, patch
 
 import numpy as np
 
 from games.sc2.cnn_policy import (
-    SC2CNNModel,
     SC2CNNEvolutionPolicy,
-    _conv2d_valid_relu,
+    SC2CNNModel,
     _adaptive_avg_pool,
+    _conv2d_valid_relu,
 )
 from games.sc2.obs_spec import SC2_MINIGAME_OBS_SPEC
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_model(n_channels: int = 2) -> SC2CNNModel:
     return SC2CNNModel(n_channels=n_channels, obs_spec=SC2_MINIGAME_OBS_SPEC, seed=0)
@@ -27,7 +28,7 @@ def _make_model(n_channels: int = 2) -> SC2CNNModel:
 def _dict_obs(n_channels: int = 2, h: int = 64, w: int = 64) -> dict:
     spec = SC2_MINIGAME_OBS_SPEC
     return {
-        "flat":    np.zeros(spec.dim, dtype=np.float32),
+        "flat": np.zeros(spec.dim, dtype=np.float32),
         "spatial": np.random.default_rng(0).random((n_channels, h, w)).astype(np.float32),
     }
 
@@ -36,8 +37,8 @@ def _dict_obs(n_channels: int = 2, h: int = 64, w: int = 64) -> dict:
 # Conv2d + pool helpers
 # ---------------------------------------------------------------------------
 
-class TestConv2dValidRelu(unittest.TestCase):
 
+class TestConv2dValidRelu(unittest.TestCase):
     def test_output_shape(self):
         x = np.ones((2, 8, 8), dtype=np.float32)
         W = np.ones((4, 2, 3, 3), dtype=np.float32) * 0.01
@@ -55,7 +56,6 @@ class TestConv2dValidRelu(unittest.TestCase):
 
 
 class TestAdaptiveAvgPool(unittest.TestCase):
-
     def test_output_shape(self):
         x = np.ones((32, 60, 60), dtype=np.float32)
         out = _adaptive_avg_pool(x, 4, 4)
@@ -71,8 +71,8 @@ class TestAdaptiveAvgPool(unittest.TestCase):
 # SC2CNNModel
 # ---------------------------------------------------------------------------
 
-class TestSC2CNNModelShape(unittest.TestCase):
 
+class TestSC2CNNModelShape(unittest.TestCase):
     def test_flat_dim_formula(self):
         model = _make_model(n_channels=2)
         self.assertEqual(model.to_flat().shape[0], model.flat_dim)
@@ -85,22 +85,23 @@ class TestSC2CNNModelShape(unittest.TestCase):
     def test_forward_output_shapes(self):
         from games.sc2.actions import DISCRETE_ACTIONS
         from games.sc2.sc2_policies import N_FUNCTION_IDS
-        model  = _make_model(n_channels=2)
-        obs    = _dict_obs(n_channels=2)
+
+        model = _make_model(n_channels=2)
+        obs = _dict_obs(n_channels=2)
         fn_sc, sp_sc = model.forward(obs["spatial"], obs["flat"])
         self.assertEqual(fn_sc.shape, (N_FUNCTION_IDS,))
         self.assertEqual(sp_sc.shape, (len(DISCRETE_ACTIONS),))
 
     def test_callable_returns_4vector(self):
-        model  = _make_model(n_channels=2)
-        obs    = _dict_obs(n_channels=2)
+        model = _make_model(n_channels=2)
+        obs = _dict_obs(n_channels=2)
         action = model(obs)
         self.assertEqual(action.shape, (4,))
         self.assertIsInstance(float(action[0]), float)
 
     def test_with_flat_roundtrip(self):
-        model    = _make_model(n_channels=2)
-        flat     = model.to_flat()
+        model = _make_model(n_channels=2)
+        flat = model.to_flat()
         restored = model.with_flat(flat)
         np.testing.assert_array_equal(restored.to_flat(), flat)
 
@@ -118,8 +119,9 @@ class TestSC2CNNModelShape(unittest.TestCase):
         """Flat obs and spatial features must be correctly concatenated."""
         from games.sc2.actions import DISCRETE_ACTIONS
         from games.sc2.sc2_policies import N_FUNCTION_IDS
+
         model = _make_model(n_channels=2)
-        obs   = _dict_obs(n_channels=2)
+        obs = _dict_obs(n_channels=2)
         # Just check no shape error occurs in forward.
         fn_sc, sp_sc = model.forward(obs["spatial"], obs["flat"])
         self.assertEqual(fn_sc.shape[0], N_FUNCTION_IDS)
@@ -127,9 +129,12 @@ class TestSC2CNNModelShape(unittest.TestCase):
 
     def test_available_fn_ids_masked_in_call(self):
         model = _make_model(n_channels=2)
-        model.W1.fill(0.0); model.b1.fill(0.0)
-        model.W2.fill(0.0); model.b2.fill(0.0)
-        model.W3.fill(0.0); model.b3.fill(0.0)
+        model.W1.fill(0.0)
+        model.b1.fill(0.0)
+        model.W2.fill(0.0)
+        model.b2.fill(0.0)
+        model.W3.fill(0.0)
+        model.b3.fill(0.0)
         model.W_fn.fill(0.0)
         model.b_fn.fill(-1.0)
         model.b_fn[4] = 10.0
@@ -139,9 +144,12 @@ class TestSC2CNNModelShape(unittest.TestCase):
 
     def test_empty_available_fn_ids_falls_back_to_no_op(self):
         model = _make_model(n_channels=2)
-        model.W1.fill(0.0); model.b1.fill(0.0)
-        model.W2.fill(0.0); model.b2.fill(0.0)
-        model.W3.fill(0.0); model.b3.fill(0.0)
+        model.W1.fill(0.0)
+        model.b1.fill(0.0)
+        model.W2.fill(0.0)
+        model.b2.fill(0.0)
+        model.W3.fill(0.0)
+        model.b3.fill(0.0)
         model.W_fn.fill(0.0)
         model.b_fn.fill(-1.0)
         model.b_fn[4] = 10.0
@@ -161,8 +169,8 @@ class TestSC2CNNModelShape(unittest.TestCase):
 # SC2CNNEvolutionPolicy
 # ---------------------------------------------------------------------------
 
-class TestSC2CNNEvolutionPolicy(unittest.TestCase):
 
+class TestSC2CNNEvolutionPolicy(unittest.TestCase):
     def setUp(self):
         self.obs_spec = SC2_MINIGAME_OBS_SPEC
         self.policy = SC2CNNEvolutionPolicy(
@@ -203,15 +211,18 @@ class TestSC2CNNEvolutionPolicy(unittest.TestCase):
     def test_champion_callable_after_update(self):
         self.policy.sample_population()
         self.policy.update_distribution([1.0, 2.0, 3.0, 4.0])
-        obs    = _dict_obs(n_channels=2)
+        obs = _dict_obs(n_channels=2)
         action = self.policy(obs)
         self.assertEqual(action.shape, (4,))
 
     def test_on_episode_start_forwards_available_fn_ids_to_champion(self):
         champion = _make_model(n_channels=2)
-        champion.W1.fill(0.0); champion.b1.fill(0.0)
-        champion.W2.fill(0.0); champion.b2.fill(0.0)
-        champion.W3.fill(0.0); champion.b3.fill(0.0)
+        champion.W1.fill(0.0)
+        champion.b1.fill(0.0)
+        champion.W2.fill(0.0)
+        champion.b2.fill(0.0)
+        champion.W3.fill(0.0)
+        champion.b3.fill(0.0)
         champion.W_fn.fill(0.0)
         champion.b_fn.fill(-1.0)
         champion.b_fn[5] = 10.0
@@ -236,7 +247,9 @@ class TestSC2CNNEvolutionPolicy(unittest.TestCase):
         self.assertNotEqual(self.policy.sigma, sigma_before)
 
     def test_trainer_state_roundtrip(self):
-        import tempfile, os
+        import os
+        import tempfile
+
         with tempfile.TemporaryDirectory() as d:
             state_path = os.path.join(d, "trainer_state.npz")
             self.policy.sample_population()
@@ -244,16 +257,19 @@ class TestSC2CNNEvolutionPolicy(unittest.TestCase):
             self.policy.save_trainer_state(state_path)
 
             policy2 = SC2CNNEvolutionPolicy(
-                n_channels=2, obs_spec=self.obs_spec,
-                population_size=4, initial_sigma=0.01, seed=0,
+                n_channels=2,
+                obs_spec=self.obs_spec,
+                population_size=4,
+                initial_sigma=0.01,
+                seed=0,
             )
             policy2.load_trainer_state(state_path)
-            np.testing.assert_array_almost_equal(
-                policy2._mean, self.policy._mean
-            )
+            np.testing.assert_array_almost_equal(policy2._mean, self.policy._mean)
 
     def test_save_load_champion(self):
-        import tempfile, os
+        import os
+        import tempfile
+
         with tempfile.TemporaryDirectory() as d:
             champ_path = os.path.join(d, "champion.npz")
             self.policy.sample_population()
@@ -261,24 +277,26 @@ class TestSC2CNNEvolutionPolicy(unittest.TestCase):
             self.policy.save(champ_path)
 
             policy2 = SC2CNNEvolutionPolicy(
-                n_channels=2, obs_spec=self.obs_spec,
-                population_size=4, initial_sigma=0.01, seed=0,
+                n_channels=2,
+                obs_spec=self.obs_spec,
+                population_size=4,
+                initial_sigma=0.01,
+                seed=0,
             )
             policy2.load_champion(champ_path)
             obs = _dict_obs(n_channels=2)
-            np.testing.assert_array_equal(
-                policy2(obs), self.policy(obs)
-            )
+            np.testing.assert_array_equal(policy2(obs), self.policy(obs))
 
 
 # ---------------------------------------------------------------------------
 # SC2Env dict observation space
 # ---------------------------------------------------------------------------
 
-class TestSC2EnvDictObsSpace(unittest.TestCase):
 
+class TestSC2EnvDictObsSpace(unittest.TestCase):
     def _make_env(self, screen_layers, minimap_layers=None):
         from games.sc2.env import SC2Env
+
         with patch("games.sc2.env.SC2Client"):
             return SC2Env(
                 map_name="MoveToBeacon",
@@ -288,11 +306,13 @@ class TestSC2EnvDictObsSpace(unittest.TestCase):
 
     def test_flat_obs_space_when_no_layers(self):
         from gymnasium import spaces
+
         env = self._make_env([])
         self.assertIsInstance(env.observation_space, spaces.Box)
 
     def test_dict_obs_space_when_layers_given(self):
         from gymnasium import spaces
+
         env = self._make_env(["player_relative", "selected"])
         self.assertIsInstance(env.observation_space, spaces.Dict)
         self.assertIn("flat", env.observation_space.spaces)
@@ -301,7 +321,7 @@ class TestSC2EnvDictObsSpace(unittest.TestCase):
     def test_spatial_shape_matches_channels(self):
         env = self._make_env(["player_relative", "selected"])
         spatial_space = env.observation_space["spatial"]
-        self.assertEqual(spatial_space.shape[0], 2)   # 2 channels
+        self.assertEqual(spatial_space.shape[0], 2)  # 2 channels
         self.assertEqual(spatial_space.shape[1], 64)  # screen H
         self.assertEqual(spatial_space.shape[2], 64)  # screen W
 
@@ -314,8 +334,12 @@ class TestSC2EnvDictObsSpace(unittest.TestCase):
             mock_client.reset.return_value = (
                 np.zeros(BASE_OBS_DIM, dtype=np.float32),
                 {
-                    "score": 0.0, "minerals": 0.0, "vespene": 0.0,
-                    "food_used": 0.0, "food_cap": 0.0, "army_count": 0.0,
+                    "score": 0.0,
+                    "minerals": 0.0,
+                    "vespene": 0.0,
+                    "food_used": 0.0,
+                    "food_cap": 0.0,
+                    "army_count": 0.0,
                     "spatial_obs": np.zeros((2, 64, 64), dtype=np.float32),
                 },
             )
@@ -340,8 +364,12 @@ class TestSC2EnvDictObsSpace(unittest.TestCase):
             mock_client.reset.return_value = (
                 np.zeros(BASE_OBS_DIM, dtype=np.float32),
                 {
-                    "score": 0.0, "minerals": 0.0, "vespene": 0.0,
-                    "food_used": 0.0, "food_cap": 0.0, "army_count": 0.0,
+                    "score": 0.0,
+                    "minerals": 0.0,
+                    "vespene": 0.0,
+                    "food_used": 0.0,
+                    "food_cap": 0.0,
+                    "army_count": 0.0,
                     # no "spatial_obs" key
                 },
             )
@@ -362,26 +390,36 @@ class TestSC2EnvDictObsSpace(unittest.TestCase):
             mock_client = mock_cls.return_value
             mock_client.reset.return_value = (
                 np.zeros(BASE_OBS_DIM, dtype=np.float32),
-                {"score": 0.0, "minerals": 0.0, "vespene": 0.0,
-                 "food_used": 0.0, "food_cap": 0.0, "army_count": 0.0,
-                 "spatial_obs": np.zeros((2, 64, 64), dtype=np.float32)},
+                {
+                    "score": 0.0,
+                    "minerals": 0.0,
+                    "vespene": 0.0,
+                    "food_used": 0.0,
+                    "food_cap": 0.0,
+                    "army_count": 0.0,
+                    "spatial_obs": np.zeros((2, 64, 64), dtype=np.float32),
+                },
             )
             mock_client.step.return_value = (
                 np.zeros(BASE_OBS_DIM, dtype=np.float32),
                 0.0,
                 False,
-                {"score": 1.0, "minerals": 0.0, "vespene": 0.0,
-                 "food_used": 0.0, "food_cap": 0.0, "army_count": 0.0,
-                 "spatial_obs": np.ones((2, 64, 64), dtype=np.float32)},
+                {
+                    "score": 1.0,
+                    "minerals": 0.0,
+                    "vespene": 0.0,
+                    "food_used": 0.0,
+                    "food_cap": 0.0,
+                    "army_count": 0.0,
+                    "spatial_obs": np.ones((2, 64, 64), dtype=np.float32),
+                },
             )
             env = SC2Env(
                 map_name="MoveToBeacon",
                 screen_layers=["player_relative", "selected"],
             )
             env.reset()
-            obs, reward, terminated, truncated, info = env.step(
-                np.zeros(4, dtype=np.float32)
-            )
+            obs, reward, terminated, truncated, info = env.step(np.zeros(4, dtype=np.float32))
 
         self.assertIsInstance(obs, dict)
         self.assertIn("spatial", obs)
@@ -391,8 +429,8 @@ class TestSC2EnvDictObsSpace(unittest.TestCase):
 # SC2Client spatial obs extraction
 # ---------------------------------------------------------------------------
 
-class TestSC2ClientSpatialObs(unittest.TestCase):
 
+class TestSC2ClientSpatialObs(unittest.TestCase):
     @staticmethod
     def _fake_feature_screen(layer_data: dict) -> np.ndarray:
         """Return an ndarray subclass that also supports string indexing.
@@ -424,15 +462,22 @@ class TestSC2ClientSpatialObs(unittest.TestCase):
     def _make_timestep(self, player_relative: np.ndarray) -> MagicMock:
         """Build a minimal mock PySC2 TimeStep with a feature_screen layer."""
         zeros = np.zeros_like(player_relative)
-        feat_screen = self._fake_feature_screen({
-            "player_relative": player_relative,
-            "selected":        zeros,
-        })
+        feat_screen = self._fake_feature_screen(
+            {
+                "player_relative": player_relative,
+                "selected": zeros,
+            }
+        )
 
         player_data = {
-            "minerals": 0, "vespene": 0, "food_used": 0, "food_cap": 10,
-            "army_count": 0, "idle_worker_count": 0,
-            "warp_gate_count": 0, "larva_count": 0,
+            "minerals": 0,
+            "vespene": 0,
+            "food_used": 0,
+            "food_cap": 10,
+            "army_count": 0,
+            "idle_worker_count": 0,
+            "warp_gate_count": 0,
+            "larva_count": 0,
         }
         player_mock = MagicMock()
         player_mock.__getitem__.side_effect = player_data.__getitem__
@@ -440,12 +485,12 @@ class TestSC2ClientSpatialObs(unittest.TestCase):
 
         ob = MagicMock()
         ob_data = {
-            "feature_screen":    feat_screen,
-            "player":            player_mock,
+            "feature_screen": feat_screen,
+            "player": player_mock,
             "available_actions": np.array([0]),
-            "score_cumulative":  np.array([0.0]),
-            "single_select":     np.array([]),
-            "multi_select":      np.array([]),
+            "score_cumulative": np.array([0.0]),
+            "single_select": np.array([]),
+            "multi_select": np.array([]),
         }
         ob.__getitem__.side_effect = ob_data.__getitem__
         ob.get.side_effect = lambda k, d=None: ob_data.get(k, d)
@@ -458,6 +503,7 @@ class TestSC2ClientSpatialObs(unittest.TestCase):
 
     def test_spatial_obs_in_info(self):
         from games.sc2.client import SC2Client
+
         client = SC2Client(
             map_name="MoveToBeacon",
             screen_layers=["player_relative"],
@@ -470,6 +516,7 @@ class TestSC2ClientSpatialObs(unittest.TestCase):
 
     def test_spatial_obs_normalised(self):
         from games.sc2.client import SC2Client
+
         client = SC2Client(
             map_name="MoveToBeacon",
             screen_layers=["player_relative"],
@@ -481,6 +528,7 @@ class TestSC2ClientSpatialObs(unittest.TestCase):
 
     def test_no_spatial_obs_when_no_layers(self):
         from games.sc2.client import SC2Client
+
         client = SC2Client(map_name="MoveToBeacon")
         pr = np.zeros((64, 64), dtype=np.float32)
         ts = self._make_timestep(pr)
@@ -492,37 +540,41 @@ class TestSC2ClientSpatialObs(unittest.TestCase):
 # Race mask tests for SC2CNNModel
 # ---------------------------------------------------------------------------
 
+
 class TestSC2CNNModelRaceMask(unittest.TestCase):
     """Permanent race filter in SC2CNNModel.__call__."""
 
     def test_default_race_is_random(self):
         from games.sc2.actions import fn_ids_for_race
+
         model = _make_model(n_channels=2)
         self.assertEqual(model._race_fn_ids, fn_ids_for_race("random"))  # noqa: SLF001
 
     def test_terran_race_blocks_zerg_fn_idx(self):
         """With race='terran', __call__ must never return a Zerg-only fn_idx."""
         from games.sc2.actions import _ZERG_FN_IDS
+
         model = SC2CNNModel(n_channels=2, obs_spec=SC2_MINIGAME_OBS_SPEC, seed=0, race="terran")
         # Bias b_fn strongly toward a Zerg-only fn_idx (e.g. 82).
         model.b_fn[:] = -100.0
         model.b_fn[82] = 100.0
         obs = _dict_obs(n_channels=2)
         action = model(obs)
-        self.assertNotIn(int(action[0]), _ZERG_FN_IDS,
-                         f"Terran policy returned Zerg fn_idx {int(action[0])}")
+        self.assertNotIn(int(action[0]), _ZERG_FN_IDS, f"Terran policy returned Zerg fn_idx {int(action[0])}")
 
     def test_with_flat_preserves_race(self):
         """with_flat must carry _race and _race_fn_ids to the cloned model."""
         from games.sc2.actions import fn_ids_for_race
+
         model = SC2CNNModel(n_channels=2, obs_spec=SC2_MINIGAME_OBS_SPEC, seed=0, race="protoss")
-        flat  = model.to_flat()
+        flat = model.to_flat()
         clone = model.with_flat(flat)
         self.assertEqual(clone._race, "protoss")  # noqa: SLF001
         self.assertEqual(clone._race_fn_ids, fn_ids_for_race("protoss"))  # noqa: SLF001
 
     def test_cnn_evolution_construct_or_resume_reads_agent_race(self):
         from games.sc2.actions import fn_ids_for_race
+
         policy = SC2CNNEvolutionPolicy._construct_or_resume(
             obs_spec=SC2_MINIGAME_OBS_SPEC,
             head_names=["fn_idx", "x", "y", "queue"],

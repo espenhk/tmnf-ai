@@ -1,4 +1,5 @@
 """Tests for SC2NeuralNetPolicy in games/sc2/sc2_policies.py."""
+
 from __future__ import annotations
 
 import unittest
@@ -17,7 +18,6 @@ def _make_policy(hidden_sizes: list[int] | None = None) -> SC2NeuralNetPolicy:
 
 
 class TestSC2NeuralNetPolicy(unittest.TestCase):
-
     def test_action_shape_and_ranges(self):
         p = _make_policy([8])
         obs = np.random.default_rng(0).standard_normal(SC2_MINIGAME_OBS_SPEC.dim).astype(np.float32)
@@ -85,16 +85,19 @@ class TestSC2NeuralNetPolicy(unittest.TestCase):
 # Race mask tests
 # ---------------------------------------------------------------------------
 
+
 class TestSC2NeuralNetPolicyRaceMask(unittest.TestCase):
     """Permanent race mask — wrong-race actions must never be projected."""
 
     def test_default_race_allows_all_fn_ids(self):
         from games.sc2.actions import fn_ids_for_race
+
         p = _make_policy()
         self.assertEqual(p._race_fn_ids, fn_ids_for_race("random"))  # noqa: SLF001
 
     def test_terran_race_fn_ids_excludes_zerg(self):
         from games.sc2.actions import fn_ids_for_race
+
         p = SC2NeuralNetPolicy(obs_spec=SC2_MINIGAME_OBS_SPEC, race="terran")
         self.assertEqual(p._race_fn_ids, fn_ids_for_race("terran"))  # noqa: SLF001
         # Zerg-only fn_ids (82-117) must NOT appear in Terran race set.
@@ -143,7 +146,6 @@ class TestSC2NeuralNetPolicyRaceMask(unittest.TestCase):
             re_initialize=True,
         )
         self.assertEqual(p._race, "terran")  # noqa: SLF001
-
 
 
 if __name__ == "__main__":

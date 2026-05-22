@@ -2,6 +2,7 @@
 
 All tests mock SC2Client so no StarCraft 2 binary is required.
 """
+
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -12,12 +13,13 @@ from games.sc2.belief_schema import belief_obs_dims, load_belief_config
 from games.sc2.env import SC2Env
 from games.sc2.obs_spec import BASE_OBS_DIM, LADDER_OBS_DIM
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-_BELIEF_CFG = load_belief_config(Path(__file__).resolve().parents[1] / "games" / "sc2" / "config" / "belief_config.yaml")
+_BELIEF_CFG = load_belief_config(
+    Path(__file__).resolve().parents[1] / "games" / "sc2" / "config" / "belief_config.yaml"
+)
 _BELIEF_EXTRA_DIMS = len(belief_obs_dims(_BELIEF_CFG))
 _BELIEF_N_SLOTS = int(_BELIEF_CFG["region_grid"][0]) * int(_BELIEF_CFG["region_grid"][1])
 
@@ -37,8 +39,12 @@ def _make_belief_env(map_name: str = "MoveToBeacon", minimap_vis=None) -> SC2Env
 
     with patch("games.sc2.env.SC2Client") as mock_cls:
         info_base = {
-            "score": 0.0, "minerals": 50.0, "vespene": 0.0,
-            "food_used": 1.0, "food_cap": 15.0, "army_count": 0.0,
+            "score": 0.0,
+            "minerals": 50.0,
+            "vespene": 0.0,
+            "food_used": 1.0,
+            "food_cap": 15.0,
+            "army_count": 0.0,
             "game_loop": 0.0,
         }
         if minimap_vis is not None:
@@ -61,6 +67,7 @@ def _make_belief_env(map_name: str = "MoveToBeacon", minimap_vis=None) -> SC2Env
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
+
 
 class TestBeliefObsShape(unittest.TestCase):
     """Observation space and actual obs shape grow by BELIEF_EXTRA_DIMS."""
@@ -106,14 +113,14 @@ class TestBeliefResetState(unittest.TestCase):
         obs, _ = env.reset()
         # belief enc occupies dims [BASE_OBS_DIM : BASE_OBS_DIM + 2*n_slots]
         n_slots = _BELIEF_N_SLOTS
-        belief_enc = obs[BASE_OBS_DIM: BASE_OBS_DIM + 2 * n_slots]
+        belief_enc = obs[BASE_OBS_DIM : BASE_OBS_DIM + 2 * n_slots]
         np.testing.assert_array_equal(belief_enc, np.zeros(2 * n_slots, dtype=np.float32))
 
     def test_reset_staleness_all_ones(self):
         env = _make_belief_env()
         obs, _ = env.reset()
         n_slots = _BELIEF_N_SLOTS
-        staleness = obs[BASE_OBS_DIM + 2 * n_slots:]
+        staleness = obs[BASE_OBS_DIM + 2 * n_slots :]
         np.testing.assert_array_almost_equal(staleness, np.ones(n_slots, dtype=np.float32))
 
     def test_second_reset_clears_belief(self):
@@ -125,7 +132,7 @@ class TestBeliefResetState(unittest.TestCase):
         # Reset again — belief enc should be all zeros again.
         obs, _ = env.reset()
         n_slots = _BELIEF_N_SLOTS
-        belief_enc = obs[BASE_OBS_DIM: BASE_OBS_DIM + 2 * n_slots]
+        belief_enc = obs[BASE_OBS_DIM : BASE_OBS_DIM + 2 * n_slots]
         np.testing.assert_array_equal(belief_enc, np.zeros(2 * n_slots, dtype=np.float32))
 
 
@@ -144,7 +151,7 @@ class TestBeliefStepAppendsObs(unittest.TestCase):
         env.reset()
         obs, _, _, _, _ = env.step(np.zeros(4, dtype=np.float32))
         n_slots = _BELIEF_N_SLOTS
-        belief_enc = obs[BASE_OBS_DIM: BASE_OBS_DIM + 2 * n_slots]
+        belief_enc = obs[BASE_OBS_DIM : BASE_OBS_DIM + 2 * n_slots]
         # At least the confidence slots should be 1.0 for visible regions.
         self.assertTrue(np.any(belief_enc > 0.0))
 
@@ -154,7 +161,7 @@ class TestBeliefStepAppendsObs(unittest.TestCase):
         env.reset()
         obs_after, _, _, _, _ = env.step(np.zeros(4, dtype=np.float32))
         n_slots = _BELIEF_N_SLOTS
-        staleness = obs_after[BASE_OBS_DIM + 2 * n_slots:]
+        staleness = obs_after[BASE_OBS_DIM + 2 * n_slots :]
         # After seeing all regions, every staleness should be < 1.
         self.assertTrue(np.all(staleness < 1.0))
 

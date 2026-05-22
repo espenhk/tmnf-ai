@@ -42,7 +42,7 @@ from gymnasium import spaces
 from framework.base_env import BaseGameEnv
 from games.iracing.controller import BaseController, NullController, make_controller
 from games.iracing.obs_spec import BASE_OBS_DIM
-from games.iracing.reward import IRacingRewardConfig, IRacingRewardCalculator
+from games.iracing.reward import IRacingRewardCalculator, IRacingRewardConfig
 
 logger = logging.getLogger(__name__)
 
@@ -102,9 +102,7 @@ class IRacingEnv(BaseGameEnv):
                 self._connected = True
                 logger.info("Connected to iRacing telemetry")
             else:
-                raise RuntimeError(
-                    "Cannot connect to iRacing.  Is the simulator running?"
-                )
+                raise RuntimeError("Cannot connect to iRacing.  Is the simulator running?")
 
     def reset(
         self,

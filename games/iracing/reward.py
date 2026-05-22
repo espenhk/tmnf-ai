@@ -4,6 +4,7 @@ Phase 1 (telemetry-only) reward: lap-time improvement, centerline adherence,
 and off-track penalty.  The iRacing safety-rating system provides an
 off-track signal via the ``is_off_track`` telemetry field.
 """
+
 from __future__ import annotations
 
 import dataclasses

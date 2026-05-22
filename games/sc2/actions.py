@@ -59,7 +59,6 @@ from __future__ import annotations
 
 import numpy as np
 
-
 # ---------------------------------------------------------------------------
 # Function-id table
 # ---------------------------------------------------------------------------
@@ -210,8 +209,7 @@ FUNCTION_IDS = {
 SPATIAL_FN_IDS: frozenset[int] = frozenset(
     fn_idx
     for fn_idx, name in FUNCTION_IDS.items()
-    if name.endswith("_screen") or name.endswith("_minimap")
-    or name in ("select_point", "select_rect")
+    if name.endswith("_screen") or name.endswith("_minimap") or name in ("select_point", "select_rect")
 )
 
 # ---------------------------------------------------------------------------
@@ -221,65 +219,149 @@ SPATIAL_FN_IDS: frozenset[int] = frozenset(
 # Universal actions (movement, attack, harvesting, selection) are in every set.
 # "random" includes every action (agent may be any race).
 
-_UNIVERSAL_FN_IDS: frozenset[int] = frozenset({
-    0,   # no_op
-    1,   # select_army
-    2,   # Move_screen
-    3,   # Attack_screen
-    4,   # select_idle_worker
-    5,   # Harvest_Gather_screen
-    6,   # select_point
-    11,  # Move_minimap
-    12,  # Patrol_screen
-    13,  # Patrol_minimap
-    14,  # HoldPosition_quick
-    15,  # Stop_quick
-    16,  # Attack_minimap
-    17,  # select_rect
-    18,  # Harvest_Return_quick
-    19,  # Rally_Units_screen
-    20,  # Rally_Workers_screen
-    21,  # Rally_Units_minimap
-    22,  # Rally_Workers_minimap
-})
+_UNIVERSAL_FN_IDS: frozenset[int] = frozenset(
+    {
+        0,  # no_op
+        1,  # select_army
+        2,  # Move_screen
+        3,  # Attack_screen
+        4,  # select_idle_worker
+        5,  # Harvest_Gather_screen
+        6,  # select_point
+        11,  # Move_minimap
+        12,  # Patrol_screen
+        13,  # Patrol_minimap
+        14,  # HoldPosition_quick
+        15,  # Stop_quick
+        16,  # Attack_minimap
+        17,  # select_rect
+        18,  # Harvest_Return_quick
+        19,  # Rally_Units_screen
+        20,  # Rally_Workers_screen
+        21,  # Rally_Units_minimap
+        22,  # Rally_Workers_minimap
+    }
+)
 
-_TERRAN_FN_IDS: frozenset[int] = frozenset({
-    7, 8, 9, 10,           # Train_Marine, Build_Barracks, Build_SupplyDepot, Train_SCV
-    23, 24, 25, 26, 27,    # CommandCenter, Refinery, EngineeringBay, Factory, Armory
-    28, 29, 30, 31, 32,    # Bunker, MissileTurret, Starport, GhostAcademy, FusionCore
-    33, 34,                # TechLab_quick, Reactor_quick
-    35, 36, 37, 38, 39,    # Marauder, Ghost, Hellion, SiegeTank, Medivac
-    40, 41, 42, 43, 44,    # Viking, Raven, Banshee, Battlecruiser, Cyclone
-    45, 46,                # Thor, Liberator
-    47, 48, 49,            # Stim, SiegeMode, Unsiege
-})
+_TERRAN_FN_IDS: frozenset[int] = frozenset(
+    {
+        7,
+        8,
+        9,
+        10,  # Train_Marine, Build_Barracks, Build_SupplyDepot, Train_SCV
+        23,
+        24,
+        25,
+        26,
+        27,  # CommandCenter, Refinery, EngineeringBay, Factory, Armory
+        28,
+        29,
+        30,
+        31,
+        32,  # Bunker, MissileTurret, Starport, GhostAcademy, FusionCore
+        33,
+        34,  # TechLab_quick, Reactor_quick
+        35,
+        36,
+        37,
+        38,
+        39,  # Marauder, Ghost, Hellion, SiegeTank, Medivac
+        40,
+        41,
+        42,
+        43,
+        44,  # Viking, Raven, Banshee, Battlecruiser, Cyclone
+        45,
+        46,  # Thor, Liberator
+        47,
+        48,
+        49,  # Stim, SiegeMode, Unsiege
+    }
+)
 
-_PROTOSS_FN_IDS: frozenset[int] = frozenset({
-    50, 51, 52, 53, 54,    # Nexus, Pylon, Gateway, Assimilator, CyberneticsCore
-    55, 56, 57, 58, 59,    # Forge, PhotonCannon, RoboticsFacility, Stargate, TwilightCouncil
-    60, 61, 62, 63, 64,    # TemplarArchive, DarkShrine, RoboticsBay, FleetBeacon, ShieldBattery
-    65, 66, 67, 68, 69,    # Probe, Zealot, Stalker, Adept, HighTemplar
-    70, 71, 72, 73, 74,    # DarkTemplar, Sentry, Phoenix, Carrier, VoidRay
-    75, 76, 77, 78, 79,    # Oracle, Colossus, Immortal, Tempest, Disruptor
-    80, 81,                # Morph_Archon, Mothership
-})
+_PROTOSS_FN_IDS: frozenset[int] = frozenset(
+    {
+        50,
+        51,
+        52,
+        53,
+        54,  # Nexus, Pylon, Gateway, Assimilator, CyberneticsCore
+        55,
+        56,
+        57,
+        58,
+        59,  # Forge, PhotonCannon, RoboticsFacility, Stargate, TwilightCouncil
+        60,
+        61,
+        62,
+        63,
+        64,  # TemplarArchive, DarkShrine, RoboticsBay, FleetBeacon, ShieldBattery
+        65,
+        66,
+        67,
+        68,
+        69,  # Probe, Zealot, Stalker, Adept, HighTemplar
+        70,
+        71,
+        72,
+        73,
+        74,  # DarkTemplar, Sentry, Phoenix, Carrier, VoidRay
+        75,
+        76,
+        77,
+        78,
+        79,  # Oracle, Colossus, Immortal, Tempest, Disruptor
+        80,
+        81,  # Morph_Archon, Mothership
+    }
+)
 
-_ZERG_FN_IDS: frozenset[int] = frozenset({
-    82, 83, 84, 85, 86,    # Hatchery, SpawningPool, Extractor, EvolutionChamber, HydraliskDen
-    87, 88, 89, 90, 91,    # BanelingNest, RoachWarren, Spire, InfestationPit, UltraliskCavern
-    92, 93, 94, 95, 96,    # CreepTumor, SpineCrawler, SporeCrawler, NydusNetwork, LurkerDen
-    97, 98, 99, 100, 101,  # Drone, Overlord, Zergling, Baneling, Roach
-    102, 103, 104, 105,    # Ravager, Hydralisk, Infestor, SwarmHost
-    106, 107, 108, 109,    # Mutalisk, Corruptor, BroodLord, Viper
-    110, 111, 112,         # Ultralisk, Lurker, Queen
-    113, 114, 115, 116, 117,  # Morph_Lair, Hive, Overseer, GreaterSpire, BroodLord
-})
+_ZERG_FN_IDS: frozenset[int] = frozenset(
+    {
+        82,
+        83,
+        84,
+        85,
+        86,  # Hatchery, SpawningPool, Extractor, EvolutionChamber, HydraliskDen
+        87,
+        88,
+        89,
+        90,
+        91,  # BanelingNest, RoachWarren, Spire, InfestationPit, UltraliskCavern
+        92,
+        93,
+        94,
+        95,
+        96,  # CreepTumor, SpineCrawler, SporeCrawler, NydusNetwork, LurkerDen
+        97,
+        98,
+        99,
+        100,
+        101,  # Drone, Overlord, Zergling, Baneling, Roach
+        102,
+        103,
+        104,
+        105,  # Ravager, Hydralisk, Infestor, SwarmHost
+        106,
+        107,
+        108,
+        109,  # Mutalisk, Corruptor, BroodLord, Viper
+        110,
+        111,
+        112,  # Ultralisk, Lurker, Queen
+        113,
+        114,
+        115,
+        116,
+        117,  # Morph_Lair, Hive, Overseer, GreaterSpire, BroodLord
+    }
+)
 
 RACE_FUNCTION_IDS: dict[str, frozenset[int]] = {
-    "terran":  _UNIVERSAL_FN_IDS | _TERRAN_FN_IDS,
+    "terran": _UNIVERSAL_FN_IDS | _TERRAN_FN_IDS,
     "protoss": _UNIVERSAL_FN_IDS | _PROTOSS_FN_IDS,
-    "zerg":    _UNIVERSAL_FN_IDS | _ZERG_FN_IDS,
-    "random":  frozenset(FUNCTION_IDS.keys()),
+    "zerg": _UNIVERSAL_FN_IDS | _ZERG_FN_IDS,
+    "random": frozenset(FUNCTION_IDS.keys()),
 }
 
 
@@ -305,9 +387,7 @@ SCREEN_GRID_RESOLUTION: int = 8
 def _grid_centres(resolution: int) -> list[tuple[float, float]]:
     """Return cell centres for an N×N grid over the unit square."""
     step = 1.0 / resolution
-    centres = [(j * step + step / 2.0, i * step + step / 2.0)
-               for i in range(resolution)
-               for j in range(resolution)]
+    centres = [(j * step + step / 2.0, i * step + step / 2.0) for i in range(resolution) for j in range(resolution)]
     return centres
 
 
@@ -321,7 +401,6 @@ def _build_discrete_actions(resolution: int) -> np.ndarray:
     centres = _grid_centres(resolution)
     rows: list[list[float]] = []
     for fn_idx in sorted(FUNCTION_IDS.keys()):
-        name = FUNCTION_IDS[fn_idx]
         if fn_idx in SPATIAL_FN_IDS:
             for x, y in centres:
                 rows.append([fn_idx, x, y, 0])
@@ -387,9 +466,7 @@ def pysc2_ids_to_internal_fn_idx(pysc2_available_ids: set[int]) -> set[int]:
     return result
 
 
-def build_available_actions_mask(
-    available_fn_ids: set[int], n_cells: int = len(DISCRETE_ACTIONS)
-) -> np.ndarray:
+def build_available_actions_mask(available_fn_ids: set[int], n_cells: int = len(DISCRETE_ACTIONS)) -> np.ndarray:
     """Boolean mask of shape (n_cells,) — True where the action is legal."""
     return np.array(
         [discrete_action_to_fn_id(i) in available_fn_ids for i in range(n_cells)],
@@ -397,9 +474,7 @@ def build_available_actions_mask(
     )
 
 
-def action_to_function_call(
-    action: np.ndarray, screen_size: int, minimap_size: int | None = None
-):
+def action_to_function_call(action: np.ndarray, screen_size: int, minimap_size: int | None = None):
     """Translate a 4-vector action row into a PySC2 ``FunctionCall``.
 
     Parameters

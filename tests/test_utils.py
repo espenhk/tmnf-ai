@@ -1,18 +1,18 @@
 """Tests for tmnf/utils.py — Vec3, Quat, StateData."""
+
 import math
 import os
 import tempfile
 import unittest
 
 import numpy as np
-
 from helpers import make_game_state
+
+from games.tmnf.state import Quat, StateData, Vec3
 from games.tmnf.track import Centerline
-from games.tmnf.state import Vec3, Quat, StateData
 
 
 class TestVec3(unittest.TestCase):
-
     def test_magnitude_zero(self):
         self.assertEqual(Vec3(0, 0, 0).magnitude(), 0.0)
 
@@ -28,7 +28,6 @@ class TestVec3(unittest.TestCase):
 
 
 class TestQuat(unittest.TestCase):
-
     def test_identity_yaw_zero(self):
         self.assertAlmostEqual(Quat(1, 0, 0, 0).yaw(), 0.0)
 
@@ -46,7 +45,6 @@ class TestQuat(unittest.TestCase):
 
 
 class TestStateData(unittest.TestCase):
-
     def test_extracts_velocity(self):
         gs = make_game_state(linear_speed=(5.0, 2.0, 3.0))
         sd = StateData(gs)

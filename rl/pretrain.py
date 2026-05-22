@@ -1,4 +1,5 @@
 """Behavior cloning: fit WeightedLinearPolicy to SimplePolicy demonstrations."""
+
 from __future__ import annotations
 
 import logging
@@ -6,8 +7,8 @@ from pathlib import Path
 
 import numpy as np
 
-from games.tmnf.simple_policy import SimplePolicy
 from games.tmnf.policies import WeightedLinearPolicy
+from games.tmnf.simple_policy import SimplePolicy
 
 logger = logging.getLogger(__name__)
 

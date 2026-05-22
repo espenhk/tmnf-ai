@@ -38,7 +38,9 @@ from framework.dqn import DQNPolicy as _FrameworkDQN
 from framework.lstm import LSTMEvolutionPolicy as _FrameworkLSTMEvo
 from framework.obs_spec import ObsSpec
 from framework.policies import BasePolicy, GeneticPolicy, register_policy, trainer_state_path
-from framework.reinforce import TwoHeadREINFORCEPolicy as _FrameworkTwoHeadREINFORCE, _GradEntry  # noqa: F401 — _GradEntry re-exported for test compatibility
+from framework.reinforce import (  # noqa: F401 — _GradEntry re-exported for test compatibility
+    TwoHeadREINFORCEPolicy as _FrameworkTwoHeadREINFORCE,
+)
 from games.sc2.actions import DISCRETE_ACTIONS, FUNCTION_IDS, build_available_actions_mask, fn_ids_for_race
 from games.sc2.obs_spec import SC2_MINIGAME_OBS_SPEC
 
@@ -62,9 +64,9 @@ N_SPATIAL_ROWS: int = 2
 N_GRID_CELLS: int = N_SPATIAL_ROWS
 
 #: Head-name prefixes — one row per output neuron stored as a separate YAML key.
-_FN_HEAD_NAMES: list[str]      = [f"fn_idx_{i}" for i in range(N_FUNCTION_IDS)]
+_FN_HEAD_NAMES: list[str] = [f"fn_idx_{i}" for i in range(N_FUNCTION_IDS)]
 _SPATIAL_HEAD_NAMES: list[str] = ["x", "y"]
-_ALL_ROW_NAMES: list[str]      = _FN_HEAD_NAMES + _SPATIAL_HEAD_NAMES
+_ALL_ROW_NAMES: list[str] = _FN_HEAD_NAMES + _SPATIAL_HEAD_NAMES
 
 
 def _sigmoid(x: float) -> float:
@@ -75,6 +77,7 @@ def _sigmoid(x: float) -> float:
 # ---------------------------------------------------------------------------
 # SC2MultiHeadLinearPolicy
 # ---------------------------------------------------------------------------
+
 
 class SC2MultiHeadLinearPolicy:
     """Multi-head linear policy for StarCraft 2.
@@ -147,9 +150,9 @@ class SC2MultiHeadLinearPolicy:
             and ``y`` are continuous in ``[0, 1]`` (sigmoid-encoded), so the
             policy can target arbitrary screen pixels.
         """
-        norm_obs  = obs / self._obs_spec.scales
-        fn_scores = self._fn_weights @ norm_obs   # (N_FUNCTION_IDS,)
-        sp_scores = self._sp_weights @ norm_obs   # (2,) — raw x and y logits
+        norm_obs = obs / self._obs_spec.scales
+        fn_scores = self._fn_weights @ norm_obs  # (N_FUNCTION_IDS,)
+        sp_scores = self._sp_weights @ norm_obs  # (2,) — raw x and y logits
 
         # Apply permanent race mask and per-step availability mask.
         for i in range(N_FUNCTION_IDS):
@@ -163,8 +166,8 @@ class SC2MultiHeadLinearPolicy:
             fn_scores[0] = 0.0
 
         fn_idx = int(np.argmax(fn_scores))
-        x      = _sigmoid(float(sp_scores[0]))
-        y      = _sigmoid(float(sp_scores[1]))
+        x = _sigmoid(float(sp_scores[0]))
+        y = _sigmoid(float(sp_scores[1]))
         return np.array([fn_idx, x, y, 0.0], dtype=np.float32)
 
     # ------------------------------------------------------------------
@@ -189,13 +192,9 @@ class SC2MultiHeadLinearPolicy:
         names = self._obs_spec.names
         cfg: dict = {}
         for i, row_name in enumerate(_FN_HEAD_NAMES):
-            cfg[f"{row_name}_weights"] = {
-                n: float(self._fn_weights[i, j]) for j, n in enumerate(names)
-            }
+            cfg[f"{row_name}_weights"] = {n: float(self._fn_weights[i, j]) for j, n in enumerate(names)}
         for i, row_name in enumerate(_SPATIAL_HEAD_NAMES):
-            cfg[f"{row_name}_weights"] = {
-                n: float(self._sp_weights[i, j]) for j, n in enumerate(names)
-            }
+            cfg[f"{row_name}_weights"] = {n: float(self._sp_weights[i, j]) for j, n in enumerate(names)}
         return cfg
 
     def save(self, path: str) -> None:
@@ -225,11 +224,11 @@ class SC2MultiHeadLinearPolicy:
         restored from the file so the champion can be evaluated under any race
         without losing weights).
         """
-        names   = obs_spec.names
+        names = obs_spec.names
         obs_dim = obs_spec.dim
 
         fn_weights = np.zeros((N_FUNCTION_IDS, obs_dim), dtype=np.float32)
-        sp_weights = np.zeros((N_SPATIAL_ROWS,   obs_dim), dtype=np.float32)
+        sp_weights = np.zeros((N_SPATIAL_ROWS, obs_dim), dtype=np.float32)
 
         for i, row_name in enumerate(_FN_HEAD_NAMES):
             row_cfg = cfg.get(f"{row_name}_weights", {})
@@ -241,8 +240,7 @@ class SC2MultiHeadLinearPolicy:
             for j, n in enumerate(names):
                 sp_weights[i, j] = float(row_cfg.get(n, 0.0))
 
-        return cls(obs_spec, fn_weights=fn_weights, spatial_weights=sp_weights,
-                   race=race)
+        return cls(obs_spec, fn_weights=fn_weights, spatial_weights=sp_weights, race=race)
 
     @classmethod
     def load(
@@ -266,18 +264,15 @@ class SC2MultiHeadLinearPolicy:
         Layout: ``[fn_row_0 | … | fn_row_5 | x_row | y_row]``.
         Total length: ``(N_FUNCTION_IDS + N_SPATIAL_ROWS) × obs_dim``.
         """
-        return np.concatenate(
-            [self._fn_weights.ravel(), self._sp_weights.ravel()]
-        ).astype(np.float32)
+        return np.concatenate([self._fn_weights.ravel(), self._sp_weights.ravel()]).astype(np.float32)
 
     def with_flat(self, flat: np.ndarray) -> "SC2MultiHeadLinearPolicy":
         """Return a new policy whose weights are set from a flat vector."""
-        obs_dim    = self._obs_spec.dim
-        fn_size    = N_FUNCTION_IDS * obs_dim
+        obs_dim = self._obs_spec.dim
+        fn_size = N_FUNCTION_IDS * obs_dim
         fn_weights = flat[:fn_size].reshape(N_FUNCTION_IDS, obs_dim).astype(np.float32)
         sp_weights = flat[fn_size:].reshape(N_SPATIAL_ROWS, obs_dim).astype(np.float32)
-        return SC2MultiHeadLinearPolicy(self._obs_spec, fn_weights, sp_weights,
-                                        race=self._race)
+        return SC2MultiHeadLinearPolicy(self._obs_spec, fn_weights, sp_weights, race=self._race)
 
     # ------------------------------------------------------------------
     # Mutation
@@ -294,14 +289,14 @@ class SC2MultiHeadLinearPolicy:
             Probability ``[0, 1]`` that each individual weight is perturbed.
             ``1.0`` mutates every weight.
         """
-        rng      = np.random.default_rng()
-        flat     = self.to_flat()
+        rng = np.random.default_rng()
+        flat = self.to_flat()
         new_flat = flat.copy()
         if share >= 1.0:
             new_flat += rng.normal(0.0, scale, len(flat)).astype(np.float32)
         else:
-            mask  = rng.random(len(flat)) < share
-            idx   = np.where(mask)[0]
+            mask = rng.random(len(flat)) < share
+            idx = np.where(mask)[0]
             if len(idx) > 0:
                 noise = rng.normal(0.0, scale, len(idx)).astype(np.float32)
                 new_flat[idx] += noise
@@ -324,8 +319,9 @@ class SC2MultiHeadLinearPolicy:
         available = info.get("available_fn_ids")
         self._available_fn_ids = set(available) if available is not None else None
 
-    def update(self, obs: np.ndarray, action: np.ndarray, reward: float,
-               next_obs: np.ndarray, done: bool, **kwargs) -> None:
+    def update(
+        self, obs: np.ndarray, action: np.ndarray, reward: float, next_obs: np.ndarray, done: bool, **kwargs
+    ) -> None:
         """Cache available_fn_ids for the next __call__; no weight update.
 
         Evolutionary policies update weights between episodes (via the genetic
@@ -340,6 +336,7 @@ class SC2MultiHeadLinearPolicy:
 # ---------------------------------------------------------------------------
 # SC2GeneticPolicy
 # ---------------------------------------------------------------------------
+
 
 @register_policy
 class SC2GeneticPolicy(GeneticPolicy):
@@ -370,10 +367,16 @@ class SC2GeneticPolicy(GeneticPolicy):
     """
 
     POLICY_TYPE = "sc2_genetic"
-    LOOP_TYPE   = "genetic"
-    VALID_POLICY_PARAMS = frozenset({
-        "population_size", "elite_k", "mutation_scale", "mutation_share", "eval_episodes",
-    })
+    LOOP_TYPE = "genetic"
+    VALID_POLICY_PARAMS = frozenset(
+        {
+            "population_size",
+            "elite_k",
+            "mutation_scale",
+            "mutation_share",
+            "eval_episodes",
+        }
+    )
 
     @classmethod
     def compatible_with(cls, game_name: str) -> tuple[bool, str | None]:
@@ -397,13 +400,13 @@ class SC2GeneticPolicy(GeneticPolicy):
         # Pass the flat row-names as head_names so the parent's
         # initialize_random() builds the correct {row_name}_weights keys.
         super().__init__(
-            obs_spec        = obs_spec,
-            head_names      = _ALL_ROW_NAMES,
-            population_size = population_size,
-            elite_k         = elite_k,
-            mutation_scale  = mutation_scale,
-            mutation_share  = mutation_share,
-            eval_episodes   = eval_episodes,
+            obs_spec=obs_spec,
+            head_names=_ALL_ROW_NAMES,
+            population_size=population_size,
+            elite_k=elite_k,
+            mutation_scale=mutation_scale,
+            mutation_share=mutation_share,
+            eval_episodes=eval_episodes,
         )
         self._race = race
 
@@ -456,34 +459,33 @@ class SC2GeneticPolicy(GeneticPolicy):
         full round-trip through ``to_cfg()`` / ``from_cfg()`` is lossless.
         """
         policy = cls(
-            obs_spec        = obs_spec,
-            population_size = cfg.get("population_size", 30),
-            elite_k         = cfg.get("elite_k", 5),
-            mutation_scale  = float(cfg.get("mutation_scale", 0.1)),
-            mutation_share  = float(cfg.get("mutation_share", 0.3)),
-            eval_episodes   = int(cfg.get("eval_episodes", 2)),
-            race            = cfg.get("race", "random"),
+            obs_spec=obs_spec,
+            population_size=cfg.get("population_size", 30),
+            elite_k=cfg.get("elite_k", 5),
+            mutation_scale=float(cfg.get("mutation_scale", 0.1)),
+            mutation_share=float(cfg.get("mutation_share", 0.3)),
+            eval_episodes=int(cfg.get("eval_episodes", 2)),
+            race=cfg.get("race", "random"),
         )
         champion_cfg = cfg.get("champion_weights")
         if champion_cfg and isinstance(champion_cfg, dict):
-            policy._champion = SC2MultiHeadLinearPolicy.from_cfg(
-                champion_cfg, obs_spec, race=policy._race
-            )
+            policy._champion = SC2MultiHeadLinearPolicy.from_cfg(champion_cfg, obs_spec, race=policy._race)
             policy._champion_reward = float(cfg.get("champion_reward", float("-inf")))
         return policy
 
     @classmethod
-    def _construct_or_resume(cls, *, obs_spec, head_names, discrete_actions,
-                             weights_file, policy_params, re_initialize):
+    def _construct_or_resume(
+        cls, *, obs_spec, head_names, discrete_actions, weights_file, policy_params, re_initialize
+    ):
         pp = policy_params
         policy = cls(
-            obs_spec        = obs_spec,
-            population_size = pp.get("population_size", 30),
-            elite_k         = pp.get("elite_k",         5),
-            mutation_scale  = float(pp.get("mutation_scale", 0.1)),
-            mutation_share  = float(pp.get("mutation_share", 0.3)),
-            eval_episodes   = int(pp.get("eval_episodes",    2)),
-            race            = pp.get("_agent_race", "random"),
+            obs_spec=obs_spec,
+            population_size=pp.get("population_size", 30),
+            elite_k=pp.get("elite_k", 5),
+            mutation_scale=float(pp.get("mutation_scale", 0.1)),
+            mutation_share=float(pp.get("mutation_share", 0.3)),
+            eval_episodes=int(pp.get("eval_episodes", 2)),
+            race=pp.get("_agent_race", "random"),
         )
         if os.path.exists(weights_file) and not re_initialize:
             policy.initialize_from_file(weights_file)
@@ -496,6 +498,7 @@ class SC2GeneticPolicy(GeneticPolicy):
 # ---------------------------------------------------------------------------
 # SC2NeuralNetPolicy — TMNF-style MLP with SC2 action encoding
 # ---------------------------------------------------------------------------
+
 
 @register_policy
 class SC2NeuralNetPolicy(BasePolicy):
@@ -511,7 +514,7 @@ class SC2NeuralNetPolicy(BasePolicy):
     """
 
     POLICY_TYPE = "sc2_neural_net"
-    LOOP_TYPE   = "hill_climbing"
+    LOOP_TYPE = "hill_climbing"
     VALID_POLICY_PARAMS = frozenset({"hidden_sizes"})
 
     @classmethod
@@ -593,17 +596,9 @@ class SC2NeuralNetPolicy(BasePolicy):
         obj._hidden = list(self._hidden)
         obj._race = self._race
         obj._race_fn_ids = self._race_fn_ids
-        obj._weights = [
-            w + rng.normal(0.0, scale, w.shape).astype(np.float32)
-            for w in self._weights
-        ]
-        obj._biases = [
-            b + rng.normal(0.0, scale, b.shape).astype(np.float32)
-            for b in self._biases
-        ]
-        obj._available_fn_ids = (
-            set(self._available_fn_ids) if self._available_fn_ids is not None else None
-        )
+        obj._weights = [w + rng.normal(0.0, scale, w.shape).astype(np.float32) for w in self._weights]
+        obj._biases = [b + rng.normal(0.0, scale, b.shape).astype(np.float32) for b in self._biases]
+        obj._available_fn_ids = set(self._available_fn_ids) if self._available_fn_ids is not None else None
         return obj
 
     def to_cfg(self) -> dict:
@@ -635,8 +630,9 @@ class SC2NeuralNetPolicy(BasePolicy):
         self._available_fn_ids = set(available) if available is not None else None
 
     @classmethod
-    def _construct_or_resume(cls, *, obs_spec, head_names, discrete_actions,
-                             weights_file, policy_params, re_initialize):
+    def _construct_or_resume(
+        cls, *, obs_spec, head_names, discrete_actions, weights_file, policy_params, re_initialize
+    ):
         if os.path.exists(weights_file) and not re_initialize:
             with open(weights_file) as _f:
                 cfg = yaml.safe_load(_f) or {}
@@ -652,6 +648,7 @@ class SC2NeuralNetPolicy(BasePolicy):
 # ---------------------------------------------------------------------------
 # SC2NeuralDQNPolicy — masked DQN over SC2 discrete action rows
 # ---------------------------------------------------------------------------
+
 
 def _sc2_available_actions_mask(info: dict) -> np.ndarray:
     available = info.get("available_fn_ids")
@@ -672,6 +669,7 @@ def _sc2_available_actions_mask_for_n_actions(n_actions: int):
 
 def _sc2_race_available_actions_mask_fn(race_fn_ids: frozenset, n_actions: int):
     """Available-actions mask that combines permanent race filter with per-step info."""
+
     def _mask_fn(info: dict) -> np.ndarray:
         available = info.get("available_fn_ids")
         if available is None:
@@ -689,11 +687,20 @@ class SC2NeuralDQNPolicy(_FrameworkDQN):
 
     POLICY_TYPE = "sc2_neural_dqn"
     LOOP_TYPE = "q_learning"
-    VALID_POLICY_PARAMS = frozenset({
-        "hidden_sizes", "replay_buffer_size", "batch_size", "min_replay_size",
-        "target_update_freq", "learning_rate", "epsilon_start", "epsilon_end",
-        "epsilon_decay_steps", "gamma",
-    })
+    VALID_POLICY_PARAMS = frozenset(
+        {
+            "hidden_sizes",
+            "replay_buffer_size",
+            "batch_size",
+            "min_replay_size",
+            "target_update_freq",
+            "learning_rate",
+            "epsilon_start",
+            "epsilon_end",
+            "epsilon_decay_steps",
+            "gamma",
+        }
+    )
 
     @classmethod
     def compatible_with(cls, game_name: str) -> tuple[bool, str | None]:
@@ -773,8 +780,9 @@ class SC2NeuralDQNPolicy(_FrameworkDQN):
             )
 
     @classmethod
-    def _construct_or_resume(cls, *, obs_spec, head_names, discrete_actions,
-                             weights_file, policy_params, re_initialize):
+    def _construct_or_resume(
+        cls, *, obs_spec, head_names, discrete_actions, weights_file, policy_params, re_initialize
+    ):
         pp = policy_params
         if os.path.exists(weights_file) and not re_initialize:
             with open(weights_file) as _f:
@@ -788,8 +796,7 @@ class SC2NeuralDQNPolicy(_FrameworkDQN):
                         logger.info("[SC2NeuralDQNPolicy] loaded trainer state from %s", ts)
                     except (ValueError, KeyError) as exc:
                         logger.warning(
-                            "[SC2NeuralDQNPolicy] could not load trainer state — %s; "
-                            "continuing with default state.",
+                            "[SC2NeuralDQNPolicy] could not load trainer state — %s; continuing with default state.",
                             exc,
                         )
                 return policy
@@ -812,6 +819,7 @@ class SC2NeuralDQNPolicy(_FrameworkDQN):
 # ---------------------------------------------------------------------------
 # SC2REINFORCEPolicy — thin subclass of framework TwoHeadREINFORCEPolicy
 # ---------------------------------------------------------------------------
+
 
 def _sc2_action_fn(fn_idx: int, sp_sig: np.ndarray) -> np.ndarray:
     """Convert sampled fn_idx and spatial sigmoid outputs to SC2 action vector."""
@@ -853,10 +861,16 @@ class SC2REINFORCEPolicy(_FrameworkTwoHeadREINFORCE):
     """
 
     POLICY_TYPE = "sc2_reinforce"
-    LOOP_TYPE   = "q_learning"
-    VALID_POLICY_PARAMS = frozenset({
-        "hidden_sizes", "learning_rate", "gamma", "entropy_coeff", "baseline",
-    })
+    LOOP_TYPE = "q_learning"
+    VALID_POLICY_PARAMS = frozenset(
+        {
+            "hidden_sizes",
+            "learning_rate",
+            "gamma",
+            "entropy_coeff",
+            "baseline",
+        }
+    )
 
     @classmethod
     def compatible_with(cls, game_name: str) -> tuple[bool, str | None]:
@@ -876,17 +890,17 @@ class SC2REINFORCEPolicy(_FrameworkTwoHeadREINFORCE):
         race: str = "random",
     ) -> None:
         super().__init__(
-            obs_spec             = obs_spec,
-            n_fn_ids             = N_FUNCTION_IDS,
-            n_spatial            = N_SPATIAL_ROWS,
-            action_fn            = _sc2_action_fn,
-            hidden_sizes         = hidden_sizes,
-            learning_rate        = learning_rate,
-            gamma                = gamma,
-            entropy_coeff        = entropy_coeff,
-            baseline             = baseline,
-            available_fn_ids_fn  = _sc2_available_fn_ids_fn,
-            seed                 = seed,
+            obs_spec=obs_spec,
+            n_fn_ids=N_FUNCTION_IDS,
+            n_spatial=N_SPATIAL_ROWS,
+            action_fn=_sc2_action_fn,
+            hidden_sizes=hidden_sizes,
+            learning_rate=learning_rate,
+            gamma=gamma,
+            entropy_coeff=entropy_coeff,
+            baseline=baseline,
+            available_fn_ids_fn=_sc2_available_fn_ids_fn,
+            seed=seed,
         )
         self._race = race
         # Permanent race mask — applied on top of the per-step available_fn_ids.
@@ -914,30 +928,31 @@ class SC2REINFORCEPolicy(_FrameworkTwoHeadREINFORCE):
     def from_cfg(cls, cfg: dict, obs_spec: ObsSpec) -> "SC2REINFORCEPolicy":  # type: ignore[override]
         """Reconstruct from a ``to_cfg()`` dict without requiring caller-supplied hooks."""
         obj = cls(
-            obs_spec      = obs_spec,
-            hidden_sizes  = cfg.get("hidden_sizes",  [128, 64]),
-            learning_rate = cfg.get("learning_rate", 0.0003),
-            gamma         = cfg.get("gamma",         0.995),
-            entropy_coeff = cfg.get("entropy_coeff", 0.05),
-            baseline      = cfg.get("baseline",      "running_mean"),
-            race          = cfg.get("race",          "random"),
+            obs_spec=obs_spec,
+            hidden_sizes=cfg.get("hidden_sizes", [128, 64]),
+            learning_rate=cfg.get("learning_rate", 0.0003),
+            gamma=cfg.get("gamma", 0.995),
+            entropy_coeff=cfg.get("entropy_coeff", 0.05),
+            baseline=cfg.get("baseline", "running_mean"),
+            race=cfg.get("race", "random"),
         )
         if "trunk_weights" in cfg:
             obj._trunk_w = [np.array(w, dtype=np.float32) for w in cfg["trunk_weights"]]
             obj._trunk_b = [np.array(b, dtype=np.float32) for b in cfg["trunk_biases"]]
         if "fn_weights" in cfg:
             obj._fn_w = np.array(cfg["fn_weights"], dtype=np.float32)
-            obj._fn_b = np.array(cfg["fn_biases"],  dtype=np.float32)
+            obj._fn_b = np.array(cfg["fn_biases"], dtype=np.float32)
         if "sp_weights" in cfg:
             obj._sp_w = np.array(cfg["sp_weights"], dtype=np.float32)
-            obj._sp_b = np.array(cfg["sp_biases"],  dtype=np.float32)
+            obj._sp_b = np.array(cfg["sp_biases"], dtype=np.float32)
         if "baseline_value" in cfg:
             obj._baseline_val = float(cfg["baseline_value"])
         return obj
 
     @classmethod
-    def _construct_or_resume(cls, *, obs_spec, head_names, discrete_actions,
-                             weights_file, policy_params, re_initialize):
+    def _construct_or_resume(
+        cls, *, obs_spec, head_names, discrete_actions, weights_file, policy_params, re_initialize
+    ):
         pp = policy_params
         if os.path.exists(weights_file) and not re_initialize:
             with open(weights_file) as _f:
@@ -953,13 +968,13 @@ class SC2REINFORCEPolicy(_FrameworkTwoHeadREINFORCE):
                         logger.warning("[SC2REINFORCEPolicy] could not load trainer state — %s", exc)
                 return policy
         return cls(
-            obs_spec      = obs_spec,
-            hidden_sizes  = pp.get("hidden_sizes",  [128, 64]),
-            learning_rate = pp.get("learning_rate", 0.0003),
-            gamma         = pp.get("gamma",         0.995),
-            entropy_coeff = pp.get("entropy_coeff", 0.05),
-            baseline      = pp.get("baseline",      "running_mean"),
-            race          = pp.get("_agent_race",   "random"),
+            obs_spec=obs_spec,
+            hidden_sizes=pp.get("hidden_sizes", [128, 64]),
+            learning_rate=pp.get("learning_rate", 0.0003),
+            gamma=pp.get("gamma", 0.995),
+            entropy_coeff=pp.get("entropy_coeff", 0.05),
+            baseline=pp.get("baseline", "running_mean"),
+            race=pp.get("_agent_race", "random"),
         )
 
 
@@ -986,7 +1001,7 @@ class SC2CMAESPolicy(_FrameworkCMAES):
     """
 
     POLICY_TYPE = "sc2_cmaes"
-    LOOP_TYPE   = "cmaes"
+    LOOP_TYPE = "cmaes"
     VALID_POLICY_PARAMS = frozenset({"population_size", "initial_sigma", "eval_episodes"})
 
     def __init__(
@@ -1005,7 +1020,9 @@ class SC2CMAESPolicy(_FrameworkCMAES):
             return SC2MultiHeadLinearPolicy(spec).with_flat(flat.astype(np.float32))
 
         super().__init__(
-            obs_spec, _factory, n_params,
+            obs_spec,
+            _factory,
+            n_params,
             population_size=population_size,
             initial_sigma=initial_sigma,
             eval_episodes=eval_episodes,
@@ -1014,7 +1031,6 @@ class SC2CMAESPolicy(_FrameworkCMAES):
         self._race: str = race
         self._race_fn_ids: frozenset[int] = fn_ids_for_race(race)
         self._available_fn_ids: set[int] | None = None
-
 
     def _build_fn_mask(self, available_fn_ids: set[int] | None) -> np.ndarray:
         mask = np.ones(N_FUNCTION_IDS, dtype=bool)
@@ -1029,18 +1045,16 @@ class SC2CMAESPolicy(_FrameworkCMAES):
 
     def __call__(self, obs: np.ndarray) -> np.ndarray:
         if self._champion is None:
-            raise RuntimeError(
-                "SC2CMAESPolicy: no champion yet — run at least one generation first."
-            )
-        norm_obs  = obs / self._obs_spec.scales
+            raise RuntimeError("SC2CMAESPolicy: no champion yet — run at least one generation first.")
+        norm_obs = obs / self._obs_spec.scales
         fn_scores = self._champion._fn_weights @ norm_obs
-        fn_mask   = self._build_fn_mask(self._available_fn_ids)
-        masked    = fn_scores.copy().astype(np.float64)
+        fn_mask = self._build_fn_mask(self._available_fn_ids)
+        masked = fn_scores.copy().astype(np.float64)
         masked[~fn_mask] = -np.inf
-        fn_idx    = int(np.argmax(masked))
+        fn_idx = int(np.argmax(masked))
         sp_scores = self._champion._sp_weights @ norm_obs
-        x         = _sigmoid(float(sp_scores[0]))
-        y         = _sigmoid(float(sp_scores[1]))
+        x = _sigmoid(float(sp_scores[0]))
+        y = _sigmoid(float(sp_scores[1]))
         return np.array([fn_idx, x, y, 0.0], dtype=np.float32)
 
     def on_episode_start(self, **kwargs) -> None:
@@ -1066,24 +1080,25 @@ class SC2CMAESPolicy(_FrameworkCMAES):
 
     def to_cfg(self) -> dict:
         return {
-            "policy_type":     "sc2_cmaes",
+            "policy_type": "sc2_cmaes",
             "population_size": self._lam,
-            "sigma":           float(self.sigma),
-            "obs_dim":         self._obs_spec.dim,
-            "eval_episodes":   self._eval_episodes,
+            "sigma": float(self.sigma),
+            "obs_dim": self._obs_spec.dim,
+            "eval_episodes": self._eval_episodes,
             "champion_reward": float(self._champion_reward),
         }
 
     @classmethod
-    def _construct_or_resume(cls, *, obs_spec, head_names, discrete_actions,
-                             weights_file, policy_params, re_initialize):
+    def _construct_or_resume(
+        cls, *, obs_spec, head_names, discrete_actions, weights_file, policy_params, re_initialize
+    ):
         pp = policy_params
         policy = cls(
-            obs_spec        = obs_spec,
-            population_size = pp.get("population_size", 30),
-            initial_sigma   = pp.get("initial_sigma",   0.5),
-            eval_episodes   = pp.get("eval_episodes",   2),
-            race            = pp.get("_agent_race",     "random"),
+            obs_spec=obs_spec,
+            population_size=pp.get("population_size", 30),
+            initial_sigma=pp.get("initial_sigma", 0.5),
+            eval_episodes=pp.get("eval_episodes", 2),
+            race=pp.get("_agent_race", "random"),
         )
         if os.path.exists(weights_file) and not re_initialize:
             with open(weights_file) as _f:
@@ -1109,6 +1124,7 @@ class SC2CMAESPolicy(_FrameworkCMAES):
 # ---------------------------------------------------------------------------
 # SC2LSTMPolicy — LSTM with two-head output for SC2
 # ---------------------------------------------------------------------------
+
 
 class SC2LSTMPolicy:
     """Single-layer LSTM policy with two-head output for StarCraft 2.
@@ -1142,17 +1158,17 @@ class SC2LSTMPolicy:
         seed: int | None = None,
         race: str = "random",
     ) -> None:
-        self._obs_spec        = obs_spec
-        self._hidden_size     = hidden_size
-        self._obs_dim         = obs_spec.dim
-        self._scales          = obs_spec.scales
+        self._obs_spec = obs_spec
+        self._hidden_size = hidden_size
+        self._obs_dim = obs_spec.dim
+        self._scales = obs_spec.scales
         self._reset_on_episode = reset_on_episode
-        self._race: str                  = race
+        self._race: str = race
         self._race_fn_ids: frozenset[int] = fn_ids_for_race(race)
 
-        h    = hidden_size
+        h = hidden_size
         c_in = h + self._obs_dim
-        rng  = np.random.default_rng(seed)
+        rng = np.random.default_rng(seed)
         gain = np.sqrt(2.0 / c_in)
 
         # LSTM gates: forget, input, cell, output
@@ -1166,10 +1182,7 @@ class SC2LSTMPolicy:
         self._b_o = np.zeros(h, dtype=np.float32)
 
         # Output head: hidden_size → 15 (6 fn logits + 9 spatial logits)
-        self._W_out = (
-            rng.standard_normal((self.N_OUTPUT, h)).astype(np.float32)
-            * np.sqrt(2.0 / h)
-        )
+        self._W_out = rng.standard_normal((self.N_OUTPUT, h)).astype(np.float32) * np.sqrt(2.0 / h)
         self._b_out = np.zeros(self.N_OUTPUT, dtype=np.float32)
 
         self._h = np.zeros(h, dtype=np.float32)
@@ -1190,60 +1203,65 @@ class SC2LSTMPolicy:
 
     @property
     def flat_dim(self) -> int:
-        h    = self._hidden_size
+        h = self._hidden_size
         c_in = h + self._obs_dim
         # 4 LSTM gates × (h×c_in weights + h biases) + output (N_OUTPUT×h + N_OUTPUT)
         return 4 * (h * c_in + h) + self.N_OUTPUT * h + self.N_OUTPUT
 
     def to_flat(self) -> np.ndarray:
-        return np.concatenate([
-            self._W_f.ravel(), self._b_f,
-            self._W_i.ravel(), self._b_i,
-            self._W_g.ravel(), self._b_g,
-            self._W_o.ravel(), self._b_o,
-            self._W_out.ravel(), self._b_out,
-        ]).astype(np.float32)
+        return np.concatenate(
+            [
+                self._W_f.ravel(),
+                self._b_f,
+                self._W_i.ravel(),
+                self._b_i,
+                self._W_g.ravel(),
+                self._b_g,
+                self._W_o.ravel(),
+                self._b_o,
+                self._W_out.ravel(),
+                self._b_out,
+            ]
+        ).astype(np.float32)
 
     def with_flat(self, flat: np.ndarray) -> "SC2LSTMPolicy":
         flat = np.asarray(flat, dtype=np.float32)
         if flat.shape[0] != self.flat_dim:
-            raise ValueError(
-                f"SC2LSTMPolicy.with_flat: expected {self.flat_dim}, got {flat.shape[0]}"
-            )
+            raise ValueError(f"SC2LSTMPolicy.with_flat: expected {self.flat_dim}, got {flat.shape[0]}")
         obj = object.__new__(SC2LSTMPolicy)
-        obj._obs_spec         = self._obs_spec
-        obj._hidden_size      = self._hidden_size
-        obj._obs_dim          = self._obs_dim
-        obj._scales           = self._scales
+        obj._obs_spec = self._obs_spec
+        obj._hidden_size = self._hidden_size
+        obj._obs_dim = self._obs_dim
+        obj._scales = self._scales
         obj._reset_on_episode = self._reset_on_episode
-        obj._race             = self._race
-        obj._race_fn_ids      = self._race_fn_ids
-        obj._rng              = np.random.default_rng()
+        obj._race = self._race
+        obj._race_fn_ids = self._race_fn_ids
+        obj._rng = np.random.default_rng()
         obj._available_fn_ids = None
 
-        h    = self._hidden_size
+        h = self._hidden_size
         c_in = h + self._obs_dim
-        off  = 0
+        off = 0
 
         def _take(shape: tuple) -> np.ndarray:
             nonlocal off
-            n   = int(np.prod(shape))
-            out = flat[off: off + n].reshape(shape).copy()
+            n = int(np.prod(shape))
+            out = flat[off : off + n].reshape(shape).copy()
             off += n
             return out
 
-        obj._W_f   = _take((h, c_in))
-        obj._b_f   = _take((h,))
-        obj._W_i   = _take((h, c_in))
-        obj._b_i   = _take((h,))
-        obj._W_g   = _take((h, c_in))
-        obj._b_g   = _take((h,))
-        obj._W_o   = _take((h, c_in))
-        obj._b_o   = _take((h,))
+        obj._W_f = _take((h, c_in))
+        obj._b_f = _take((h,))
+        obj._W_i = _take((h, c_in))
+        obj._b_i = _take((h,))
+        obj._W_g = _take((h, c_in))
+        obj._b_g = _take((h,))
+        obj._W_o = _take((h, c_in))
+        obj._b_o = _take((h,))
         obj._W_out = _take((SC2LSTMPolicy.N_OUTPUT, h))
         obj._b_out = _take((SC2LSTMPolicy.N_OUTPUT,))
-        obj._h     = np.zeros(h, dtype=np.float32)
-        obj._c     = np.zeros(h, dtype=np.float32)
+        obj._h = np.zeros(h, dtype=np.float32)
+        obj._c = np.zeros(h, dtype=np.float32)
         return obj
 
     # ------------------------------------------------------------------
@@ -1253,7 +1271,7 @@ class SC2LSTMPolicy:
     @staticmethod
     def _softmax(z: np.ndarray) -> np.ndarray:
         z_s = z - z.max()
-        e   = np.exp(z_s)
+        e = np.exp(z_s)
         return e / e.sum()
 
     def _reset_hidden_state(self) -> None:
@@ -1272,21 +1290,22 @@ class SC2LSTMPolicy:
             self._reset_hidden_state()
 
     def __call__(self, obs: np.ndarray) -> np.ndarray:
-        x  = (obs / self._scales).astype(np.float32)
-        hx = np.concatenate([self._h, x])
+        def _vsigmoid(z: np.ndarray) -> np.ndarray:
+            return 1.0 / (1.0 + np.exp(-np.clip(z, -20.0, 20.0)))
 
-        _vsigmoid = lambda z: 1.0 / (1.0 + np.exp(-np.clip(z, -20.0, 20.0)))
+        x = (obs / self._scales).astype(np.float32)
+        hx = np.concatenate([self._h, x])
         f = _vsigmoid(self._W_f @ hx + self._b_f)
         i = _vsigmoid(self._W_i @ hx + self._b_i)
-        g = np.tanh(self._W_g  @ hx + self._b_g)
+        g = np.tanh(self._W_g @ hx + self._b_g)
         o = _vsigmoid(self._W_o @ hx + self._b_o)
 
         self._c = f * self._c + i * g
         self._h = o * np.tanh(self._c)
 
-        out         = self._W_out @ self._h + self._b_out
-        fn_logits   = out[:N_FUNCTION_IDS].copy().astype(np.float64)
-        sp_logits   = out[N_FUNCTION_IDS:].astype(np.float64)
+        out = self._W_out @ self._h + self._b_out
+        fn_logits = out[:N_FUNCTION_IDS].copy().astype(np.float64)
+        sp_logits = out[N_FUNCTION_IDS:].astype(np.float64)
 
         # Permanent race mask + per-step available-actions mask.
         for k in range(N_FUNCTION_IDS):
@@ -1297,10 +1316,9 @@ class SC2LSTMPolicy:
         if not np.isfinite(fn_logits).any():
             fn_logits[0] = 0.0  # fallback to no_op
 
-        fn_probs  = self._softmax(fn_logits)
-        fn_idx    = int(self._rng.choice(N_FUNCTION_IDS, p=fn_probs))
-        cell_idx  = int(self._rng.choice(N_LSTM_SPATIAL_CELLS,
-                                         p=self._softmax(sp_logits)))
+        fn_probs = self._softmax(fn_logits)
+        fn_idx = int(self._rng.choice(N_FUNCTION_IDS, p=fn_probs))
+        cell_idx = int(self._rng.choice(N_LSTM_SPATIAL_CELLS, p=self._softmax(sp_logits)))
         x_out, y_out = float(_SPATIAL_GRID[cell_idx, 0]), float(_SPATIAL_GRID[cell_idx, 1])
         return np.array([fn_idx, x_out, y_out, 0.0], dtype=np.float32)
 
@@ -1323,15 +1341,20 @@ class SC2LSTMPolicy:
 
     def to_cfg(self) -> dict:
         return {
-            "policy_type":      "sc2_lstm",
-            "hidden_size":      self._hidden_size,
+            "policy_type": "sc2_lstm",
+            "hidden_size": self._hidden_size,
             "reset_on_episode": self._reset_on_episode,
-            "obs_dim":          self._obs_dim,
-            "W_f":  self._W_f.tolist(),  "b_f":  self._b_f.tolist(),
-            "W_i":  self._W_i.tolist(),  "b_i":  self._b_i.tolist(),
-            "W_g":  self._W_g.tolist(),  "b_g":  self._b_g.tolist(),
-            "W_o":  self._W_o.tolist(),  "b_o":  self._b_o.tolist(),
-            "W_out": self._W_out.tolist(), "b_out": self._b_out.tolist(),
+            "obs_dim": self._obs_dim,
+            "W_f": self._W_f.tolist(),
+            "b_f": self._b_f.tolist(),
+            "W_i": self._W_i.tolist(),
+            "b_i": self._b_i.tolist(),
+            "W_g": self._W_g.tolist(),
+            "b_g": self._b_g.tolist(),
+            "W_o": self._W_o.tolist(),
+            "b_o": self._b_o.tolist(),
+            "W_out": self._W_out.tolist(),
+            "b_out": self._b_out.tolist(),
         }
 
     def save(self, path: str) -> None:
@@ -1341,34 +1364,35 @@ class SC2LSTMPolicy:
     @classmethod
     def from_cfg(cls, cfg: dict, obs_spec: ObsSpec, race: str = "random") -> "SC2LSTMPolicy":
         obj = object.__new__(cls)
-        obj._obs_spec         = obs_spec
-        obj._hidden_size      = int(cfg["hidden_size"])
-        obj._obs_dim          = obs_spec.dim
-        obj._scales           = obs_spec.scales
+        obj._obs_spec = obs_spec
+        obj._hidden_size = int(cfg["hidden_size"])
+        obj._obs_dim = obs_spec.dim
+        obj._scales = obs_spec.scales
         obj._reset_on_episode = bool(cfg.get("reset_on_episode", True))
-        obj._race             = race
-        obj._race_fn_ids      = fn_ids_for_race(obj._race)
+        obj._race = race
+        obj._race_fn_ids = fn_ids_for_race(obj._race)
         obj._available_fn_ids = None
-        obj._W_f   = np.array(cfg["W_f"],   dtype=np.float32)
-        obj._b_f   = np.array(cfg["b_f"],   dtype=np.float32)
-        obj._W_i   = np.array(cfg["W_i"],   dtype=np.float32)
-        obj._b_i   = np.array(cfg["b_i"],   dtype=np.float32)
-        obj._W_g   = np.array(cfg["W_g"],   dtype=np.float32)
-        obj._b_g   = np.array(cfg["b_g"],   dtype=np.float32)
-        obj._W_o   = np.array(cfg["W_o"],   dtype=np.float32)
-        obj._b_o   = np.array(cfg["b_o"],   dtype=np.float32)
+        obj._W_f = np.array(cfg["W_f"], dtype=np.float32)
+        obj._b_f = np.array(cfg["b_f"], dtype=np.float32)
+        obj._W_i = np.array(cfg["W_i"], dtype=np.float32)
+        obj._b_i = np.array(cfg["b_i"], dtype=np.float32)
+        obj._W_g = np.array(cfg["W_g"], dtype=np.float32)
+        obj._b_g = np.array(cfg["b_g"], dtype=np.float32)
+        obj._W_o = np.array(cfg["W_o"], dtype=np.float32)
+        obj._b_o = np.array(cfg["b_o"], dtype=np.float32)
         obj._W_out = np.array(cfg["W_out"], dtype=np.float32)
         obj._b_out = np.array(cfg["b_out"], dtype=np.float32)
-        h          = obj._hidden_size
-        obj._h     = np.zeros(h, dtype=np.float32)
-        obj._c     = np.zeros(h, dtype=np.float32)
-        obj._rng   = np.random.default_rng()
+        h = obj._hidden_size
+        obj._h = np.zeros(h, dtype=np.float32)
+        obj._c = np.zeros(h, dtype=np.float32)
+        obj._rng = np.random.default_rng()
         return obj
 
 
 # ---------------------------------------------------------------------------
 # SC2LSTMEvolutionPolicy — thin subclass of framework LSTMEvolutionPolicy
 # ---------------------------------------------------------------------------
+
 
 @register_policy
 class SC2LSTMEvolutionPolicy(_FrameworkLSTMEvo):
@@ -1397,10 +1421,15 @@ class SC2LSTMEvolutionPolicy(_FrameworkLSTMEvo):
     """
 
     POLICY_TYPE = "sc2_lstm"
-    LOOP_TYPE   = "cmaes"
-    VALID_POLICY_PARAMS = frozenset({
-        "hidden_size", "population_size", "initial_sigma", "reset_on_episode",
-    })
+    LOOP_TYPE = "cmaes"
+    VALID_POLICY_PARAMS = frozenset(
+        {
+            "hidden_size",
+            "population_size",
+            "initial_sigma",
+            "reset_on_episode",
+        }
+    )
 
     @classmethod
     def compatible_with(cls, game_name: str) -> tuple[bool, str | None]:
@@ -1419,24 +1448,24 @@ class SC2LSTMEvolutionPolicy(_FrameworkLSTMEvo):
         race: str = "random",
     ) -> None:
         template = SC2LSTMPolicy(
-            obs_spec         = obs_spec,
-            hidden_size      = hidden_size,
-            reset_on_episode = reset_on_episode,
-            race             = race,
+            obs_spec=obs_spec,
+            hidden_size=hidden_size,
+            reset_on_episode=reset_on_episode,
+            race=race,
         )
         super().__init__(
-            obs_spec         = obs_spec,
-            hidden_size      = hidden_size,
-            population_size  = population_size,
-            initial_sigma    = initial_sigma,
-            seed             = seed,
-            _template        = template,
+            obs_spec=obs_spec,
+            hidden_size=hidden_size,
+            population_size=population_size,
+            initial_sigma=initial_sigma,
+            seed=seed,
+            _template=template,
         )
         self._reset_on_episode = reset_on_episode
 
     def to_cfg(self) -> dict:
         cfg = super().to_cfg()
-        cfg["policy_type"]      = "sc2_lstm"
+        cfg["policy_type"] = "sc2_lstm"
         cfg["reset_on_episode"] = self._reset_on_episode
         return cfg
 
@@ -1446,16 +1475,17 @@ class SC2LSTMEvolutionPolicy(_FrameworkLSTMEvo):
             self._champion.save(path)
 
     @classmethod
-    def _construct_or_resume(cls, *, obs_spec, head_names, discrete_actions,
-                             weights_file, policy_params, re_initialize):
+    def _construct_or_resume(
+        cls, *, obs_spec, head_names, discrete_actions, weights_file, policy_params, re_initialize
+    ):
         pp = policy_params
         policy = cls(
-            obs_spec         = obs_spec,
-            hidden_size      = pp.get("hidden_size",      64),
-            population_size  = pp.get("population_size",  20),
-            initial_sigma    = pp.get("initial_sigma",    0.03),
-            reset_on_episode = pp.get("reset_on_episode", True),
-            race             = pp.get("_agent_race",      "random"),
+            obs_spec=obs_spec,
+            hidden_size=pp.get("hidden_size", 64),
+            population_size=pp.get("population_size", 20),
+            initial_sigma=pp.get("initial_sigma", 0.03),
+            reset_on_episode=pp.get("reset_on_episode", True),
+            race=pp.get("_agent_race", "random"),
         )
         if os.path.exists(weights_file) and not re_initialize:
             with open(weights_file) as _f:

@@ -27,16 +27,16 @@ class RewardConfig:
     trained on one game transfer reasonably to the other.
     """
 
-    progress_weight:    float = 1000.0
-    centerline_weight:  float = -0.5
-    centerline_exp:     float = 2.0
-    speed_weight:       float = 0.05
-    step_penalty:       float = -0.05
-    finish_bonus:       float = 500.0
+    progress_weight: float = 1000.0
+    centerline_weight: float = -0.5
+    centerline_exp: float = 2.0
+    speed_weight: float = 0.05
+    step_penalty: float = -0.05
+    finish_bonus: float = 500.0
     finish_time_weight: float = -1.0
-    par_time_s:         float = 150.0
-    accel_bonus:        float = 0.5
-    crash_threshold_m:  float = 25.0
+    par_time_s: float = 150.0
+    accel_bonus: float = 0.5
+    crash_threshold_m: float = 25.0
 
     @classmethod
     def from_yaml(cls, path: str) -> "RewardConfig":
@@ -45,10 +45,7 @@ class RewardConfig:
         valid = {f.name for f in fields(cls)}
         unknown = set(data.keys()) - valid
         if unknown:
-            raise ValueError(
-                f"{path}: unknown reward config keys: {sorted(unknown)}\n"
-                f"Valid keys: {sorted(valid)}"
-            )
+            raise ValueError(f"{path}: unknown reward config keys: {sorted(unknown)}\nValid keys: {sorted(valid)}")
         return cls(**data)
 
 
@@ -80,9 +77,7 @@ class RewardCalculator(RewardCalculatorBase):
 
         lateral = self._get(curr_state, "lateral_offset")
         if lateral is not None:
-            reward += (
-                cfg.centerline_weight * abs(lateral) ** cfg.centerline_exp * n_ticks
-            )
+            reward += cfg.centerline_weight * abs(lateral) ** cfg.centerline_exp * n_ticks
 
         speed = self._get(curr_state, "speed_ms")
         if speed is not None:

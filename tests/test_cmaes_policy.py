@@ -1,4 +1,5 @@
 """Tests for CMAESPolicy in framework/cmaes.py."""
+
 import os
 import tempfile
 import unittest
@@ -15,17 +16,17 @@ from games.tmnf.obs_spec import BASE_OBS_DIM, TMNF_OBS_SPEC
 # ---------------------------------------------------------------------------
 
 _OBS_SPEC = TMNF_OBS_SPEC
-_N_HEADS  = 3          # steer + accel + brake
+_N_HEADS = 3  # steer + accel + brake
 
 
 def _tmnf_factory(flat: np.ndarray, obs_spec) -> WeightedLinearPolicy:
     """Convert a flat [steer|accel|brake] vector into a WeightedLinearPolicy."""
     names = obs_spec.names
-    n     = obs_spec.dim
-    cfg   = {
-        "steer_weights": {names[i]: float(flat[i])             for i in range(n)},
-        "accel_weights": {names[i]: float(flat[n + i])         for i in range(n)},
-        "brake_weights": {names[i]: float(flat[2 * n + i])     for i in range(n)},
+    n = obs_spec.dim
+    cfg = {
+        "steer_weights": {names[i]: float(flat[i]) for i in range(n)},
+        "accel_weights": {names[i]: float(flat[n + i]) for i in range(n)},
+        "brake_weights": {names[i]: float(flat[2 * n + i]) for i in range(n)},
     }
     return WeightedLinearPolicy.from_cfg(cfg, obs_spec, ["steer", "accel", "brake"])
 
@@ -42,8 +43,8 @@ def _make_tmnf_policy(**kw) -> CMAESPolicy:
 # Tests — initialisation
 # ---------------------------------------------------------------------------
 
-class TestCMAESPolicyInit(unittest.TestCase):
 
+class TestCMAESPolicyInit(unittest.TestCase):
     def test_default_population_size(self):
         policy = _make_tmnf_policy(population_size=10, initial_sigma=0.3)
         self.assertEqual(policy._lam, 10)
@@ -66,9 +67,9 @@ class TestCMAESPolicyInit(unittest.TestCase):
         np.testing.assert_array_equal(policy._mean, np.zeros(policy._n))
 
     def test_initialize_from_champion_seeds_mean(self):
-        policy   = _make_tmnf_policy(population_size=10)
-        names    = _OBS_SPEC.names
-        cfg      = {
+        policy = _make_tmnf_policy(population_size=10)
+        names = _OBS_SPEC.names
+        cfg = {
             "steer_weights": {n: 1.0 for n in names},
             "accel_weights": {n: 0.0 for n in names},
             "brake_weights": {n: 0.0 for n in names},
@@ -79,9 +80,9 @@ class TestCMAESPolicyInit(unittest.TestCase):
         np.testing.assert_array_almost_equal(policy._mean, expected)
 
     def test_initialize_from_champion_sets_champion(self):
-        policy   = _make_tmnf_policy(population_size=10)
-        names    = _OBS_SPEC.names
-        cfg      = {
+        policy = _make_tmnf_policy(population_size=10)
+        names = _OBS_SPEC.names
+        cfg = {
             "steer_weights": {n: 0.5 for n in names},
             "accel_weights": {n: 0.5 for n in names},
             "brake_weights": {n: 0.0 for n in names},
@@ -95,8 +96,8 @@ class TestCMAESPolicyInit(unittest.TestCase):
 # Tests — sampling
 # ---------------------------------------------------------------------------
 
-class TestCMAESPolicySampling(unittest.TestCase):
 
+class TestCMAESPolicySampling(unittest.TestCase):
     def test_sample_population_returns_correct_count(self):
         policy = _make_tmnf_policy(population_size=12)
         policy.initialize_random()
@@ -122,8 +123,8 @@ class TestCMAESPolicySampling(unittest.TestCase):
 # Tests — update
 # ---------------------------------------------------------------------------
 
-class TestCMAESPolicyUpdate(unittest.TestCase):
 
+class TestCMAESPolicyUpdate(unittest.TestCase):
     def _make_and_sample(self, pop=10):
         policy = _make_tmnf_policy(population_size=pop, initial_sigma=0.5)
         policy.initialize_random()
@@ -131,19 +132,19 @@ class TestCMAESPolicyUpdate(unittest.TestCase):
         return policy
 
     def test_update_sets_champion_on_first_call(self):
-        policy  = self._make_and_sample()
+        policy = self._make_and_sample()
         rewards = list(range(policy._lam))
         policy.update_distribution(rewards)
         self.assertIsNotNone(policy._champion)
 
     def test_update_returns_true_when_champion_improved(self):
-        policy  = self._make_and_sample()
+        policy = self._make_and_sample()
         rewards = [float(i) for i in range(policy._lam)]
         improved = policy.update_distribution(rewards)
         self.assertTrue(improved)
 
     def test_update_returns_false_when_no_improvement(self):
-        policy  = self._make_and_sample()
+        policy = self._make_and_sample()
         rewards = [100.0] * policy._lam
         policy.update_distribution(rewards)
 
@@ -152,7 +153,7 @@ class TestCMAESPolicyUpdate(unittest.TestCase):
         self.assertFalse(improved)
 
     def test_champion_reward_is_best_seen(self):
-        policy  = self._make_and_sample()
+        policy = self._make_and_sample()
         rewards = [10.0, 99.0] + [1.0] * (policy._lam - 2)
         policy.update_distribution(rewards)
         self.assertAlmostEqual(policy.champion_reward, 99.0)
@@ -174,11 +175,11 @@ class TestCMAESPolicyUpdate(unittest.TestCase):
             policy.update_distribution([0.0] * 6)
 
     def test_mean_moves_after_update(self):
-        policy   = _make_tmnf_policy(population_size=10, initial_sigma=0.5)
+        policy = _make_tmnf_policy(population_size=10, initial_sigma=0.5)
         policy.initialize_random()
         old_mean = policy._mean.copy()
         policy.sample_population()
-        rewards  = [float(i) for i in range(policy._lam)]
+        rewards = [float(i) for i in range(policy._lam)]
         policy.update_distribution(rewards)
         self.assertFalse(np.allclose(policy._mean, old_mean))
 
@@ -187,8 +188,8 @@ class TestCMAESPolicyUpdate(unittest.TestCase):
 # Tests — callable
 # ---------------------------------------------------------------------------
 
-class TestCMAESPolicyCallable(unittest.TestCase):
 
+class TestCMAESPolicyCallable(unittest.TestCase):
     def test_call_raises_before_any_update(self):
         policy = _make_tmnf_policy(population_size=6)
         policy.initialize_random()
@@ -202,11 +203,11 @@ class TestCMAESPolicyCallable(unittest.TestCase):
         policy.sample_population()
         policy.update_distribution([float(i) for i in range(6)])
 
-        obs    = np.zeros(BASE_OBS_DIM, dtype=np.float32)
+        obs = np.zeros(BASE_OBS_DIM, dtype=np.float32)
         action = policy(obs)
         self.assertEqual(action.shape, (3,))
         self.assertGreaterEqual(float(action[0]), -1.0)
-        self.assertLessEqual(float(action[0]),  1.0)
+        self.assertLessEqual(float(action[0]), 1.0)
         self.assertIn(float(action[1]), (0.0, 1.0))
         self.assertIn(float(action[2]), (0.0, 1.0))
 
@@ -215,13 +216,12 @@ class TestCMAESPolicyCallable(unittest.TestCase):
 # Tests — serialisation
 # ---------------------------------------------------------------------------
 
-class TestCMAESPolicySerialisation(unittest.TestCase):
 
+class TestCMAESPolicySerialisation(unittest.TestCase):
     def test_to_cfg_contains_required_keys(self):
         policy = _make_tmnf_policy(population_size=10, initial_sigma=0.3)
-        cfg    = policy.to_cfg()
-        for key in ("policy_type", "population_size", "sigma",
-                    "n_params", "champion_reward", "eval_episodes"):
+        cfg = policy.to_cfg()
+        for key in ("policy_type", "population_size", "sigma", "n_params", "champion_reward", "eval_episodes"):
             self.assertIn(key, cfg)
 
     def test_to_cfg_policy_type(self):
@@ -240,6 +240,7 @@ class TestCMAESPolicySerialisation(unittest.TestCase):
             policy.save(path)
             self.assertTrue(os.path.exists(path))
             import yaml
+
             with open(path) as f:
                 cfg = yaml.safe_load(f)
             self.assertIn("steer_weights", cfg)
@@ -253,8 +254,8 @@ class TestCMAESPolicySerialisation(unittest.TestCase):
 # Tests — eval_episodes attribute and training loop integration
 # ---------------------------------------------------------------------------
 
-class TestCMAESEvalEpisodes(unittest.TestCase):
 
+class TestCMAESEvalEpisodes(unittest.TestCase):
     def test_eval_episodes_default_is_one(self):
         policy = _make_tmnf_policy(population_size=10)
         self.assertEqual(policy._eval_episodes, 1)
@@ -265,7 +266,7 @@ class TestCMAESEvalEpisodes(unittest.TestCase):
 
     def test_eval_episodes_in_to_cfg(self):
         policy = _make_tmnf_policy(population_size=10, eval_episodes=4)
-        cfg    = policy.to_cfg()
+        cfg = policy.to_cfg()
         self.assertIn("eval_episodes", cfg)
         self.assertEqual(cfg["eval_episodes"], 4)
 
@@ -277,13 +278,12 @@ class TestCMAESEvalEpisodes(unittest.TestCase):
         """Run one generation and capture rewards passed to update_distribution."""
         from framework.training import _greedy_loop_cmaes
 
-        policy = _make_tmnf_policy(population_size=pop_size, initial_sigma=0.3,
-                                   eval_episodes=eval_episodes)
+        policy = _make_tmnf_policy(population_size=pop_size, initial_sigma=0.3, eval_episodes=eval_episodes)
         policy.initialize_random()
 
         rewards_iter = iter(rewards_seq)
-        captured     = []
-        original_fn  = policy.update_distribution
+        captured = []
+        original_fn = policy.update_distribution
 
         def _capture(rewards):
             captured.append(list(rewards))
@@ -294,10 +294,8 @@ class TestCMAESEvalEpisodes(unittest.TestCase):
                 return np.zeros(BASE_OBS_DIM, dtype=np.float32), {}
 
             def step(self, action):
-                info = {"track_progress": 0.5, "laps_completed": 0,
-                        "pos_x": 0.0, "pos_z": 0.0}
-                return (np.zeros(BASE_OBS_DIM, dtype=np.float32),
-                        next(rewards_iter), True, False, info)
+                info = {"track_progress": 0.5, "laps_completed": 0, "pos_x": 0.0, "pos_z": 0.0}
+                return (np.zeros(BASE_OBS_DIM, dtype=np.float32), next(rewards_iter), True, False, info)
 
             def get_episode_time_limit(self):
                 return None
@@ -309,8 +307,7 @@ class TestCMAESEvalEpisodes(unittest.TestCase):
             wf = f.name
         try:
             with patch.object(policy, "update_distribution", side_effect=_capture):
-                _greedy_loop_cmaes(env=_SeqEnv(), policy=policy, n_generations=1,
-                                   weights_file=wf)
+                _greedy_loop_cmaes(env=_SeqEnv(), policy=policy, n_generations=1, weights_file=wf)
         finally:
             if os.path.exists(wf):
                 os.unlink(wf)
@@ -319,7 +316,8 @@ class TestCMAESEvalEpisodes(unittest.TestCase):
 
     def test_eval_episodes_1_passes_single_reward(self):
         captured = self._run_one_gen_and_capture(
-            pop_size=4, eval_episodes=1,
+            pop_size=4,
+            eval_episodes=1,
             rewards_seq=[10.0, 20.0, 30.0, 40.0],
         )
         self.assertEqual(len(captured), 1)
@@ -328,7 +326,8 @@ class TestCMAESEvalEpisodes(unittest.TestCase):
 
     def test_eval_episodes_3_averages_rewards(self):
         captured = self._run_one_gen_and_capture(
-            pop_size=2, eval_episodes=3,
+            pop_size=2,
+            eval_episodes=3,
             rewards_seq=[10.0, 20.0, 30.0, 40.0, 50.0, 60.0],
         )
         self.assertEqual(len(captured), 1)
@@ -338,13 +337,12 @@ class TestCMAESEvalEpisodes(unittest.TestCase):
     def test_eval_episodes_2_correct_reset_count(self):
         from framework.training import _greedy_loop_cmaes
 
-        pop_size      = 3
+        pop_size = 3
         eval_episodes = 2
-        policy        = _make_tmnf_policy(population_size=pop_size, initial_sigma=0.3,
-                                          eval_episodes=eval_episodes)
+        policy = _make_tmnf_policy(population_size=pop_size, initial_sigma=0.3, eval_episodes=eval_episodes)
         policy.initialize_random()
 
-        reset_count  = [0]
+        reset_count = [0]
         rewards_iter = iter([float(i) for i in range(100)])
 
         class _CountingEnv:
@@ -353,10 +351,8 @@ class TestCMAESEvalEpisodes(unittest.TestCase):
                 return np.zeros(BASE_OBS_DIM, dtype=np.float32), {}
 
             def step(self, action):
-                info = {"track_progress": 0.5, "laps_completed": 0,
-                        "pos_x": 0.0, "pos_z": 0.0}
-                return (np.zeros(BASE_OBS_DIM, dtype=np.float32),
-                        next(rewards_iter), True, False, info)
+                info = {"track_progress": 0.5, "laps_completed": 0, "pos_x": 0.0, "pos_z": 0.0}
+                return (np.zeros(BASE_OBS_DIM, dtype=np.float32), next(rewards_iter), True, False, info)
 
             def get_episode_time_limit(self):
                 return None
@@ -367,8 +363,7 @@ class TestCMAESEvalEpisodes(unittest.TestCase):
         with tempfile.NamedTemporaryFile(suffix=".yaml", delete=False) as f:
             wf = f.name
         try:
-            _greedy_loop_cmaes(env=_CountingEnv(), policy=policy, n_generations=1,
-                               weights_file=wf)
+            _greedy_loop_cmaes(env=_CountingEnv(), policy=policy, n_generations=1, weights_file=wf)
         finally:
             if os.path.exists(wf):
                 os.unlink(wf)
@@ -380,30 +375,27 @@ class TestCMAESEvalEpisodes(unittest.TestCase):
 # Tests — convergence
 # ---------------------------------------------------------------------------
 
-class TestCMAESConvergence(unittest.TestCase):
 
+class TestCMAESConvergence(unittest.TestCase):
     def test_converges_toward_quadratic_maximum(self):
         """CMA-ES mean should move toward the maximizer of a quadratic in ≤50 generations."""
         policy = _make_tmnf_policy(population_size=20, initial_sigma=1.0, seed=42)
         policy.initialize_random()
 
         n_weights = BASE_OBS_DIM * _N_HEADS
-        target    = np.ones(n_weights, dtype=np.float64)
+        target = np.ones(n_weights, dtype=np.float64)
         initial_dist = float(np.linalg.norm(policy._mean - target))
 
         for _ in range(50):
             individuals = policy.sample_population()
-            rewards = [
-                -float(np.sum((ind.to_flat().astype(np.float64) - target) ** 2))
-                for ind in individuals
-            ]
+            rewards = [-float(np.sum((ind.to_flat().astype(np.float64) - target) ** 2)) for ind in individuals]
             policy.update_distribution(rewards)
 
         final_dist = float(np.linalg.norm(policy._mean - target))
         self.assertLess(
-            final_dist, initial_dist,
-            f"CMA-ES failed to converge: initial_dist={initial_dist:.3f}, "
-            f"final_dist={final_dist:.3f}",
+            final_dist,
+            initial_dist,
+            f"CMA-ES failed to converge: initial_dist={initial_dist:.3f}, final_dist={final_dist:.3f}",
         )
 
 
@@ -411,8 +403,8 @@ class TestCMAESConvergence(unittest.TestCase):
 # Tests — trainer state
 # ---------------------------------------------------------------------------
 
-class TestCMAESTrainerState(unittest.TestCase):
 
+class TestCMAESTrainerState(unittest.TestCase):
     def _make_trained_policy(self, n_gens: int = 3) -> CMAESPolicy:
         policy = _make_tmnf_policy(population_size=10, initial_sigma=0.5, seed=42)
         policy.initialize_random()
@@ -435,15 +427,15 @@ class TestCMAESTrainerState(unittest.TestCase):
             policy2.initialize_random()
             policy2.load_trainer_state(path)
 
-            np.testing.assert_array_equal(policy._mean,     policy2._mean)
-            np.testing.assert_array_equal(policy._C,        policy2._C)
-            np.testing.assert_array_equal(policy._B,        policy2._B)
-            np.testing.assert_array_equal(policy._D,        policy2._D)
+            np.testing.assert_array_equal(policy._mean, policy2._mean)
+            np.testing.assert_array_equal(policy._C, policy2._C)
+            np.testing.assert_array_equal(policy._B, policy2._B)
+            np.testing.assert_array_equal(policy._D, policy2._D)
             np.testing.assert_array_equal(policy._invsqrtC, policy2._invsqrtC)
-            np.testing.assert_array_equal(policy._ps,       policy2._ps)
-            np.testing.assert_array_equal(policy._pc,       policy2._pc)
+            np.testing.assert_array_equal(policy._ps, policy2._ps)
+            np.testing.assert_array_equal(policy._pc, policy2._pc)
             self.assertAlmostEqual(policy._sigma, policy2._sigma)
-            self.assertEqual(policy._gen,         policy2._gen)
+            self.assertEqual(policy._gen, policy2._gen)
 
             prev_mean = policy2._mean.copy()
             policy2.sample_population()
@@ -465,10 +457,9 @@ class TestCMAESTrainerState(unittest.TestCase):
         try:
             policy1.save_trainer_state(path)
             # Different n_params (different obs_spec)
-            lidar_spec  = _OBS_SPEC.with_lidar(4)
-            n_params2   = lidar_spec.dim * _N_HEADS
-            policy2     = CMAESPolicy(lidar_spec, _tmnf_factory, n_params2,
-                                      population_size=6)
+            lidar_spec = _OBS_SPEC.with_lidar(4)
+            n_params2 = lidar_spec.dim * _N_HEADS
+            policy2 = CMAESPolicy(lidar_spec, _tmnf_factory, n_params2, population_size=6)
             with self.assertRaises(ValueError):
                 policy2.load_trainer_state(path)
         finally:

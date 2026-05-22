@@ -46,10 +46,10 @@ from __future__ import annotations
 
 import logging
 import os
-import time
 import threading
+import time
 from pathlib import Path
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from games.tmnf.lidar import LidarSensor
@@ -57,20 +57,18 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 import numpy as np
-import gymnasium as gym
 from gymnasium import spaces
 from tminterface.interface import TMInterface
 
 from framework.base_env import BaseGameEnv
 from games.tmnf.clients.rl_client import RLClient, StepState
-from games.tmnf.obs_spec import BASE_OBS_DIM
-from games.tmnf.reward import RewardConfig, RewardCalculator
 from games.tmnf.curiosity import make_curiosity
 from games.tmnf.lidar import LidarSensor
-
+from games.tmnf.obs_spec import BASE_OBS_DIM
+from games.tmnf.reward import RewardCalculator, RewardConfig
 
 _DEFAULT_REWARD_CONFIG = os.path.join(os.path.dirname(__file__), "..", "..", "config", "reward_config.yaml")
-_DEFAULT_CENTERLINE    = "tracks/a03_centerline.npy"
+_DEFAULT_CENTERLINE = "tracks/a03_centerline.npy"
 
 
 class TMNFEnv(BaseGameEnv):
@@ -112,6 +110,7 @@ class TMNFEnv(BaseGameEnv):
         # Optional LIDAR sensor (screenshot-based wall distances)
         if n_lidar_rays > 0:
             from games.tmnf.lidar import LidarSensor
+
             self._lidar: LidarSensor | None = LidarSensor(n_lidar_rays)
         else:
             self._lidar = None
@@ -120,16 +119,20 @@ class TMNFEnv(BaseGameEnv):
 
         # Optional curiosity module (issue #24).  Disabled by default.
         cfg = self._reward_config
-        curiosity = make_curiosity(
-            cfg.curiosity_type,
-            obs_dim     = obs_dim,
-            action_dim  = 3,  # [steer, accel, brake]
-            feature_dim = cfg.curiosity_feature_dim,
-            hidden_size = cfg.curiosity_hidden_size,
-            lr          = cfg.curiosity_lr,
-            beta        = cfg.curiosity_beta,
-            seed        = cfg.curiosity_seed,
-        ) if cfg.curiosity_weight != 0.0 else None
+        curiosity = (
+            make_curiosity(
+                cfg.curiosity_type,
+                obs_dim=obs_dim,
+                action_dim=3,  # [steer, accel, brake]
+                feature_dim=cfg.curiosity_feature_dim,
+                hidden_size=cfg.curiosity_hidden_size,
+                lr=cfg.curiosity_lr,
+                beta=cfg.curiosity_beta,
+                seed=cfg.curiosity_seed,
+            )
+            if cfg.curiosity_weight != 0.0
+            else None
+        )
         self._reward_calc = RewardCalculator(self._reward_config, curiosity=curiosity)
         # Observation: unbounded (SB3's VecNormalize can normalise online)
         self.observation_space = spaces.Box(
@@ -148,10 +151,13 @@ class TMNFEnv(BaseGameEnv):
         )
 
         # Set up TMInterface
-        self._client = RLClient(centerline_file, speed=speed,
-                                auto_respawn_on_finish=auto_respawn_on_finish,
-                                action_window_ticks=action_window_ticks,
-                                decision_offset_pct=decision_offset_pct)
+        self._client = RLClient(
+            centerline_file,
+            speed=speed,
+            auto_respawn_on_finish=auto_respawn_on_finish,
+            action_window_ticks=action_window_ticks,
+            decision_offset_pct=decision_offset_pct,
+        )
         self._iface = TMInterface()
 
         # The keepalive thread owns register() so the message-pump is already
@@ -163,9 +169,7 @@ class TMNFEnv(BaseGameEnv):
 
         logger.info("Waiting for TMInterface connection...")
         if not self._client.wait_registered(timeout=15.0):
-            raise RuntimeError(
-                "TMInterface did not connect within 15 s — is the game running?"
-            )
+            raise RuntimeError("TMInterface did not connect within 15 s — is the game running?")
         logger.info("Connected.")
 
         # Episode tracking
@@ -176,11 +180,11 @@ class TMNFEnv(BaseGameEnv):
         self._laps_completed: int = 0
 
         # Skip-event telemetry — reset each episode, printed at episode end.
-        self._ep_rl_steps: int = 0              # env.step() calls this episode
-        self._ep_total_ticks: int = 0           # game ticks covered (≥ rl_steps)
-        self._ep_max_window_ticks: int = 0      # worst single-step ticks_this_step
-        self._ep_max_overrun_ticks: int = 0     # worst overrun beyond action_window_ticks
-        self._total_rl_steps: int = 0           # lifetime step counter (for periodic log)
+        self._ep_rl_steps: int = 0  # env.step() calls this episode
+        self._ep_total_ticks: int = 0  # game ticks covered (≥ rl_steps)
+        self._ep_max_window_ticks: int = 0  # worst single-step ticks_this_step
+        self._ep_max_overrun_ticks: int = 0  # worst overrun beyond action_window_ticks
+        self._total_rl_steps: int = 0  # lifetime step counter (for periodic log)
 
         # Per-episode reward component totals (Option C: reward decomposition).
         self._ep_reward_components: dict[str, float] = {}
@@ -227,8 +231,7 @@ class TMNFEnv(BaseGameEnv):
 
         data = step.state_data
         finished = step.finished or (data.track_progress is not None and data.track_progress >= 1.0)
-        crashed  = (data.lateral_offset is not None
-                    and abs(data.lateral_offset) > self._reward_config.crash_threshold_m)
+        crashed = data.lateral_offset is not None and abs(data.lateral_offset) > self._reward_config.crash_threshold_m
         self._elapsed_s = time.monotonic() - self._episode_start_s
 
         # --- skip-event telemetry ---
@@ -243,7 +246,7 @@ class TMNFEnv(BaseGameEnv):
             self._ep_max_overrun_ticks = overrun
 
         accelerating = bool(float(action[1]) >= 0.5)
-        lidar_rays   = self._lidar.get_distances() if self._lidar is not None else None
+        lidar_rays = self._lidar.get_distances() if self._lidar is not None else None
 
         # Build the next obs first so the curiosity module sees (s, a, s').
         # Pass the already-sampled lidar_rays so the LIDAR is captured only once
@@ -251,25 +254,25 @@ class TMNFEnv(BaseGameEnv):
         curr_obs = self._build_obs(step, lidar_rays=lidar_rays)
 
         reward, step_components = self._reward_calc.compute_with_components(
-            prev_state = self._prev_state,
-            curr_state = data,
-            finished   = finished,
-            elapsed_s  = self._elapsed_s,
-            info       = {
+            prev_state=self._prev_state,
+            curr_state=data,
+            finished=finished,
+            elapsed_s=self._elapsed_s,
+            info={
                 "accelerating": accelerating,
-                "lidar_rays":   lidar_rays,
-                "prev_obs":     self._prev_obs,
-                "curr_obs":     curr_obs,
-                "action":       action,
+                "lidar_rays": lidar_rays,
+                "prev_obs": self._prev_obs,
+                "curr_obs": curr_obs,
+                "action": action,
             },
-            n_ticks    = step.ticks_this_step,
+            n_ticks=step.ticks_this_step,
         )
 
         # Accumulate per-component totals and lateral offset for this episode.
         for k, v in step_components.items():
             self._ep_reward_components[k] = self._ep_reward_components.get(k, 0.0) + v
         if data.lateral_offset is not None:
-            self._ep_lateral_sum   += abs(data.lateral_offset)
+            self._ep_lateral_sum += abs(data.lateral_offset)
             self._ep_lateral_count += 1
 
         time_over = self._elapsed_s > self._max_episode_time_s
@@ -279,18 +282,16 @@ class TMNFEnv(BaseGameEnv):
         if finished and self._auto_respawn_on_finish and not time_over:
             self._laps_completed += 1
             logger.info(
-                "[TMNFEnv] finish detected (step.finished=%s progress=%.4f) "
-                "— calling wait_episode_ready for lap %d",
-                step.finished, data.track_progress or 0.0, self._laps_completed,
+                "[TMNFEnv] finish detected (step.finished=%s progress=%.4f) — calling wait_episode_ready for lap %d",
+                step.finished,
+                data.track_progress or 0.0,
+                self._laps_completed,
             )
             init_step = self._client.wait_episode_ready()
             self._prev_state = init_step.state_data
             obs = self._build_obs(init_step)
             self._prev_obs = obs
-            mean_lat_lap = (
-                self._ep_lateral_sum / self._ep_lateral_count
-                if self._ep_lateral_count > 0 else None
-            )
+            mean_lat_lap = self._ep_lateral_sum / self._ep_lateral_count if self._ep_lateral_count > 0 else None
             info = {
                 "track_progress": 0.0,
                 "lateral_offset": 0.0,
@@ -314,8 +315,13 @@ class TMNFEnv(BaseGameEnv):
             logger.debug(
                 "[TMNFEnv] episode end: finished=%s crashed=%s time_over=%s "
                 "terminated=%s truncated=%s progress=%.4f elapsed=%.1fs",
-                finished, crashed, time_over, terminated, truncated,
-                data.track_progress or 0.0, self._elapsed_s,
+                finished,
+                crashed,
+                time_over,
+                terminated,
+                truncated,
+                data.track_progress or 0.0,
+                self._elapsed_s,
             )
 
         if finished:
@@ -335,10 +341,7 @@ class TMNFEnv(BaseGameEnv):
         self._prev_state = data
         obs = curr_obs
         self._prev_obs = obs
-        mean_lat = (
-            self._ep_lateral_sum / self._ep_lateral_count
-            if self._ep_lateral_count > 0 else None
-        )
+        mean_lat = self._ep_lateral_sum / self._ep_lateral_count if self._ep_lateral_count > 0 else None
         info = {
             "track_progress": data.track_progress or 0.0,
             "lateral_offset": data.lateral_offset or 0.0,
@@ -389,8 +392,13 @@ class TMNFEnv(BaseGameEnv):
         logger.debug(
             "[skip] ep_step %d | rl_steps=%d  game_ticks=%d  skipped=%d  avg=%.2f  "
             "max_window=%d  max_overrun=%d  window_size=%d",
-            self._total_rl_steps, self._ep_rl_steps, self._ep_total_ticks,
-            skipped, avg, self._ep_max_window_ticks, self._ep_max_overrun_ticks,
+            self._total_rl_steps,
+            self._ep_rl_steps,
+            self._ep_total_ticks,
+            skipped,
+            avg,
+            self._ep_max_window_ticks,
+            self._ep_max_overrun_ticks,
             self._action_window_ticks,
         )
 
@@ -404,22 +412,22 @@ class TMNFEnv(BaseGameEnv):
         lookahead_vals = [v for lat, yaw in d.lookahead for v in (lat, yaw)]
         state = np.array(
             [
-                d.velocity.magnitude(),                    # [0] speed m/s
-                d.lateral_offset or 0.0,                   # [1] lateral offset m
-                d.vertical_offset or 0.0,                  # [2] vertical offset m
-                step.yaw_error,                            # [3] heading error rad
-                d.rotation.pitch(),                        # [4] pitch rad
-                d.rotation.roll(),                         # [5] roll rad
-                d.track_progress or 0.0,                   # [6] progress 0-1
-                d.turning_rate,                            # [7] turning rate
-                float(d.wheels[0].contact),                # [8-11] wheel contacts
+                d.velocity.magnitude(),  # [0] speed m/s
+                d.lateral_offset or 0.0,  # [1] lateral offset m
+                d.vertical_offset or 0.0,  # [2] vertical offset m
+                step.yaw_error,  # [3] heading error rad
+                d.rotation.pitch(),  # [4] pitch rad
+                d.rotation.roll(),  # [5] roll rad
+                d.track_progress or 0.0,  # [6] progress 0-1
+                d.turning_rate,  # [7] turning rate
+                float(d.wheels[0].contact),  # [8-11] wheel contacts
                 float(d.wheels[1].contact),
                 float(d.wheels[2].contact),
                 float(d.wheels[3].contact),
-                d.angular_velocity.x,                      # [12-14] angular vel
+                d.angular_velocity.x,  # [12-14] angular vel
                 d.angular_velocity.y,
                 d.angular_velocity.z,
-                *lookahead_vals,                           # [15-20] lookahead
+                *lookahead_vals,  # [15-20] lookahead
             ],
             dtype=np.float32,
         )

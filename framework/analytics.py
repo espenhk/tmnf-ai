@@ -11,22 +11,25 @@ Entry points used by the training loop:
     ColdStartRestartResult — one cold-start restart
     GreedySimResult       — one greedy simulation
 """
+
 from __future__ import annotations
 
 import json
 import logging
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
 try:
     import matplotlib
-    matplotlib.use('Agg', force=True)  # prevent TkAgg GC-from-daemon-thread crashes (issue #73)
-    import matplotlib.pyplot as plt
-    import matplotlib.patches as mpatches
+
+    matplotlib.use("Agg", force=True)  # prevent TkAgg GC-from-daemon-thread crashes (issue #73)
     import matplotlib.cm as cm
+    import matplotlib.patches as mpatches
+    import matplotlib.pyplot as plt
     from matplotlib.figure import Figure
+
     _HAS_MPL = True
 except ImportError:
     _HAS_MPL = False
@@ -34,10 +37,10 @@ except ImportError:
 import numpy as np
 import yaml
 
-
 # ---------------------------------------------------------------------------
 # Data containers
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class RunTrace:
@@ -48,9 +51,10 @@ class RunTrace:
     These are populated from the step info dict and action arrays; for games
     that don't provide them the lists stay empty.
     """
-    pos_x: list          # world X, sampled every TRACE_SAMPLE_EVERY steps
-    pos_z: list          # world Z (horizontal plane; Y is up in most engines)
-    throttle_state: list # per step: (accel_val, brake_val) floats in [0, 1]
+
+    pos_x: list  # world X, sampled every TRACE_SAMPLE_EVERY steps
+    pos_z: list  # world Z (horizontal plane; Y is up in most engines)
+    throttle_state: list  # per step: (accel_val, brake_val) floats in [0, 1]
     total_reward: float
 
 
@@ -64,7 +68,7 @@ class ProbeResult:
 
 @dataclass
 class ColdStartSimResult:
-    sim: int           # 1-based within its restart
+    sim: int  # 1-based within its restart
     reward: float
     throttle_counts: list  # [brake_steps, coast_steps, accel_steps]
     total_steps: int
@@ -75,7 +79,7 @@ class ColdStartSimResult:
 @dataclass
 class ColdStartRestartResult:
     restart: int
-    sims: list         # list[ColdStartSimResult]
+    sims: list  # list[ColdStartSimResult]
     best_reward: float
     beat_probe_floor: bool
 
@@ -94,20 +98,20 @@ class GreedySimResult:
     mutation_scale: float | None = None
     termination_reason: str | None = None
     # --- Option A: config-independent task metrics ---
-    finish_time_s: float | None = None        # elapsed_s when finished; None if not
+    finish_time_s: float | None = None  # elapsed_s when finished; None if not
     mean_abs_lateral_offset: float | None = None  # mean |lateral_offset| for episode
     # --- Option C: per-component reward totals ---
-    reward_components: dict | None = None     # {component_name: total_contribution}
+    reward_components: dict | None = None  # {component_name: total_contribution}
     # --- SC2 / discrete-action game analytics ---
-    action_counts: dict | None = None         # {fn_idx: step_count} for the episode
-    obs_averages: dict | None = None          # {feature_name: mean_value} for the episode
-    xy_hist: list | None = None               # 2-D list[list[int]] — 8×8 action-target histogram
+    action_counts: dict | None = None  # {fn_idx: step_count} for the episode
+    obs_averages: dict | None = None  # {feature_name: mean_value} for the episode
+    xy_hist: list | None = None  # 2-D list[list[int]] — 8×8 action-target histogram
     # --- SC2 end-screen analytics (issue: build-order plots) ---
-    skipped_frames: int | None = None         # SC2 realtime missed frames for this episode/sim
+    skipped_frames: int | None = None  # SC2 realtime missed frames for this episode/sim
     supply_capped_fraction: float | None = None  # fraction of steps where food_used >= food_cap
-    build_order: list | None = None           # [[game_time_s, unit_name], ...] — unit-build events
-    army_count_series: list | None = None     # [[game_time_s, army_count], ...] — sampled per step
-    resource_series: list | None = None       # [[game_time_s, minerals+vespene], ...] — sampled per step
+    build_order: list | None = None  # [[game_time_s, unit_name], ...] — unit-build events
+    army_count_series: list | None = None  # [[game_time_s, army_count], ...] — sampled per step
+    resource_series: list | None = None  # [[game_time_s, minerals+vespene], ...] — sampled per step
 
     def __post_init__(self):
         if self.action_counts is not None:
@@ -122,6 +126,7 @@ class GreedySimResult:
     def slim(self) -> "GreedySimResult":
         """Return a copy with large nested fields stripped (for summary use)."""
         import dataclasses
+
         return dataclasses.replace(
             self,
             trace=None,
@@ -170,18 +175,18 @@ class GreedySimResult:
 @dataclass
 class ExperimentData:
     experiment_name: str
-    probe_results: list        # list[ProbeResult]; empty if weights pre-existed
+    probe_results: list  # list[ProbeResult]; empty if weights pre-existed
     cold_start_restarts: list  # list[ColdStartRestartResult]; empty if skipped
-    greedy_sims: list          # list[GreedySimResult]
+    greedy_sims: list  # list[GreedySimResult]
     probe_floor: float | None  # best probe reward, or None if probe was skipped
-    weights_file: str          # absolute or relative path to policy_weights.yaml
-    reward_config_file: str    # path to the experiment's reward_config.yaml
-    training_params: dict      # hyperparams dict
-    timings: dict              # start, end, total_s, probe_s, cold_start_s, greedy_s
+    weights_file: str  # absolute or relative path to policy_weights.yaml
+    reward_config_file: str  # path to the experiment's reward_config.yaml
+    training_params: dict  # hyperparams dict
+    timings: dict  # start, end, total_s, probe_s, cold_start_s, greedy_s
     track: str = ""
-    early_stopped: bool = False          # True if patience-based early stopping fired
-    early_stop_sim: int | None = None    # sim index where early stopping fired
-    code_version: str = ""               # framework.version.code_version() at run time
+    early_stopped: bool = False  # True if patience-based early stopping fired
+    early_stop_sim: int | None = None  # sim index where early stopping fired
+    code_version: str = ""  # framework.version.code_version() at run time
 
     def slim_for_summary(self) -> "ExperimentData":
         """Return a copy with per-sim bulk data stripped, suitable for summary generation.
@@ -190,6 +195,7 @@ class ExperimentData:
         and strips each GreedySimResult down to its scalar fields via slim().
         """
         import dataclasses
+
         return dataclasses.replace(
             self,
             probe_results=[],
@@ -202,6 +208,7 @@ class ExperimentData:
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _save(fig: "Figure", path: str) -> None:
     fig.savefig(path, dpi=150, bbox_inches="tight")
     plt.close(fig)
@@ -211,21 +218,27 @@ def _save(fig: "Figure", path: str) -> None:
 # Generic plots
 # ---------------------------------------------------------------------------
 
+
 def plot_probe_rewards(data: ExperimentData, results_dir: str) -> None:
     if not _HAS_MPL:
         return
-    probes  = sorted(data.probe_results, key=lambda p: p.action_idx)
-    names   = [p.action_name for p in probes]
+    probes = sorted(data.probe_results, key=lambda p: p.action_idx)
+    names = [p.action_name for p in probes]
     rewards = [p.reward for p in probes]
-    best_r  = max(rewards)
-    colors  = ["#f1c40f" if r == best_r else "#3498db" for r in rewards]
+    best_r = max(rewards)
+    colors = ["#f1c40f" if r == best_r else "#3498db" for r in rewards]
 
     fig, ax = plt.subplots(figsize=(9, 5))
     bars = ax.bar(names, rewards, color=colors, edgecolor="white", linewidth=0.6)
 
     if data.probe_floor is not None:
-        ax.axhline(data.probe_floor, color="#e74c3c", linestyle="--",
-                   linewidth=1.4, label=f"probe floor ({data.probe_floor:+.1f})")
+        ax.axhline(
+            data.probe_floor,
+            color="#e74c3c",
+            linestyle="--",
+            linewidth=1.4,
+            label=f"probe floor ({data.probe_floor:+.1f})",
+        )
         ax.legend(fontsize=9)
 
     ax.set_title(f"{data.experiment_name} — Probe Phase: Reward per Constant Action")
@@ -233,9 +246,14 @@ def plot_probe_rewards(data: ExperimentData, results_dir: str) -> None:
     ax.set_ylabel("Total Episode Reward")
     ax.tick_params(axis="x", rotation=20)
     for bar, r in zip(bars, rewards):
-        ax.text(bar.get_x() + bar.get_width() / 2,
-                bar.get_height() + abs(bar.get_height()) * 0.01,
-                f"{r:+.0f}", ha="center", va="bottom", fontsize=8)
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height() + abs(bar.get_height()) * 0.01,
+            f"{r:+.0f}",
+            ha="center",
+            va="bottom",
+            fontsize=8,
+        )
     fig.tight_layout()
     _save(fig, os.path.join(results_dir, "probe_rewards.png"))
 
@@ -244,20 +262,28 @@ def plot_cold_start_rewards(data: ExperimentData, results_dir: str) -> None:
     if not _HAS_MPL:
         return
     restarts = data.cold_start_restarts
-    xs       = [r.restart for r in restarts]
-    rewards  = [r.best_reward for r in restarts]
-    colors   = ["#27ae60" if r.beat_probe_floor else "#c0392b" for r in restarts]
+    xs = [r.restart for r in restarts]
+    rewards = [r.best_reward for r in restarts]
+    colors = ["#27ae60" if r.beat_probe_floor else "#c0392b" for r in restarts]
 
     fig, ax = plt.subplots(figsize=(max(6, len(xs) * 0.8), 5))
     ax.bar(xs, rewards, color=colors, edgecolor="white", linewidth=0.6)
     if data.probe_floor is not None:
-        ax.axhline(data.probe_floor, color="#f39c12", linestyle="--",
-                   linewidth=1.4, label=f"probe floor ({data.probe_floor:+.1f})")
-    ax.legend(handles=[
-        mpatches.Patch(color="#27ae60", label="beat probe floor"),
-        mpatches.Patch(color="#c0392b", label="below probe floor"),
-    ] + ([ax.get_legend_handles_labels()[0][0]] if data.probe_floor is not None else []),
-        fontsize=9)
+        ax.axhline(
+            data.probe_floor,
+            color="#f39c12",
+            linestyle="--",
+            linewidth=1.4,
+            label=f"probe floor ({data.probe_floor:+.1f})",
+        )
+    ax.legend(
+        handles=[
+            mpatches.Patch(color="#27ae60", label="beat probe floor"),
+            mpatches.Patch(color="#c0392b", label="below probe floor"),
+        ]
+        + ([ax.get_legend_handles_labels()[0][0]] if data.probe_floor is not None else []),
+        fontsize=9,
+    )
     ax.set_title(f"{data.experiment_name} — Cold-Start: Best Reward per Restart")
     ax.set_xlabel("Restart")
     ax.set_ylabel("Best Episode Reward")
@@ -269,11 +295,11 @@ def plot_cold_start_rewards(data: ExperimentData, results_dir: str) -> None:
 def plot_greedy_rewards(data: ExperimentData, results_dir: str) -> None:
     if not _HAS_MPL:
         return
-    sims    = [s.sim for s in data.greedy_sims]
+    sims = [s.sim for s in data.greedy_sims]
     rewards = [s.reward for s in data.greedy_sims]
 
-    best_so_far   = []
-    running_best  = float("-inf")
+    best_so_far = []
+    running_best = float("-inf")
     for r in rewards:
         running_best = max(running_best, r)
         best_so_far.append(running_best)
@@ -283,13 +309,16 @@ def plot_greedy_rewards(data: ExperimentData, results_dir: str) -> None:
 
     fig, ax = plt.subplots(figsize=(max(8, len(sims) * 0.15), 5))
     ax.scatter(sims, rewards, color="#95a5a6", s=18, alpha=0.7, zorder=2, label="candidate reward")
-    ax.step(sims, best_so_far, where="post", color="#e67e22",
-            linewidth=2.0, zorder=3, label="best so far")
-    ax.scatter(improvement_xs, improvement_ys, color="#27ae60",
-               s=60, zorder=4, marker="^", label="improvement")
+    ax.step(sims, best_so_far, where="post", color="#e67e22", linewidth=2.0, zorder=3, label="best so far")
+    ax.scatter(improvement_xs, improvement_ys, color="#27ae60", s=60, zorder=4, marker="^", label="improvement")
     if getattr(data, "early_stopped", False) and data.early_stop_sim is not None:
-        ax.axvline(data.early_stop_sim, color="#e74c3c", linestyle="--",
-                   linewidth=1.5, label=f"early stop (sim {data.early_stop_sim})")
+        ax.axvline(
+            data.early_stop_sim,
+            color="#e74c3c",
+            linestyle="--",
+            linewidth=1.5,
+            label=f"early stop (sim {data.early_stop_sim})",
+        )
     ax.set_title(f"{data.experiment_name} — Greedy Phase: Reward per Simulation")
     ax.set_xlabel("Simulation")
     ax.set_ylabel("Total Episode Reward")
@@ -305,28 +334,34 @@ def plot_reward_trajectory(data: ExperimentData, results_dir: str) -> None:
     x = 0
 
     for p in sorted(data.probe_results, key=lambda p: p.action_idx):
-        xs.append(x); ys.append(p.reward); colors.append("#3498db")
+        xs.append(x)
+        ys.append(p.reward)
+        colors.append("#3498db")
         x += 1
 
     for restart in data.cold_start_restarts:
         for s in restart.sims:
-            xs.append(x); ys.append(s.reward); colors.append("#9b59b6")
+            xs.append(x)
+            ys.append(s.reward)
+            colors.append("#9b59b6")
             x += 1
 
     for s in data.greedy_sims:
-        xs.append(x); ys.append(s.reward); colors.append("#e67e22")
+        xs.append(x)
+        ys.append(s.reward)
+        colors.append("#e67e22")
         x += 1
 
     running_best = float("-inf")
     best_xs, best_ys = [], []
     for xi, yi in zip(xs, ys):
         running_best = max(running_best, yi)
-        best_xs.append(xi); best_ys.append(running_best)
+        best_xs.append(xi)
+        best_ys.append(running_best)
 
     fig, ax = plt.subplots(figsize=(max(8, len(xs) * 0.12), 5))
     ax.scatter(xs, ys, c=colors, s=14, alpha=0.6, zorder=2)
-    ax.step(best_xs, best_ys, where="post", color="black",
-            linewidth=1.8, zorder=3, label="best so far")
+    ax.step(best_xs, best_ys, where="post", color="black", linewidth=1.8, zorder=3, label="best so far")
 
     boundary = len(data.probe_results or [])
     if boundary > 0 and (data.cold_start_restarts or data.greedy_sims):
@@ -385,8 +420,7 @@ def plot_task_metrics(data: ExperimentData, results_dir: str) -> None:
                     best_ft = yi
                 best_xs_ft.append(xi)
                 best_ys_ft.append(best_ft)
-            ax_ft.step(best_xs_ft, best_ys_ft, where="post", color="black",
-                       linewidth=1.8, label="best so far")
+            ax_ft.step(best_xs_ft, best_ys_ft, where="post", color="black", linewidth=1.8, label="best so far")
         ax_ft.set_title("Finish Time per Sim")
         ax_ft.set_xlabel("Simulation")
         ax_ft.set_ylabel("Finish time (s)")
@@ -397,10 +431,7 @@ def plot_task_metrics(data: ExperimentData, results_dir: str) -> None:
     # Panel: rolling finish rate (window = min(20, len(sims)))
     window = min(20, len(sims))
     finished_flags = [1 if s.finish_time_s is not None else 0 for s in sims]
-    rates = [
-        sum(finished_flags[max(0, i - window + 1): i + 1]) / min(i + 1, window)
-        for i in range(len(sims))
-    ]
+    rates = [sum(finished_flags[max(0, i - window + 1) : i + 1]) / min(i + 1, window) for i in range(len(sims))]
     ax_rate.plot(xs, rates, color="#3498db", linewidth=1.8, label=f"finish rate (window={window})")
     ax_rate.set_ylim(0, 1.05)
     ax_rate.set_title("Rolling Finish Rate")
@@ -522,14 +553,12 @@ def plot_reward_component_breakdown(data: ExperimentData, results_dir: str) -> N
         color = colors[k]
         label = k if k not in labeled else None
         if pos_vals.any():
-            ax.bar(xs, pos_vals, bottom=pos_bottoms, color=color,
-                   label=label, width=0.8, edgecolor="none", alpha=0.85)
+            ax.bar(xs, pos_vals, bottom=pos_bottoms, color=color, label=label, width=0.8, edgecolor="none", alpha=0.85)
             labeled.add(k)
             label = None
             pos_bottoms = pos_bottoms + pos_vals
         if neg_vals.any():
-            ax.bar(xs, neg_vals, bottom=neg_bottoms, color=color,
-                   label=label, width=0.8, edgecolor="none", alpha=0.85)
+            ax.bar(xs, neg_vals, bottom=neg_bottoms, color=color, label=label, width=0.8, edgecolor="none", alpha=0.85)
             labeled.add(k)
             neg_bottoms = neg_bottoms + neg_vals
 
@@ -545,6 +574,7 @@ def plot_reward_component_breakdown(data: ExperimentData, results_dir: str) -> N
 # ---------------------------------------------------------------------------
 # Markdown tables
 # ---------------------------------------------------------------------------
+
 
 def _probe_table_md(data: ExperimentData) -> str:
     best_reward = max(p.reward for p in data.probe_results)
@@ -571,7 +601,7 @@ def _cold_start_table_md(data: ExperimentData) -> str:
     ]
     for r in data.cold_start_restarts:
         marker = "← best" if r.best_reward == best_r else ""
-        beat   = "yes" if r.beat_probe_floor else "no"
+        beat = "yes" if r.beat_probe_floor else "no"
         lines.append(f"| {r.restart:7d} | {r.best_reward:+11.1f} | {beat:16s} | {marker} |\n")
     return "".join(lines)
 
@@ -585,15 +615,12 @@ def _greedy_table_md(data: ExperimentData) -> str:
         "|------|----------|----------|-------------|--------------|--------------|-------------|\n",
     ]
     for s in data.greedy_sims:
-        tag    = "**NEW BEST**" if s.improved else ""
+        tag = "**NEW BEST**" if s.improved else ""
         reason = s.termination_reason or ""
-        prog   = f"{s.final_track_progress:.3f}"
-        ft     = f"{s.finish_time_s:.1f}s" if s.finish_time_s is not None else "—"
-        lat    = (f"{s.mean_abs_lateral_offset:.2f}m"
-                  if s.mean_abs_lateral_offset is not None else "—")
-        lines.append(
-            f"| {s.sim:4d} | {s.reward:+8.1f} | {prog:8s} | {ft:11s} | {lat:7s} | {reason:12s} | {tag} |\n"
-        )
+        prog = f"{s.final_track_progress:.3f}"
+        ft = f"{s.finish_time_s:.1f}s" if s.finish_time_s is not None else "—"
+        lat = f"{s.mean_abs_lateral_offset:.2f}m" if s.mean_abs_lateral_offset is not None else "—"
+        lines.append(f"| {s.sim:4d} | {s.reward:+8.1f} | {prog:8s} | {ft:11s} | {lat:7s} | {reason:12s} | {tag} |\n")
     return "".join(lines)
 
 
@@ -603,12 +630,12 @@ def _task_metrics_table_md(data: ExperimentData) -> str:
     if not sims:
         return ""
     finished_sims = [s for s in sims if s.finish_time_s is not None]
-    finish_rate   = len(finished_sims) / len(sims)
+    finish_rate = len(finished_sims) / len(sims)
     best_progress = max(s.final_track_progress for s in sims)
     mean_progress = sum(s.final_track_progress for s in sims) / len(sims)
-    lats   = [s.mean_abs_lateral_offset for s in sims if s.mean_abs_lateral_offset is not None]
+    lats = [s.mean_abs_lateral_offset for s in sims if s.mean_abs_lateral_offset is not None]
     mean_lat = sum(lats) / len(lats) if lats else None
-    lines  = [
+    lines = [
         "## Task Metrics (config-independent)\n\n",
         "| Metric | Value |\n",
         "|--------|-------|\n",
@@ -619,8 +646,8 @@ def _task_metrics_table_md(data: ExperimentData) -> str:
     if finished_sims:
         finish_times = [s.finish_time_s for s in finished_sims if s.finish_time_s is not None]
         if finish_times:
-            best_ft  = min(finish_times)
-            mean_ft  = sum(finish_times) / len(finish_times)
+            best_ft = min(finish_times)
+            mean_ft = sum(finish_times) / len(finish_times)
             lines += [
                 f"| Best finish time | {best_ft:.1f}s |\n",
                 f"| Mean finish time | {mean_ft:.1f}s |\n",
@@ -685,14 +712,18 @@ def _summary_md(data: ExperimentData) -> str:
 # Grid search summary
 # ---------------------------------------------------------------------------
 
+
 def _gs_stats(data: ExperimentData) -> dict:
     sims = data.greedy_sims
     if not sims:
         return {
-            "best_reward": float("-inf"), "n_improvements": 0,
-            "first_improvement_sim": None, "accel_pct": None,
+            "best_reward": float("-inf"),
+            "n_improvements": 0,
+            "first_improvement_sim": None,
+            "accel_pct": None,
             "greedy_runtime_s": data.timings.get("greedy_s"),
-            "finish_rate": 0.0, "best_track_progress": 0.0,
+            "finish_rate": 0.0,
+            "best_track_progress": 0.0,
             "best_finish_time_s": None,
         }
     best_reward = max(s.reward for s in sims)
@@ -725,7 +756,7 @@ def plot_gs_comparison_rewards(runs: list[tuple[str, dict]], summary_dir: str) -
     if not _HAS_MPL:
         return
     runs_sorted = sorted(runs, key=lambda x: x[1]["best_reward"])
-    names   = [r[0] for r in runs_sorted]
+    names = [r[0] for r in runs_sorted]
     rewards = [r[1]["best_reward"] for r in runs_sorted]
     n = len(names)
     colors = cm.RdYlGn(np.linspace(0.15, 0.85, n))
@@ -740,9 +771,7 @@ def plot_gs_comparison_rewards(runs: list[tuple[str, dict]], summary_dir: str) -
     _save(fig, os.path.join(summary_dir, "comparison_rewards.png"))
 
 
-def plot_gs_reward_trajectories(
-    runs: list[tuple[str, ExperimentData]], summary_dir: str
-) -> None:
+def plot_gs_reward_trajectories(runs: list[tuple[str, ExperimentData]], summary_dir: str) -> None:
     """Cross-run line chart of best-reward-so-far over the greedy sim axis.
 
     Each experiment is one line.  When normalized rewards have been applied to
@@ -769,8 +798,7 @@ def plot_gs_reward_trajectories(
             best = max(best, s.reward)
             running_best.append(best)
         color = cmap[i % len(cmap)]
-        ax.step(xs, running_best, where="post", color=color, linewidth=1.4,
-                alpha=0.85, label=name)
+        ax.step(xs, running_best, where="post", color=color, linewidth=1.4, alpha=0.85, label=name)
 
     ax.axhline(0, color="black", linewidth=0.6, linestyle="--", alpha=0.4)
     ax.set_xlabel("Greedy simulation")
@@ -790,7 +818,7 @@ def plot_gs_comparison_task_metrics(
     if not _HAS_MPL:
         return
     runs_sorted = sorted(runs, key=lambda x: x[1]["task_metric"])
-    names    = [r[0] for r in runs_sorted]
+    names = [r[0] for r in runs_sorted]
     progress = [r[1]["task_metric"] for r in runs_sorted]
     n = len(names)
     colors = cm.RdYlGn(np.linspace(0.15, 0.85, n))
@@ -832,15 +860,9 @@ def infer_varied_summary_keys(runs: list[tuple[str, ExperimentData]]) -> list[st
         reward_cfg_by_run[idx] = reward_cfg
         reward_keys.update(reward_cfg.keys())
 
-    varied_training = {
-        k
-        for k in training_keys
-        if len({str(data.training_params.get(k)) for _, data in runs}) > 1
-    }
+    varied_training = {k for k in training_keys if len({str(data.training_params.get(k)) for _, data in runs}) > 1}
     varied_reward = {
-        k
-        for k in reward_keys
-        if len({str(reward_cfg_by_run[idx].get(k)) for idx, _ in enumerate(runs)}) > 1
+        k for k in reward_keys if len({str(reward_cfg_by_run[idx].get(k)) for idx, _ in enumerate(runs)}) > 1
     }
     return sorted(varied_training | varied_reward)
 
@@ -868,7 +890,7 @@ def save_grid_summary(
         style).  Pass e.g. "{:.1%}".format for rate/percentage metrics.
     """
     os.makedirs(summary_dir, exist_ok=True)
-    stats  = [(name, _gs_stats(data)) for name, data in runs]
+    stats = [(name, _gs_stats(data)) for name, data in runs]
 
     # Inject task_metric into each stats dict (custom fn or fallback to track progress).
     stats_by_name = {name: s for name, s in stats}
@@ -880,14 +902,13 @@ def save_grid_summary(
             s["task_metric"] = s["best_track_progress"]
 
     # Primary ranking: task metric (config-independent); secondary: reward.
-    ranked_by_progress = sorted(stats,
-                                key=lambda x: (-x[1]["task_metric"],
-                                               -x[1]["best_reward"]))
-    ranked_by_reward   = sorted(stats, key=lambda x: -x[1]["best_reward"])
+    ranked_by_progress = sorted(stats, key=lambda x: (-x[1]["task_metric"], -x[1]["best_reward"]))
+    ranked_by_reward = sorted(stats, key=lambda x: -x[1]["best_reward"])
 
     plot_gs_comparison_rewards([(name, s) for name, s in ranked_by_reward], summary_dir)
     plot_gs_comparison_task_metrics(
-        [(name, s) for name, s in ranked_by_progress], summary_dir,
+        [(name, s) for name, s in ranked_by_progress],
+        summary_dir,
         metric_label=task_metric_label,
     )
     plot_gs_reward_trajectories(runs, summary_dir)
@@ -910,7 +931,8 @@ def save_grid_summary(
     for version in sorted(versions_to_runs):
         names = ", ".join(sorted(versions_to_runs[version]))
         lines.append(f"- `{version}` ({len(versions_to_runs[version])}): {names}\n")
-    lines += ["\n",
+    lines += [
+        "\n",
         "## Rankings by Task Metrics (config-independent)\n\n",
         f"Ranked by {task_metric_label}, then by best reward.\n\n",
         "![Task metrics comparison](comparison_task_metrics.png)\n\n",
@@ -919,11 +941,9 @@ def save_grid_summary(
     ]
     for rank, (name, s) in enumerate(ranked_by_progress, 1):
         prog = _fmt_task(s["task_metric"])
-        fr   = f"{s['finish_rate']:.1%}"
-        bft  = f"{s['best_finish_time_s']:.1f}s" if s["best_finish_time_s"] is not None else "—"
-        lines.append(
-            f"| {rank} | {name} | {prog} | {fr} | {bft} | {s['best_reward']:+.1f} |\n"
-        )
+        fr = f"{s['finish_rate']:.1%}"
+        bft = f"{s['best_finish_time_s']:.1f}s" if s["best_finish_time_s"] is not None else "—"
+        lines.append(f"| {rank} | {name} | {prog} | {fr} | {bft} | {s['best_reward']:+.1f} |\n")
     lines.append("\n")
 
     lines += [
@@ -934,13 +954,10 @@ def save_grid_summary(
         "|------|-----------|-------------|--------------|-------------------|---------|-------------|\n",
     ]
     for rank, (name, s) in enumerate(ranked_by_reward, 1):
-        fi  = str(s["first_improvement_sim"]) if s["first_improvement_sim"] is not None else "—"
+        fi = str(s["first_improvement_sim"]) if s["first_improvement_sim"] is not None else "—"
         acc = f"{s['accel_pct']:.0f}%" if s["accel_pct"] is not None else "—"
-        rt  = _fmt_duration(s["greedy_runtime_s"]) if s["greedy_runtime_s"] else "—"
-        lines.append(
-            f"| {rank} | {name} | {s['best_reward']:+.1f} | {s['n_improvements']} "
-            f"| {fi} | {acc} | {rt} |\n"
-        )
+        rt = _fmt_duration(s["greedy_runtime_s"]) if s["greedy_runtime_s"] else "—"
+        lines.append(f"| {rank} | {name} | {s['best_reward']:+.1f} | {s['n_improvements']} | {fi} | {acc} | {rt} |\n")
     lines.append("\n")
 
     runs_by_name = {n: d for n, d in runs}
@@ -948,10 +965,12 @@ def save_grid_summary(
         data = runs_by_name[name]
         s = stats_by_name[name]
         results_rel = f"../{name}/results"
-        lines.append(f"---\n\n## {rank}. {name}\n\n"
-                     f"**Best reward: {s['best_reward']:+.1f}** | "
-                     f"**{task_metric_label}: {_fmt_task(s['task_metric'])}** | "
-                     f"**Finish rate: {s['finish_rate']:.1%}**\n\n")
+        lines.append(
+            f"---\n\n## {rank}. {name}\n\n"
+            f"**Best reward: {s['best_reward']:+.1f}** | "
+            f"**{task_metric_label}: {_fmt_task(s['task_metric'])}** | "
+            f"**Finish rate: {s['finish_rate']:.1%}**\n\n"
+        )
         if varied_keys and data.training_params:
             reward_cfg = {}
             if os.path.exists(data.reward_config_file):
@@ -967,7 +986,7 @@ def save_grid_summary(
             for k in varied_keys:
                 lines.append(f"| `{k}` | {all_params.get(k, '?')} |\n")
             lines.append("\n")
-        fi  = str(s["first_improvement_sim"]) if s["first_improvement_sim"] is not None else "—"
+        fi = str(s["first_improvement_sim"]) if s["first_improvement_sim"] is not None else "—"
         acc = f"{s['accel_pct']:.1f}%" if s["accel_pct"] is not None else "—"
         bft = f"{s['best_finish_time_s']:.1f}s" if s["best_finish_time_s"] is not None else "—"
         lines += [
@@ -992,16 +1011,17 @@ def save_grid_summary(
 
     report_path = os.path.join(summary_dir, "summary.md")
     with open(report_path, "w", encoding="utf-8") as f:
-        f.writelines(lines)
+        f.write("".join(lines).rstrip("\n") + "\n")
     # Eagerly close all figures to prevent tkinter GC crashes from daemon threads
     if _HAS_MPL:
-        plt.close('all')
+        plt.close("all")
     logger.info("Saved grid summary → %s", report_path)
 
 
 # ---------------------------------------------------------------------------
 # Experiment data JSON persistence (for grid-search consolidation)
 # ---------------------------------------------------------------------------
+
 
 def save_experiment_data_json(data: ExperimentData, results_dir: str) -> str:
     """Serialise *data* to ``experiment_data.json`` inside *results_dir*.

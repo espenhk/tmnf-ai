@@ -40,6 +40,7 @@ import numpy as np
 # Optional dependency — fails loudly if not installed.
 try:
     import rlgym  # noqa: F401
+
     _RLGYM_AVAILABLE = True
 except ImportError as _exc:
     raise ImportError(
@@ -53,12 +54,12 @@ from gymnasium import spaces
 
 from framework.base_env import BaseGameEnv
 from games.rocket_league.obs_spec import BASE_OBS_DIM
-from games.rocket_league.reward import RocketLeagueRewardConfig, RocketLeagueRewardCalculator
+from games.rocket_league.reward import RocketLeagueRewardCalculator, RocketLeagueRewardConfig
 
 logger = logging.getLogger(__name__)
 
 # RLGym arena constants (Unreal Units)
-_BALL_GOAL_Y_OPP = 5120.0   # opponent goal Y (orange goal, positive side)
+_BALL_GOAL_Y_OPP = 5120.0  # opponent goal Y (orange goal, positive side)
 _BALL_GOAL_Y_OWN = -5120.0  # own goal Y (blue goal, negative side)
 _ARENA_DIAG = 13272.0
 
@@ -101,8 +102,8 @@ class RocketLeagueEnv(BaseGameEnv):
             dtype=np.float32,
         )
         self.action_space = spaces.Box(
-            low=np.array([-1., -1., -1., -1., -1., 0., 0., 0.], dtype=np.float32),
-            high=np.array([ 1.,  1.,  1.,  1.,  1., 1., 1., 1.], dtype=np.float32),
+            low=np.array([-1.0, -1.0, -1.0, -1.0, -1.0, 0.0, 0.0, 0.0], dtype=np.float32),
+            high=np.array([1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0], dtype=np.float32),
             dtype=np.float32,
         )
 
@@ -156,17 +157,18 @@ class RocketLeagueEnv(BaseGameEnv):
         info_rows: list[dict] = (
             [row for row in info_raw if isinstance(row, dict)]
             if isinstance(info_raw, (list, tuple))
-            else [info_raw] if isinstance(info_raw, dict)
+            else [info_raw]
+            if isinstance(info_raw, dict)
             else []
         )
         primary_info = info_rows[0] if info_rows else {}
 
-        goal_scored = any(
-            bool(row.get("TimeoutException", False) is False and row.get("goal_scored", False))
-            for row in info_rows
-        ) if info_rows else bool(
-            primary_info.get("TimeoutException", False) is False
-            and primary_info.get("goal_scored", False)
+        goal_scored = (
+            any(
+                bool(row.get("TimeoutException", False) is False and row.get("goal_scored", False)) for row in info_rows
+            )
+            if info_rows
+            else bool(primary_info.get("TimeoutException", False) is False and primary_info.get("goal_scored", False))
         )
         goal_conceded = any(bool(row.get("goal_conceded", False)) for row in info_rows)
         ball_touched = any(bool(row.get("ball_touched", False)) for row in info_rows)

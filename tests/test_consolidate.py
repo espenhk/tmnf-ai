@@ -1,4 +1,5 @@
 """Tests for grid-search consolidation: save/load experiment data + consolidate CLI."""
+
 from __future__ import annotations
 
 import json
@@ -6,29 +7,30 @@ import os
 import tempfile
 import unittest
 
-import pytest
-
 from framework.analytics import (
     ExperimentData,
     GreedySimResult,
     RunTrace,
-    save_experiment_data_json,
     load_experiment_data,
+    save_experiment_data_json,
 )
 
 
-def _make_experiment_data(name: str = "test_exp", track: str = "a03_centerline",
-                          reward: float = 100.0, mutation_scale: float = 0.05) -> ExperimentData:
+def _make_experiment_data(
+    name: str = "test_exp", track: str = "a03_centerline", reward: float = 100.0, mutation_scale: float = 0.05
+) -> ExperimentData:
     return ExperimentData(
         experiment_name=name,
         probe_results=[],
         cold_start_restarts=[],
         greedy_sims=[
             GreedySimResult(
-                sim=1, reward=reward, improved=True,
-                throttle_counts=[5, 10, 85], total_steps=100,
-                trace=RunTrace(pos_x=[0.0, 1.0], pos_z=[0.0, 2.0],
-                               throttle_state=[(0, 1)], total_reward=reward),
+                sim=1,
+                reward=reward,
+                improved=True,
+                throttle_counts=[5, 10, 85],
+                total_steps=100,
+                trace=RunTrace(pos_x=[0.0, 1.0], pos_z=[0.0, 2.0], throttle_state=[(0, 1)], total_reward=reward),
             ),
         ],
         probe_floor=None,

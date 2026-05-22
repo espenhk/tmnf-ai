@@ -30,6 +30,7 @@ Always write a combined summary even for a single experiment::
     python redo_analytics.py experiments/a03/exp1 \\
         --summary-name single_summary
 """
+
 from __future__ import annotations
 
 import argparse
@@ -79,6 +80,7 @@ def _detect_game(training_params: dict) -> str:
 # Analytics module loader
 # ---------------------------------------------------------------------------
 
+
 def _load_analytics_fns(game: str):
     """Return ``(save_experiment_results, save_grid_summary)`` for *game*.
 
@@ -100,17 +102,21 @@ def _load_analytics_fns(game: str):
 
     if save_exp is None:
         from games.tmnf.analytics import save_experiment_results as _fn
+
         save_exp = _fn
 
     if save_grid is None:
         from framework.analytics import save_grid_summary as _fn
+
         save_grid = _fn
 
     return save_exp, save_grid
 
+
 # ---------------------------------------------------------------------------
 # Core function (importable for testing)
 # ---------------------------------------------------------------------------
+
 
 def _normalize_paths(data: "ExperimentData", experiment_dir: str) -> None:
     """Remap stored path fields to local copies when the stored path is missing."""
@@ -177,9 +183,7 @@ def redo_analytics(
         try:
             data = load_experiment_data(d)
         except FileNotFoundError:
-            logger.error(
-                "No experiment_data.json found in %s/results/ — skipping.", d
-            )
+            logger.error("No experiment_data.json found in %s/results/ — skipping.", d)
             continue
 
         if effective_game is None:
@@ -223,9 +227,7 @@ def redo_analytics(
 
     _, save_grid_summary = _load_analytics_fns(effective_game)
 
-    name = summary_name or (
-        summary_runs[0][0] if summary_only and len(summary_runs) == 1 else "combined"
-    )
+    name = summary_name or (summary_runs[0][0] if summary_only and len(summary_runs) == 1 else "combined")
     if summary_dir is None:
         parent = os.path.commonpath(successful_dirs)
         summary_dir = os.path.join(parent, f"{name}__summary")
@@ -239,6 +241,7 @@ def redo_analytics(
 # ---------------------------------------------------------------------------
 # CLI entry point
 # ---------------------------------------------------------------------------
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(
@@ -277,10 +280,7 @@ def main() -> None:
         "--summary-dir",
         default=None,
         metavar="PATH",
-        help=(
-            "Output directory for the combined summary. "
-            "Defaults to <common-parent>/<summary-name>__summary/"
-        ),
+        help=("Output directory for the combined summary. Defaults to <common-parent>/<summary-name>__summary/"),
     )
     parser.add_argument(
         "--no-individual",
