@@ -357,14 +357,14 @@ class TestSC2TrainingLoop(unittest.TestCase):
                 )
                 policy.initialize_random()
 
-                best_policy, best_reward, sims, _, _ = _greedy_loop_genetic(
+                loop = _greedy_loop_genetic(
                     env,
                     policy,
                     n_generations=1,
                     weights_file=weights_file,
                 )
-                self.assertEqual(len(sims), 1)
-                self.assertTrue(math.isfinite(best_reward))
+                self.assertEqual(len(loop.greedy_sims), 1)
+                self.assertTrue(math.isfinite(loop.best_reward))
         finally:
             env.close()
 
@@ -385,14 +385,14 @@ class TestSC2TrainingLoop(unittest.TestCase):
                     n_bins=2,
                     epsilon=1.0,
                 )
-                _, best_reward, sims, _, _ = _greedy_loop_q_learning(
+                loop = _greedy_loop_q_learning(
                     env,
                     policy,
                     n_episodes=1,
                     weights_file=weights_file,
                 )
-                self.assertEqual(len(sims), 1)
-                self.assertTrue(math.isfinite(best_reward))
+                self.assertEqual(len(loop.greedy_sims), 1)
+                self.assertTrue(math.isfinite(loop.best_reward))
         finally:
             env.close()
 
