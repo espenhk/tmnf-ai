@@ -1,8 +1,10 @@
 """Tests for the curiosity-driven exploration modules (issue #24)."""
+
 from __future__ import annotations
 
-import numpy as np
 import unittest
+
+import numpy as np
 
 from games.tmnf.curiosity import ICM, RND, make_curiosity
 
@@ -10,18 +12,16 @@ from games.tmnf.curiosity import ICM, RND, make_curiosity
 class TestICMReward(unittest.TestCase):
     """Intrinsic reward should drop as the model learns a recurring transition."""
 
-    def _fixed_transition(self, obs_dim: int = 6, action_dim: int = 3,
-                          seed: int = 0):
+    def _fixed_transition(self, obs_dim: int = 6, action_dim: int = 3, seed: int = 0):
         rng = np.random.default_rng(seed)
-        s  = rng.standard_normal(obs_dim).astype(np.float32)
-        a  = rng.standard_normal(action_dim).astype(np.float32)
+        s = rng.standard_normal(obs_dim).astype(np.float32)
+        a = rng.standard_normal(action_dim).astype(np.float32)
         sp = rng.standard_normal(obs_dim).astype(np.float32)
         return s, a, sp
 
     def test_reward_decreases_after_repeated_updates(self):
         s, a, sp = self._fixed_transition()
-        icm = ICM(obs_dim=s.size, action_dim=a.size, feature_dim=4,
-                  hidden_size=16, lr=0.05, beta=0.2, seed=42)
+        icm = ICM(obs_dim=s.size, action_dim=a.size, feature_dim=4, hidden_size=16, lr=0.05, beta=0.2, seed=42)
 
         r_initial = icm.reward(s, a, sp)
         for _ in range(500):
@@ -29,9 +29,11 @@ class TestICMReward(unittest.TestCase):
         r_final = icm.reward(s, a, sp)
 
         self.assertGreater(r_initial, 0.0)
-        self.assertLess(r_final, r_initial * 0.5,
-                        f"ICM should learn the recurring transition: "
-                        f"initial={r_initial:.5f} final={r_final:.5f}")
+        self.assertLess(
+            r_final,
+            r_initial * 0.5,
+            f"ICM should learn the recurring transition: initial={r_initial:.5f} final={r_final:.5f}",
+        )
 
     def test_reward_is_nonnegative(self):
         s, a, sp = self._fixed_transition(seed=1)
@@ -71,9 +73,11 @@ class TestRNDReward(unittest.TestCase):
         r_final = rnd.reward(np.zeros_like(sp), np.zeros(3), sp)
 
         self.assertGreater(r_initial, 0.0)
-        self.assertLess(r_final, r_initial * 0.1,
-                        f"RND predictor should learn the recurring state: "
-                        f"initial={r_initial:.5f} final={r_final:.5f}")
+        self.assertLess(
+            r_final,
+            r_initial * 0.1,
+            f"RND predictor should learn the recurring state: initial={r_initial:.5f} final={r_final:.5f}",
+        )
 
     def test_target_network_is_frozen(self):
         rnd = RND(obs_dim=4, feature_dim=2, hidden_size=8, lr=0.1, seed=0)
@@ -91,19 +95,16 @@ class TestRNDReward(unittest.TestCase):
 
 
 class TestMakeCuriosity(unittest.TestCase):
-
     def test_none_returns_none(self):
         self.assertIsNone(make_curiosity("none", obs_dim=5, action_dim=3))
         self.assertIsNone(make_curiosity("NONE", obs_dim=5, action_dim=3))
 
     def test_icm_factory(self):
-        m = make_curiosity("icm", obs_dim=5, action_dim=3,
-                           feature_dim=4, hidden_size=8)
+        m = make_curiosity("icm", obs_dim=5, action_dim=3, feature_dim=4, hidden_size=8)
         self.assertIsInstance(m, ICM)
 
     def test_rnd_factory(self):
-        m = make_curiosity("rnd", obs_dim=5, action_dim=3,
-                           feature_dim=4, hidden_size=8)
+        m = make_curiosity("rnd", obs_dim=5, action_dim=3, feature_dim=4, hidden_size=8)
         self.assertIsInstance(m, RND)
 
     def test_unknown_kind_raises(self):

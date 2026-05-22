@@ -1,8 +1,9 @@
 """Unit tests for patience-based early stopping in greedy training loops."""
+
 import os
 import sys
-import unittest
 import tempfile
+import unittest
 
 import numpy as np
 
@@ -13,17 +14,18 @@ if _root not in sys.path:
     sys.path.insert(0, _root)
 
 # framework.training has no top-level shim; import directly.
-from framework.training import _greedy_loop, _greedy_loop_q_learning
+from framework.obs_spec import ObsDim, ObsSpec
+
 # framework.policies.WeightedLinearPolicy is used directly because the TMNF shim
 # in policies.py bakes in TMNF's obs_spec and a different from_cfg signature;
 # these tests exercise framework internals with a custom 3-dim obs_spec.
 from framework.policies import WeightedLinearPolicy
-from framework.obs_spec import ObsSpec, ObsDim
-
+from framework.training import _greedy_loop, _greedy_loop_q_learning
 
 # ---------------------------------------------------------------------------
 # Minimal stub env that returns a fixed reward each episode
 # ---------------------------------------------------------------------------
+
 
 class _FixedRewardEnv:
     """Minimal env stub: every episode returns a fixed reward."""
@@ -76,6 +78,7 @@ class _IncreasingRewardEnv:
 # Minimal stub policy for Q-learning loop tests
 # ---------------------------------------------------------------------------
 
+
 class _StubQPolicy:
     """Minimal policy compatible with _greedy_loop_q_learning."""
 
@@ -93,6 +96,7 @@ class _StubQPolicy:
 
     def save(self, path: str) -> None:
         import yaml
+
         with open(path, "w") as f:
             yaml.dump({}, f)
 
@@ -107,20 +111,19 @@ class _StubQPolicy:
 # Helpers
 # ---------------------------------------------------------------------------
 
-_OBS_SPEC = ObsSpec([
-    ObsDim("a", 1.0, ""),
-    ObsDim("b", 1.0, ""),
-    ObsDim("c", 1.0, ""),
-])
+_OBS_SPEC = ObsSpec(
+    [
+        ObsDim("a", 1.0, ""),
+        ObsDim("b", 1.0, ""),
+        ObsDim("c", 1.0, ""),
+    ]
+)
 _HEAD_NAMES = ["steer", "accel", "brake"]
 
 
 def _make_wlp(weights_file: str) -> WeightedLinearPolicy:
     """Create a trivial WeightedLinearPolicy with zero weights."""
-    cfg = {
-        h + "_weights": {n: 0.0 for n in _OBS_SPEC.names}
-        for h in _HEAD_NAMES
-    }
+    cfg = {h + "_weights": {n: 0.0 for n in _OBS_SPEC.names} for h in _HEAD_NAMES}
     p = WeightedLinearPolicy.from_cfg(cfg, _OBS_SPEC, _HEAD_NAMES)
     p.save(weights_file)
     return p
@@ -130,8 +133,8 @@ def _make_wlp(weights_file: str) -> WeightedLinearPolicy:
 # Tests — _greedy_loop (hill_climbing / neural_net)
 # ---------------------------------------------------------------------------
 
-class TestPatienceEarlyStopping(unittest.TestCase):
 
+class TestPatienceEarlyStopping(unittest.TestCase):
     def test_stops_after_patience_sims_no_improvement(self):
         """With a fixed-reward env and a high best_reward seed, early stopping fires
         after exactly `patience` sims (none of which improve)."""
@@ -139,15 +142,19 @@ class TestPatienceEarlyStopping(unittest.TestCase):
             wf = f.name
         try:
             policy = _make_wlp(wf)
-            env    = _FixedRewardEnv(reward=10.0)
-            n_sims   = 100
+            env = _FixedRewardEnv(reward=10.0)
+            n_sims = 100
             patience = 5
 
             _, _, sims, early_stopped, early_stop_sim = _greedy_loop(
-                env=env, policy=policy, n_sims=n_sims,
-                mutation_scale=0.01, weights_file=wf,
+                env=env,
+                policy=policy,
+                n_sims=n_sims,
+                mutation_scale=0.01,
+                weights_file=wf,
                 best_reward=100.0,  # higher than any candidate reward → never improves
-                patience=patience, adaptive_mutation=False,
+                patience=patience,
+                adaptive_mutation=False,
             )
 
             self.assertTrue(early_stopped)
@@ -162,13 +169,17 @@ class TestPatienceEarlyStopping(unittest.TestCase):
             wf = f.name
         try:
             policy = _make_wlp(wf)
-            env    = _FixedRewardEnv(reward=10.0)
-            n_sims   = 10
+            env = _FixedRewardEnv(reward=10.0)
+            n_sims = 10
 
             _, _, sims, early_stopped, early_stop_sim = _greedy_loop(
-                env=env, policy=policy, n_sims=n_sims,
-                mutation_scale=0.01, weights_file=wf,
-                patience=0, adaptive_mutation=False,
+                env=env,
+                policy=policy,
+                n_sims=n_sims,
+                mutation_scale=0.01,
+                weights_file=wf,
+                patience=0,
+                adaptive_mutation=False,
             )
 
             self.assertFalse(early_stopped)
@@ -183,14 +194,18 @@ class TestPatienceEarlyStopping(unittest.TestCase):
             wf = f.name
         try:
             policy = _make_wlp(wf)
-            env    = _IncreasingRewardEnv()
-            n_sims   = 20
+            env = _IncreasingRewardEnv()
+            n_sims = 20
             patience = 5
 
             _, _, sims, early_stopped, early_stop_sim = _greedy_loop(
-                env=env, policy=policy, n_sims=n_sims,
-                mutation_scale=0.01, weights_file=wf,
-                patience=patience, adaptive_mutation=False,
+                env=env,
+                policy=policy,
+                n_sims=n_sims,
+                mutation_scale=0.01,
+                weights_file=wf,
+                patience=patience,
+                adaptive_mutation=False,
             )
 
             self.assertFalse(early_stopped)
@@ -205,13 +220,17 @@ class TestPatienceEarlyStopping(unittest.TestCase):
             wf = f.name
         try:
             policy = _make_wlp(wf)
-            env    = _FixedRewardEnv(reward=5.0)
+            env = _FixedRewardEnv(reward=5.0)
             patience = 3
 
             _, _, sims, early_stopped, early_stop_sim = _greedy_loop(
-                env=env, policy=policy, n_sims=50,
-                mutation_scale=0.01, weights_file=wf,
-                patience=patience, adaptive_mutation=False,
+                env=env,
+                policy=policy,
+                n_sims=50,
+                mutation_scale=0.01,
+                weights_file=wf,
+                patience=patience,
+                adaptive_mutation=False,
             )
 
             self.assertTrue(early_stopped)
@@ -225,21 +244,24 @@ class TestPatienceEarlyStopping(unittest.TestCase):
 # Tests — _greedy_loop_q_learning (epsilon_greedy / mcts)
 # ---------------------------------------------------------------------------
 
-class TestPatienceEarlyStoppingQLoop(unittest.TestCase):
 
+class TestPatienceEarlyStoppingQLoop(unittest.TestCase):
     def test_q_loop_stops_after_patience_no_improvement(self):
         """Q-learning loop stops after exactly `patience` episodes when reward never improves."""
         with tempfile.NamedTemporaryFile(suffix=".yaml", delete=False) as f:
             wf = f.name
         try:
-            policy   = _StubQPolicy()
-            env      = _FixedRewardEnv(reward=5.0)
+            policy = _StubQPolicy()
+            env = _FixedRewardEnv(reward=5.0)
             patience = 4
 
             # Seed best_reward above the fixed reward so nothing ever improves.
             _, _, sims, early_stopped, early_stop_sim = _greedy_loop_q_learning(
-                env=env, policy=policy, n_episodes=100,
-                weights_file=wf, patience=patience,
+                env=env,
+                policy=policy,
+                n_episodes=100,
+                weights_file=wf,
+                patience=patience,
             )
 
             # The stub always returns reward=5.0; first episode sets best from -inf,
@@ -255,13 +277,16 @@ class TestPatienceEarlyStoppingQLoop(unittest.TestCase):
         with tempfile.NamedTemporaryFile(suffix=".yaml", delete=False) as f:
             wf = f.name
         try:
-            policy   = _StubQPolicy()
-            env      = _FixedRewardEnv(reward=5.0)
-            n_eps    = 8
+            policy = _StubQPolicy()
+            env = _FixedRewardEnv(reward=5.0)
+            n_eps = 8
 
             _, _, sims, early_stopped, early_stop_sim = _greedy_loop_q_learning(
-                env=env, policy=policy, n_episodes=n_eps,
-                weights_file=wf, patience=0,
+                env=env,
+                policy=policy,
+                n_episodes=n_eps,
+                weights_file=wf,
+                patience=0,
             )
 
             self.assertFalse(early_stopped)

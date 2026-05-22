@@ -1,9 +1,9 @@
 """Tests for the SC2 observation spec presets."""
+
 import unittest
 
 import numpy as np
 
-from games.sc2.actions import FUNCTION_IDS
 from games.sc2.obs_spec import (
     BASE_OBS_DIM,
     LADDER_OBS_DIM,
@@ -19,7 +19,6 @@ from games.sc2.obs_spec import (
 
 
 class TestSC2ObsSpec(unittest.TestCase):
-
     def test_minigame_spec_dim(self):
         self.assertEqual(BASE_OBS_DIM, 15)
         self.assertEqual(SC2_MINIGAME_OBS_SPEC.dim, 15)
@@ -62,7 +61,7 @@ class TestSC2ObsSpec(unittest.TestCase):
     def test_get_spec_explicit_preset_overrides_map(self):
         """obs_spec_preset='rich' upgrades a minigame map to the full spec."""
         self.assertIs(get_spec("MoveToBeacon", preset="rich"), SC2_RICH_OBS_SPEC)
-        self.assertIs(get_spec("Simple64",     preset="minigame"), SC2_MINIGAME_OBS_SPEC)
+        self.assertIs(get_spec("Simple64", preset="minigame"), SC2_MINIGAME_OBS_SPEC)
 
     def test_get_spec_unknown_preset_raises(self):
         with self.assertRaises(ValueError) as ctx:
@@ -83,10 +82,8 @@ class TestSC2ObsSpec(unittest.TestCase):
         """minimap_enemy_cx/cy must appear in every preset (minigame, ladder,
         rich) since they are part of _MINIGAME_DIMS which all presets inherit."""
         for spec in (SC2_MINIGAME_OBS_SPEC, SC2_LADDER_OBS_SPEC, SC2_RICH_OBS_SPEC):
-            self.assertIn("minimap_enemy_cx", spec.names,
-                          f"{spec} missing minimap_enemy_cx")
-            self.assertIn("minimap_enemy_cy", spec.names,
-                          f"{spec} missing minimap_enemy_cy")
+            self.assertIn("minimap_enemy_cx", spec.names, f"{spec} missing minimap_enemy_cx")
+            self.assertIn("minimap_enemy_cy", spec.names, f"{spec} missing minimap_enemy_cy")
 
     def test_all_preset_scales_finite(self):
         for spec in (SC2_MINIGAME_OBS_SPEC, SC2_LADDER_OBS_SPEC, SC2_RICH_OBS_SPEC):
@@ -95,8 +92,7 @@ class TestSC2ObsSpec(unittest.TestCase):
     def test_all_preset_dims_have_descriptions(self):
         for spec in (SC2_MINIGAME_OBS_SPEC, SC2_LADDER_OBS_SPEC, SC2_RICH_OBS_SPEC):
             for d in spec.dims:
-                self.assertGreater(len(d.description), 0,
-                                   f"{d.name} has no description")
+                self.assertGreater(len(d.description), 0, f"{d.name} has no description")
 
     def test_rich_spec_contains_new_feature_names(self):
         """New rich-only dims (selected-extras, screen-visibility, antiair,
@@ -109,13 +105,11 @@ class TestSC2ObsSpec(unittest.TestCase):
             "screen_unit_density_aa_mean",
             "self_weapon_cooldown_mean",
         )
-        rich_names   = SC2_RICH_OBS_SPEC.names
+        rich_names = SC2_RICH_OBS_SPEC.names
         ladder_names = SC2_LADDER_OBS_SPEC.names
         for name in new_rich_only:
-            self.assertIn(name, rich_names,
-                          f"{name!r} missing from rich spec")
-            self.assertNotIn(name, ladder_names,
-                             f"{name!r} should not be in ladder spec")
+            self.assertIn(name, rich_names, f"{name!r} missing from rich spec")
+            self.assertNotIn(name, ladder_names, f"{name!r} should not be in ladder spec")
 
     def test_alert_count_in_ladder_and_rich(self):
         """alert_count must be present in ladder and rich (both include

@@ -3,6 +3,7 @@
 These tests validate the env's spaces, episode logic, and termination
 without requiring PySC2 to be installed (the client is mocked).
 """
+
 import unittest
 from unittest.mock import patch
 
@@ -14,7 +15,6 @@ from games.sc2.reward import SC2RewardConfig
 
 
 class TestSC2EnvSpaces(unittest.TestCase):
-
     def setUp(self):
         with patch("games.sc2.env.SC2Client"):
             self.env = SC2Env(map_name="MoveToBeacon")
@@ -28,13 +28,10 @@ class TestSC2EnvSpaces(unittest.TestCase):
     def test_action_space_bounds(self):
         # fn_idx range, then x/y/queue in [0,1].
         self.assertEqual(float(self.env.action_space.low[0]), 0.0)
-        np.testing.assert_array_equal(
-            self.env.action_space.high[1:], [1.0, 1.0, 1.0]
-        )
+        np.testing.assert_array_equal(self.env.action_space.high[1:], [1.0, 1.0, 1.0])
 
 
 class TestSC2EnvLadderSpaces(unittest.TestCase):
-
     def test_ladder_obs_space(self):
         with patch("games.sc2.env.SC2Client"):
             env = SC2Env(map_name="Simple64")
@@ -42,7 +39,6 @@ class TestSC2EnvLadderSpaces(unittest.TestCase):
 
 
 class TestSC2EnvEpisodeTime(unittest.TestCase):
-
     def setUp(self):
         with patch("games.sc2.env.SC2Client"):
             self.env = SC2Env(map_name="MoveToBeacon", max_episode_time_s=60.0)
@@ -67,15 +63,13 @@ class TestSC2EnvStepLogic(unittest.TestCase):
         self.mock_client.last_fn_idx = 0
         self.mock_client.reset.return_value = (
             np.zeros(BASE_OBS_DIM, dtype=np.float32),
-            {"score": 0.0, "minerals": 50.0, "vespene": 0.0,
-              "food_used": 1.0, "food_cap": 15.0, "army_count": 0.0},
+            {"score": 0.0, "minerals": 50.0, "vespene": 0.0, "food_used": 1.0, "food_cap": 15.0, "army_count": 0.0},
         )
         self.mock_client.step.return_value = (
             np.zeros(BASE_OBS_DIM, dtype=np.float32),
             0.0,
             False,
-            {"score": 1.0, "minerals": 50.0, "vespene": 0.0,
-             "food_used": 1.0, "food_cap": 15.0, "army_count": 0.0},
+            {"score": 1.0, "minerals": 50.0, "vespene": 0.0, "food_used": 1.0, "food_cap": 15.0, "army_count": 0.0},
         )
         self.env = SC2Env(map_name="MoveToBeacon")
 
@@ -112,9 +106,16 @@ class TestSC2EnvStepLogic(unittest.TestCase):
             np.zeros(BASE_OBS_DIM, dtype=np.float32),
             1.0,
             True,
-            {"score": 5.0, "minerals": 0.0, "vespene": 0.0,
-             "food_used": 0.0, "food_cap": 0.0, "army_count": 0.0,
-             "player_outcome": 1.0, "is_last": True},
+            {
+                "score": 5.0,
+                "minerals": 0.0,
+                "vespene": 0.0,
+                "food_used": 0.0,
+                "food_cap": 0.0,
+                "army_count": 0.0,
+                "player_outcome": 1.0,
+                "is_last": True,
+            },
         )
         self.env.reset()
         _, _, terminated, truncated, info = self.env.step(np.zeros(4, dtype=np.float32))
@@ -127,9 +128,16 @@ class TestSC2EnvStepLogic(unittest.TestCase):
             np.zeros(BASE_OBS_DIM, dtype=np.float32),
             -1.0,
             True,
-            {"score": 0.0, "minerals": 0.0, "vespene": 0.0,
-             "food_used": 0.0, "food_cap": 0.0, "army_count": 0.0,
-             "player_outcome": -1.0, "is_last": True},
+            {
+                "score": 0.0,
+                "minerals": 0.0,
+                "vespene": 0.0,
+                "food_used": 0.0,
+                "food_cap": 0.0,
+                "army_count": 0.0,
+                "player_outcome": -1.0,
+                "is_last": True,
+            },
         )
         self.env.reset()
         _, _, terminated, _, info = self.env.step(np.zeros(4, dtype=np.float32))
@@ -144,10 +152,18 @@ class TestSC2EnvStepLogic(unittest.TestCase):
         """Reward calculator depends on these keys from info."""
         self.env.reset()
         _, _, _, _, info = self.env.step(np.zeros(4, dtype=np.float32))
-        for key in ("score", "prev_score", "minerals", "prev_minerals",
-                     "vespene", "prev_vespene", "elapsed_s",
-                     "termination_reason", "skipped_frames_this_step",
-                     "episode_skipped_frames"):
+        for key in (
+            "score",
+            "prev_score",
+            "minerals",
+            "prev_minerals",
+            "vespene",
+            "prev_vespene",
+            "elapsed_s",
+            "termination_reason",
+            "skipped_frames_this_step",
+            "episode_skipped_frames",
+        ):
             self.assertIn(key, info, f"missing key {key}")
 
     def test_skipped_frames_default_zero_without_game_loop(self):
@@ -161,26 +177,44 @@ class TestSC2EnvStepLogic(unittest.TestCase):
         """Delta above step_mul counts as skipped frames and accumulates."""
         self.mock_client.reset.return_value = (
             np.zeros(BASE_OBS_DIM, dtype=np.float32),
-            {"score": 0.0, "minerals": 50.0, "vespene": 0.0,
-             "food_used": 1.0, "food_cap": 15.0, "army_count": 0.0,
-             "game_loop": 0.0},
+            {
+                "score": 0.0,
+                "minerals": 50.0,
+                "vespene": 0.0,
+                "food_used": 1.0,
+                "food_cap": 15.0,
+                "army_count": 0.0,
+                "game_loop": 0.0,
+            },
         )
         self.mock_client.step.side_effect = [
             (
                 np.zeros(BASE_OBS_DIM, dtype=np.float32),
                 0.0,
                 False,
-                {"score": 1.0, "minerals": 50.0, "vespene": 0.0,
-                 "food_used": 1.0, "food_cap": 15.0, "army_count": 0.0,
-                 "game_loop": 1.0},   # delta == step_mul → 0 skipped
+                {
+                    "score": 1.0,
+                    "minerals": 50.0,
+                    "vespene": 0.0,
+                    "food_used": 1.0,
+                    "food_cap": 15.0,
+                    "army_count": 0.0,
+                    "game_loop": 1.0,
+                },  # delta == step_mul → 0 skipped
             ),
             (
                 np.zeros(BASE_OBS_DIM, dtype=np.float32),
                 0.0,
                 False,
-                {"score": 2.0, "minerals": 50.0, "vespene": 0.0,
-                 "food_used": 1.0, "food_cap": 15.0, "army_count": 0.0,
-                 "game_loop": 6.0},   # delta 5 = step_mul 1 + 4 skipped
+                {
+                    "score": 2.0,
+                    "minerals": 50.0,
+                    "vespene": 0.0,
+                    "food_used": 1.0,
+                    "food_cap": 15.0,
+                    "army_count": 0.0,
+                    "game_loop": 6.0,
+                },  # delta 5 = step_mul 1 + 4 skipped
             ),
         ]
         self.env.reset()
@@ -197,8 +231,7 @@ class TestSC2EnvStepLogic(unittest.TestCase):
         _, _, _, _, info = self.env.step(np.array([0, 0.5, 0.5, 0], dtype=np.float32))
         self.assertIn("episode_reward_components", info)
         comp = info["episode_reward_components"]
-        for key in ("score", "economy", "idle_penalty", "idle_bonus",
-                    "step_penalty", "terminal"):
+        for key in ("score", "economy", "idle_penalty", "idle_bonus", "step_penalty", "terminal"):
             self.assertIn(key, comp)
 
     def test_reward_components_accumulate_across_steps(self):
@@ -236,8 +269,7 @@ class TestSC2EnvStepLogic(unittest.TestCase):
             np.zeros(BASE_OBS_DIM, dtype=np.float32),
             0.0,
             False,
-            {"score": 10.0, "minerals": 0.0, "vespene": 0.0,
-             "food_used": 1.0, "food_cap": 15.0, "army_count": 0.0},
+            {"score": 10.0, "minerals": 0.0, "vespene": 0.0, "food_used": 1.0, "food_cap": 15.0, "army_count": 0.0},
         )
         self.env.reset()
         _, _, _, _, info1 = self.env.step(np.zeros(4, dtype=np.float32))
@@ -248,8 +280,7 @@ class TestSC2EnvStepLogic(unittest.TestCase):
             np.zeros(BASE_OBS_DIM, dtype=np.float32),
             0.0,
             False,
-            {"score": 15.0, "minerals": 0.0, "vespene": 0.0,
-             "food_used": 1.0, "food_cap": 15.0, "army_count": 0.0},
+            {"score": 15.0, "minerals": 0.0, "vespene": 0.0, "food_used": 1.0, "food_cap": 15.0, "army_count": 0.0},
         )
         _, _, _, _, info2 = self.env.step(np.zeros(4, dtype=np.float32))
         self.assertEqual(info2["prev_score"], 10.0)
@@ -259,26 +290,44 @@ class TestSC2EnvStepLogic(unittest.TestCase):
         """prev_army_count / prev_total_self_hp seed from reset then update per step."""
         self.mock_client.reset.return_value = (
             np.zeros(BASE_OBS_DIM, dtype=np.float32),
-            {"score": 0.0, "minerals": 50.0, "vespene": 0.0,
-             "food_used": 1.0, "food_cap": 15.0,
-             "army_count": 4.0, "total_self_hp": 110.0},
+            {
+                "score": 0.0,
+                "minerals": 50.0,
+                "vespene": 0.0,
+                "food_used": 1.0,
+                "food_cap": 15.0,
+                "army_count": 4.0,
+                "total_self_hp": 110.0,
+            },
         )
         self.mock_client.step.side_effect = [
             (
                 np.zeros(BASE_OBS_DIM, dtype=np.float32),
                 0.0,
                 False,
-                {"score": 1.0, "minerals": 50.0, "vespene": 0.0,
-                 "food_used": 1.0, "food_cap": 15.0,
-                 "army_count": 3.0, "total_self_hp": 90.0},
+                {
+                    "score": 1.0,
+                    "minerals": 50.0,
+                    "vespene": 0.0,
+                    "food_used": 1.0,
+                    "food_cap": 15.0,
+                    "army_count": 3.0,
+                    "total_self_hp": 90.0,
+                },
             ),
             (
                 np.zeros(BASE_OBS_DIM, dtype=np.float32),
                 0.0,
                 False,
-                {"score": 2.0, "minerals": 50.0, "vespene": 0.0,
-                 "food_used": 1.0, "food_cap": 15.0,
-                 "army_count": 2.0, "total_self_hp": 70.0},
+                {
+                    "score": 2.0,
+                    "minerals": 50.0,
+                    "vespene": 0.0,
+                    "food_used": 1.0,
+                    "food_cap": 15.0,
+                    "army_count": 2.0,
+                    "total_self_hp": 70.0,
+                },
             ),
         ]
         self.env.reset()
@@ -299,8 +348,7 @@ class TestSC2EnvStepLogic(unittest.TestCase):
         """Blocked Attack_screen requests should not suppress passive-under-fire."""
         self.mock_client.reset.return_value = (
             np.zeros(BASE_OBS_DIM, dtype=np.float32),
-            {"score": 0.0, "minerals": 50.0, "vespene": 0.0,
-             "food_used": 1.0, "food_cap": 15.0, "army_count": 1.0},
+            {"score": 0.0, "minerals": 50.0, "vespene": 0.0, "food_used": 1.0, "food_cap": 15.0, "army_count": 1.0},
         )
 
         def _step_with_substituted_select_army(_action):
@@ -309,12 +357,21 @@ class TestSC2EnvStepLogic(unittest.TestCase):
                 np.zeros(BASE_OBS_DIM, dtype=np.float32),
                 0.0,
                 False,
-                {"score": 0.0, "minerals": 50.0, "vespene": 0.0,
-                 "food_used": 1.0, "food_cap": 15.0, "army_count": 1.0,
-                 "screen_self_count": 1.0, "screen_enemy_count": 1.0,
-                 "screen_self_cx": 32.0, "screen_self_cy": 32.0,
-                 "screen_enemy_cx": 42.0, "screen_enemy_cy": 32.0,
-                 "self_attack_range_px": 20.0},
+                {
+                    "score": 0.0,
+                    "minerals": 50.0,
+                    "vespene": 0.0,
+                    "food_used": 1.0,
+                    "food_cap": 15.0,
+                    "army_count": 1.0,
+                    "screen_self_count": 1.0,
+                    "screen_enemy_count": 1.0,
+                    "screen_self_cx": 32.0,
+                    "screen_self_cy": 32.0,
+                    "screen_enemy_cx": 42.0,
+                    "screen_enemy_cy": 32.0,
+                    "self_attack_range_px": 20.0,
+                },
             )
 
         self.mock_client.step.side_effect = _step_with_substituted_select_army
@@ -343,20 +400,17 @@ class TestSC2EnvStepLogic(unittest.TestCase):
 
 
 class TestSC2EnvCustomReward(unittest.TestCase):
-
     def test_custom_reward_config(self):
         with patch("games.sc2.env.SC2Client") as mock_cls:
             mock_cls.return_value.reset.return_value = (
                 np.zeros(BASE_OBS_DIM, dtype=np.float32),
-                {"score": 0.0, "minerals": 0.0, "vespene": 0.0,
-                 "food_used": 0.0, "food_cap": 0.0, "army_count": 0.0},
+                {"score": 0.0, "minerals": 0.0, "vespene": 0.0, "food_used": 0.0, "food_cap": 0.0, "army_count": 0.0},
             )
             mock_cls.return_value.step.return_value = (
                 np.zeros(BASE_OBS_DIM, dtype=np.float32),
                 0.0,
                 False,
-                {"score": 5.0, "minerals": 0.0, "vespene": 0.0,
-                 "food_used": 0.0, "food_cap": 0.0, "army_count": 0.0},
+                {"score": 5.0, "minerals": 0.0, "vespene": 0.0, "food_used": 0.0, "food_cap": 0.0, "army_count": 0.0},
             )
             cfg = SC2RewardConfig(score_weight=10.0, step_penalty=0.0)
             env = SC2Env(map_name="MoveToBeacon", reward_config=cfg)
@@ -377,12 +431,20 @@ class TestSC2EnvEndScreenAnalytics(unittest.TestCase):
         self.addCleanup(patcher.stop)
 
         _base_reset = {
-            "score": 0.0, "minerals": 100.0, "vespene": 0.0,
-            "food_used": 6.0, "food_cap": 15.0, "army_count": 0.0,
+            "score": 0.0,
+            "minerals": 100.0,
+            "vespene": 0.0,
+            "food_used": 6.0,
+            "food_cap": 15.0,
+            "army_count": 0.0,
         }
         _base_step = {
-            "score": 1.0, "minerals": 150.0, "vespene": 50.0,
-            "food_used": 8.0, "food_cap": 15.0, "army_count": 2.0,
+            "score": 1.0,
+            "minerals": 150.0,
+            "vespene": 50.0,
+            "food_used": 8.0,
+            "food_cap": 15.0,
+            "army_count": 2.0,
             "game_loop": 100.0,
         }
         mock_client = mock_cls.return_value
@@ -412,8 +474,12 @@ class TestSC2EnvEndScreenAnalytics(unittest.TestCase):
         _, _, terminated, truncated, info = env.step(np.zeros(4, dtype=np.float32))
         self.assertFalse(terminated)
         self.assertFalse(truncated)
-        for key in ("episode_army_series", "episode_resource_series",
-                    "episode_build_order", "episode_supply_capped_fraction"):
+        for key in (
+            "episode_army_series",
+            "episode_resource_series",
+            "episode_build_order",
+            "episode_supply_capped_fraction",
+        ):
             self.assertNotIn(key, info, f"{key} should not appear on mid-episode step")
 
     # ---------------------------------------------------------------
@@ -426,8 +492,12 @@ class TestSC2EnvEndScreenAnalytics(unittest.TestCase):
         env.reset()
         _, _, terminated, _, info = env.step(np.zeros(4, dtype=np.float32))
         self.assertTrue(terminated)
-        for key in ("episode_army_series", "episode_resource_series",
-                    "episode_build_order", "episode_supply_capped_fraction"):
+        for key in (
+            "episode_army_series",
+            "episode_resource_series",
+            "episode_build_order",
+            "episode_supply_capped_fraction",
+        ):
             self.assertIn(key, info, f"{key} missing from terminal step info")
 
     # ---------------------------------------------------------------
@@ -474,8 +544,7 @@ class TestSC2EnvEndScreenAnalytics(unittest.TestCase):
         """Resource series value == minerals + vespene."""
         env = self._make_env(
             done=True,
-            step_info={"minerals": 100.0, "vespene": 50.0,
-                       "game_loop": 0.0, "is_last": True},
+            step_info={"minerals": 100.0, "vespene": 50.0, "game_loop": 0.0, "is_last": True},
         )
         env.reset()
         _, _, _, _, info = env.step(np.zeros(4, dtype=np.float32))

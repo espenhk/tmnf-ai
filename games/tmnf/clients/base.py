@@ -14,11 +14,11 @@ logger = logging.getLogger(__name__)
 
 class Phase(Enum):
     BRAKING_START = auto()
-    PAUSE_START   = auto()
-    RUNNING       = auto()
-    BRAKING_END   = auto()
-    PAUSE_END     = auto()
-    DONE          = auto()
+    PAUSE_START = auto()
+    RUNNING = auto()
+    BRAKING_END = auto()
+    PAUSE_END = auto()
+    DONE = auto()
 
 
 class PhaseAwareClient(Client):

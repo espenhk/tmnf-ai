@@ -63,7 +63,7 @@ def _split_into_columns_preserving_order(items: list[Any], n_cols: int) -> list[
     if n_cols == 1:
         return [list(items)]
     rows = int(math.ceil(len(items) / n_cols))
-    return [list(items[i: i + rows]) for i in range(0, len(items), rows)]
+    return [list(items[i : i + rows]) for i in range(0, len(items), rows)]
 
 
 def _observation_column_count(canvas_width: int) -> int:
@@ -110,9 +110,7 @@ def _rolling_means(
 ) -> dict[str, float]:
     for key, value in step_components.items():
         history.setdefault(key, deque(maxlen=window)).append(_safe_float(value))
-    return {
-        key: (sum(vals) / len(vals)) for key, vals in history.items() if len(vals) > 0
-    }
+    return {key: (sum(vals) / len(vals)) for key, vals in history.items() if len(vals) > 0}
 
 
 @dataclass
@@ -297,7 +295,9 @@ class LiveTelemetryMonitor:
             top_frame = tk.Frame(self._tk)
             top_frame.pack(fill="both", expand=False, padx=6, pady=2)
 
-            reward_label = tk.Label(top_frame, text="Rewards (rolling avg)", anchor="w", font=("TkDefaultFont", 8, "bold"))
+            reward_label = tk.Label(
+                top_frame, text="Rewards (rolling avg)", anchor="w", font=("TkDefaultFont", 8, "bold")
+            )
             reward_label.grid(row=0, column=0, sticky="w")
             action_label = tk.Label(top_frame, text="Last 10 actions", anchor="w", font=("TkDefaultFont", 8, "bold"))
             action_label.grid(row=0, column=1, sticky="w", padx=(12, 0))
@@ -375,10 +375,14 @@ class LiveTelemetryMonitor:
         if action is not None:
             self._last_actions.append((self._step_idx, action))
         step_components, self._prev_episode_components = _derive_step_components(
-            info, reward, self._prev_episode_components,
+            info,
+            reward,
+            self._prev_episode_components,
         )
         avg_components = _rolling_means(
-            self._reward_history, step_components, self._rolling_window,
+            self._reward_history,
+            step_components,
+            self._rolling_window,
         )
         self._draw_reward_panel(avg_components)
         self._draw_action_panel()
@@ -535,7 +539,9 @@ class LiveTelemetryMonitor:
                 yi = self._obs_names.index(yn)
                 xv = float(norm[xi])
                 yv = float(norm[yi])
-                c.create_text(x0, y, anchor="nw", text=f"{base}: ({obs[xi]:+.1f}, {obs[yi]:+.1f})", font=("TkDefaultFont", 8))
+                c.create_text(
+                    x0, y, anchor="nw", text=f"{base}: ({obs[xi]:+.1f}, {obs[yi]:+.1f})", font=("TkDefaultFont", 8)
+                )
                 box_s = 36
                 box_l = x0 + col_w - box_s - 4
                 box_t = y
@@ -558,7 +564,7 @@ class LiveTelemetryMonitor:
                 for idx in idxs[:20]:
                     v = float(norm[idx])
                     intensity = int(max(0, min(255, 127 + 120 * v)))
-                    color = f"#{intensity:02x}64{(255-intensity):02x}"
+                    color = f"#{intensity:02x}64{(255 - intensity):02x}"
                     c.create_rectangle(x, y, x + 10, y + 10, fill=color, outline="")
                     x += 12
                     if x + 10 > (x0 + col_w):

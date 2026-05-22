@@ -1,12 +1,13 @@
 """Tests for DQNPolicy and ReplayBuffer in framework/dqn.py and framework/replay.py."""
+
 import unittest
 
 import numpy as np
 
 from framework.dqn import DQNPolicy
 from framework.replay import ReplayBuffer
-from games.tmnf.obs_spec import BASE_OBS_DIM, TMNF_OBS_SPEC
 from games.tmnf.actions import DISCRETE_ACTIONS, _action_to_idx
+from games.tmnf.obs_spec import BASE_OBS_DIM, TMNF_OBS_SPEC
 
 _N = BASE_OBS_DIM
 
@@ -28,8 +29,8 @@ def _rand_obs() -> np.ndarray:
 # ReplayBuffer tests
 # ---------------------------------------------------------------------------
 
-class TestReplayBuffer(unittest.TestCase):
 
+class TestReplayBuffer(unittest.TestCase):
     def test_push_and_len(self):
         buf = ReplayBuffer(maxlen=10)
         self.assertEqual(len(buf), 0)
@@ -47,12 +48,12 @@ class TestReplayBuffer(unittest.TestCase):
         for _ in range(10):
             buf.push(_rand_obs(), 0, 0.0, _rand_obs(), False)
         obs_b, act_b, rew_b, next_b, done_b = buf.sample(5)
-        self.assertEqual(obs_b.shape,  (5, _N))
-        self.assertEqual(act_b.shape,  (5,))
-        self.assertEqual(rew_b.shape,  (5,))
+        self.assertEqual(obs_b.shape, (5, _N))
+        self.assertEqual(act_b.shape, (5,))
+        self.assertEqual(rew_b.shape, (5,))
         self.assertEqual(next_b.shape, (5, _N))
         self.assertEqual(done_b.shape, (5,))
-        self.assertEqual(obs_b.dtype,  np.float32)
+        self.assertEqual(obs_b.dtype, np.float32)
 
     def test_sample_without_replacement(self):
         """sample() should never return duplicate entries when buf is large enough."""
@@ -75,8 +76,8 @@ class TestReplayBuffer(unittest.TestCase):
 # DQNPolicy structural tests
 # ---------------------------------------------------------------------------
 
-class TestNeuralDQNPolicyStructure(unittest.TestCase):
 
+class TestNeuralDQNPolicyStructure(unittest.TestCase):
     def _make(self, **kw) -> DQNPolicy:
         defaults = dict(
             hidden_sizes=[8, 8],
@@ -94,7 +95,7 @@ class TestNeuralDQNPolicyStructure(unittest.TestCase):
         return DQNPolicy(_OBS_SPEC, DISCRETE_ACTIONS, **defaults)
 
     def test_action_shape_and_range(self):
-        p   = self._make(epsilon_start=0.0)
+        p = self._make(epsilon_start=0.0)
         act = p(_zero_obs())
         self.assertEqual(act.shape, (3,))
         self.assertGreaterEqual(float(act[0]), -1.0)
@@ -104,7 +105,7 @@ class TestNeuralDQNPolicyStructure(unittest.TestCase):
 
     def test_greedy_action_is_discrete(self):
         """Greedy action must be one of the 25 discrete actions."""
-        p   = self._make(epsilon_start=0.0)
+        p = self._make(epsilon_start=0.0)
         act = p(_zero_obs())
         idx = _action_to_idx(act)
         self.assertIn(idx, range(25))
@@ -150,11 +151,11 @@ class TestNeuralDQNPolicyStructure(unittest.TestCase):
         self.assertEqual(p._online["weights"][2].shape, (25, 16))
 
     def test_to_cfg_roundtrip(self):
-        p   = self._make(epsilon_start=0.0)
+        p = self._make(epsilon_start=0.0)
         cfg = p.to_cfg()
-        p2  = DQNPolicy.from_cfg(cfg, _OBS_SPEC, DISCRETE_ACTIONS)
+        p2 = DQNPolicy.from_cfg(cfg, _OBS_SPEC, DISCRETE_ACTIONS)
         obs = _rand_obs()
-        p._eps  = 0.0
+        p._eps = 0.0
         p2._eps = 0.0
         np.testing.assert_array_equal(p(obs), p2(obs))
 
@@ -174,10 +175,11 @@ class TestNeuralDQNPolicyStructure(unittest.TestCase):
 
     def test_from_cfg_shape_mismatch_raises(self):
         """from_cfg() should raise ValueError when obs_dim doesn't match weights."""
-        p   = self._make()
+        p = self._make()
         cfg = p.to_cfg()
         # Use a different obs_spec to cause shape mismatch
         from games.tmnf.obs_spec import TMNF_OBS_SPEC
+
         wrong_spec = TMNF_OBS_SPEC.with_lidar(5)
         with self.assertRaises(ValueError):
             DQNPolicy.from_cfg(cfg, wrong_spec, DISCRETE_ACTIONS)
@@ -186,6 +188,7 @@ class TestNeuralDQNPolicyStructure(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # DQNPolicy convergence test (2-state bandit MDP)
 # ---------------------------------------------------------------------------
+
 
 class TestNeuralDQNConvergence(unittest.TestCase):
     """
@@ -198,24 +201,24 @@ class TestNeuralDQNConvergence(unittest.TestCase):
     def test_bandit_convergence(self):
         np.random.seed(42)
         N = BASE_OBS_DIM
-        state   = np.zeros(N, dtype=np.float32)
-        BEST    = 22         # full accel + straight
-        GOOD_R  =  1.0
-        BAD_R   = -0.1
+        state = np.zeros(N, dtype=np.float32)
+        BEST = 22  # full accel + straight
+        GOOD_R = 1.0
+        BAD_R = -0.1
 
         policy = DQNPolicy(
             _OBS_SPEC,
             DISCRETE_ACTIONS,
-            hidden_sizes        = [32, 32],
-            replay_buffer_size  = 5000,
-            batch_size          = 32,
-            min_replay_size     = 128,
-            target_update_freq  = 25,
-            learning_rate       = 0.005,
-            epsilon_start       = 1.0,
-            epsilon_end         = 1.0,
-            epsilon_decay_steps = 1,
-            gamma               = 0.0,
+            hidden_sizes=[32, 32],
+            replay_buffer_size=5000,
+            batch_size=32,
+            min_replay_size=128,
+            target_update_freq=25,
+            learning_rate=0.005,
+            epsilon_start=1.0,
+            epsilon_end=1.0,
+            epsilon_decay_steps=1,
+            gamma=0.0,
         )
 
         next_obs = np.zeros(N, dtype=np.float32)
@@ -225,34 +228,32 @@ class TestNeuralDQNConvergence(unittest.TestCase):
             policy.update(state, action_idx, r, next_obs, done=True)
 
         policy._eps = 0.0
-        obs_norm    = (state / policy._scales).astype(np.float32)
-        q_vals      = policy._q_values(policy._online, obs_norm)
-        greedy_idx  = int(np.argmax(q_vals))
+        obs_norm = (state / policy._scales).astype(np.float32)
+        q_vals = policy._q_values(policy._online, obs_norm)
+        greedy_idx = int(np.argmax(q_vals))
 
         self.assertEqual(
-            greedy_idx, BEST,
-            f"Expected greedy action {BEST}, got {greedy_idx}. Q-values: {q_vals.tolist()}"
+            greedy_idx, BEST, f"Expected greedy action {BEST}, got {greedy_idx}. Q-values: {q_vals.tolist()}"
         )
         self.assertGreater(float(q_vals[BEST]), float(np.max(np.delete(q_vals, BEST))))
 
 
 class TestNeuralDQNTrainerState(unittest.TestCase):
-
     def _make_trained_policy(self) -> DQNPolicy:
         policy = DQNPolicy(
             _OBS_SPEC,
             DISCRETE_ACTIONS,
-            hidden_sizes        = [16, 16],
-            replay_buffer_size  = 200,
-            batch_size          = 16,
-            min_replay_size     = 32,
-            target_update_freq  = 10,
-            learning_rate       = 0.001,
-            epsilon_start       = 1.0,
-            epsilon_end         = 0.05,
-            epsilon_decay_steps = 100,
+            hidden_sizes=[16, 16],
+            replay_buffer_size=200,
+            batch_size=16,
+            min_replay_size=32,
+            target_update_freq=10,
+            learning_rate=0.001,
+            epsilon_start=1.0,
+            epsilon_end=0.05,
+            epsilon_decay_steps=100,
         )
-        obs      = np.zeros(_N, dtype=np.float32)
+        obs = np.zeros(_N, dtype=np.float32)
         next_obs = np.zeros(_N, dtype=np.float32)
         for i in range(50):
             policy.update(obs, i % 9, float(i % 3), next_obs, done=False)
@@ -260,10 +261,12 @@ class TestNeuralDQNTrainerState(unittest.TestCase):
 
     def test_save_load_roundtrip_replay_buffer(self):
         """Replay buffer length and transition contents survive a save/load cycle."""
-        import tempfile, os
+        import os
+        import tempfile
+
         policy = self._make_trained_policy()
         original_buf_len = len(policy._replay)
-        original_buf     = list(policy._replay._buf)
+        original_buf = list(policy._replay._buf)
 
         with tempfile.NamedTemporaryFile(suffix=".npz", delete=False) as f:
             path = f.name
@@ -273,9 +276,9 @@ class TestNeuralDQNTrainerState(unittest.TestCase):
             policy2 = DQNPolicy(
                 _OBS_SPEC,
                 DISCRETE_ACTIONS,
-                hidden_sizes       = [16, 16],
-                replay_buffer_size = 200,
-                min_replay_size    = 32,
+                hidden_sizes=[16, 16],
+                replay_buffer_size=200,
+                min_replay_size=32,
             )
             policy2.load_trainer_state(path)
 
@@ -292,7 +295,9 @@ class TestNeuralDQNTrainerState(unittest.TestCase):
 
     def test_save_load_roundtrip_adam_moments(self):
         """Adam moments survive a save/load cycle."""
-        import tempfile, os
+        import os
+        import tempfile
+
         policy = self._make_trained_policy()
 
         with tempfile.NamedTemporaryFile(suffix=".npz", delete=False) as f:
@@ -303,24 +308,26 @@ class TestNeuralDQNTrainerState(unittest.TestCase):
             policy2 = DQNPolicy(
                 _OBS_SPEC,
                 DISCRETE_ACTIONS,
-                hidden_sizes       = [16, 16],
-                replay_buffer_size = 200,
-                min_replay_size    = 32,
+                hidden_sizes=[16, 16],
+                replay_buffer_size=200,
+                min_replay_size=32,
             )
             policy2.load_trainer_state(path)
 
             for i in range(len(policy._m_w)):
                 np.testing.assert_array_equal(policy._m_w[i], policy2._m_w[i])
                 np.testing.assert_array_equal(policy._v_w[i], policy2._v_w[i])
-            self.assertEqual(policy._adam_t,      policy2._adam_t)
+            self.assertEqual(policy._adam_t, policy2._adam_t)
             self.assertEqual(policy._total_steps, policy2._total_steps)
-            self.assertAlmostEqual(policy._eps,   policy2._eps)
+            self.assertAlmostEqual(policy._eps, policy2._eps)
         finally:
             os.unlink(path)
 
     def test_load_wrong_obs_dim_raises(self):
         """Loading state with mismatched obs_dim raises ValueError."""
-        import tempfile, os
+        import os
+        import tempfile
+
         policy1 = DQNPolicy(_OBS_SPEC, DISCRETE_ACTIONS, hidden_sizes=[16], replay_buffer_size=10)
         with tempfile.NamedTemporaryFile(suffix=".npz", delete=False) as f:
             path = f.name

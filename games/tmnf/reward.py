@@ -74,29 +74,29 @@ class RewardConfig:
         ``beta`` controls the forward vs inverse loss balance for ICM only.
     """
 
-    progress_weight:    float = 10.0
-    centerline_weight:  float = -0.5
-    centerline_exp:     float = 2.0
-    speed_weight:       float = 0.05
-    step_penalty:       float = -0.01
-    finish_bonus:       float = 100.0
+    progress_weight: float = 10.0
+    centerline_weight: float = -0.5
+    centerline_exp: float = 2.0
+    speed_weight: float = 0.05
+    step_penalty: float = -0.01
+    finish_bonus: float = 100.0
     finish_time_weight: float = -0.1
-    par_time_s:         float = 60.0
-    accel_bonus:        float = 0.5
-    airborne_penalty:   float = -1.0
-    lidar_wall_weight:  float = 0.0
-    crash_threshold_m:  float = 25.0
-    track_name:         str   = "a03"
-    centerline_path:    str   = "tracks/a03_centerline.npy"
+    par_time_s: float = 60.0
+    accel_bonus: float = 0.5
+    airborne_penalty: float = -1.0
+    lidar_wall_weight: float = 0.0
+    crash_threshold_m: float = 25.0
+    track_name: str = "a03"
+    centerline_path: str = "tracks/a03_centerline.npy"
 
     # --- Curiosity-driven exploration (disabled by default) ---
-    curiosity_type:        str   = "none"   # "none" | "icm" | "rnd"
-    curiosity_weight:      float = 0.0
-    curiosity_feature_dim: int   = 8
-    curiosity_hidden_size: int   = 32
-    curiosity_lr:          float = 1e-3
-    curiosity_beta:        float = 0.2      # ICM only
-    curiosity_seed:        int   = 0
+    curiosity_type: str = "none"  # "none" | "icm" | "rnd"
+    curiosity_weight: float = 0.0
+    curiosity_feature_dim: int = 8
+    curiosity_hidden_size: int = 32
+    curiosity_lr: float = 1e-3
+    curiosity_beta: float = 0.2  # ICM only
+    curiosity_seed: int = 0
 
     @classmethod
     def from_yaml(cls, path: str) -> RewardConfig:
@@ -105,10 +105,7 @@ class RewardConfig:
         valid_keys = {f.name for f in fields(cls)}
         unknown = set(data.keys()) - valid_keys
         if unknown:
-            raise ValueError(
-                f"{path}: unknown reward config keys: {sorted(unknown)}\n"
-                f"Valid keys: {sorted(valid_keys)}"
-            )
+            raise ValueError(f"{path}: unknown reward config keys: {sorted(unknown)}\nValid keys: {sorted(valid_keys)}")
         return cls(**data)
 
 
@@ -154,15 +151,15 @@ class RewardCalculator(RewardCalculatorBase):
             ``total_reward`` is the scalar sum of all terms.
             ``components`` maps each named term to its individual contribution.
         """
-        cfg          = self.config
+        cfg = self.config
         accelerating = bool(info.get("accelerating", False))
-        lidar_rays   = info.get("lidar_rays", None)
+        lidar_rays = info.get("lidar_rays", None)
         components: dict[str, float] = {}
 
         # Progress: reward for advancing along the track this step.
         progress = 0.0
         if curr_state.track_progress is not None and prev_state.track_progress is not None:
-            delta    = curr_state.track_progress - prev_state.track_progress
+            delta = curr_state.track_progress - prev_state.track_progress
             progress = delta * cfg.progress_weight
         components["progress"] = progress
 
@@ -170,10 +167,7 @@ class RewardCalculator(RewardCalculatorBase):
         # Scaled by n_ticks: the car was off-centreline for this many game ticks.
         centerline = 0.0
         if curr_state.lateral_offset is not None:
-            centerline = (
-                cfg.centerline_weight * abs(curr_state.lateral_offset) ** cfg.centerline_exp
-                * n_ticks
-            )
+            centerline = cfg.centerline_weight * abs(curr_state.lateral_offset) ** cfg.centerline_exp * n_ticks
         components["centerline"] = centerline
 
         # Speed: small reward for going fast.
@@ -200,13 +194,13 @@ class RewardCalculator(RewardCalculatorBase):
 
         # Finish: one-time bonus + time-relative bonus.
         finish_bonus = 0.0
-        finish_time  = 0.0
+        finish_time = 0.0
         if finished:
             finish_bonus = cfg.finish_bonus
-            over_par     = elapsed_s - cfg.par_time_s
-            finish_time  = cfg.finish_time_weight * over_par  # negative if slow
+            over_par = elapsed_s - cfg.par_time_s
+            finish_time = cfg.finish_time_weight * over_par  # negative if slow
         components["finish_bonus"] = finish_bonus
-        components["finish_time"]  = finish_time
+        components["finish_time"] = finish_time
 
         # Airborne penalty: only when below or beside the centerline.
         # Scaled by n_ticks: the car was airborne for this many game ticks.
@@ -221,12 +215,8 @@ class RewardCalculator(RewardCalculatorBase):
 
         # Lidar wall proximity: quadratic penalty for the nearest detected wall.
         lidar_wall = 0.0
-        if (
-            lidar_rays is not None
-            and len(lidar_rays) > 0
-            and cfg.lidar_wall_weight != 0.0
-        ):
-            min_ray    = float(np.min(lidar_rays))
+        if lidar_rays is not None and len(lidar_rays) > 0 and cfg.lidar_wall_weight != 0.0:
+            min_ray = float(np.min(lidar_rays))
             lidar_wall = cfg.lidar_wall_weight * (1.0 - min_ray) ** 2
         components["lidar_wall"] = lidar_wall
 
@@ -240,7 +230,7 @@ class RewardCalculator(RewardCalculatorBase):
         if self._curiosity is not None and cfg.curiosity_weight != 0.0:
             prev_obs = info.get("prev_obs")
             curr_obs = info.get("curr_obs")
-            action   = info.get("action")
+            action = info.get("action")
             if prev_obs is not None and curr_obs is not None and action is not None:
                 r_intrinsic = self._curiosity.reward(prev_obs, action, curr_obs)
                 self._curiosity.update(prev_obs, action, curr_obs)
@@ -270,9 +260,7 @@ class RewardCalculator(RewardCalculatorBase):
             info["curr_obs"]      ndarray — current  obs vector (curiosity only)
             info["action"]        ndarray — action taken         (curiosity only)
         """
-        total, _ = self._compute_all(
-            prev_state, curr_state, finished, elapsed_s, info, n_ticks
-        )
+        total, _ = self._compute_all(prev_state, curr_state, finished, elapsed_s, info, n_ticks)
         return total
 
     def compute_with_components(
@@ -295,6 +283,4 @@ class RewardCalculator(RewardCalculatorBase):
             ``step_penalty``, ``finish_bonus``, ``finish_time``,
             ``airborne``, ``lidar_wall``, ``curiosity``.
         """
-        return self._compute_all(
-            prev_state, curr_state, finished, elapsed_s, info, n_ticks
-        )
+        return self._compute_all(prev_state, curr_state, finished, elapsed_s, info, n_ticks)

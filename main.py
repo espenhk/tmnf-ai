@@ -29,6 +29,7 @@ import sys
 import yaml
 
 from framework.env_loader import load_dotenv
+
 load_dotenv()
 
 from framework.game_adapter import GAME_ADAPTERS
@@ -53,8 +54,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--game",
         default="tmnf",
-        choices=["tmnf", "beamng", "assetto", "car_racing", "torcs", "sc2",
-                 "rocket_league", "iracing"],
+        choices=["tmnf", "beamng", "assetto", "car_racing", "torcs", "sc2", "rocket_league", "iracing"],
         help=(
             "Select which simulator to use. "
             "Choices: tmnf (default), beamng, assetto, car_racing, torcs, sc2, "
@@ -68,13 +68,14 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         help="Override the track / map name from the config (e.g. aalborg, CollectMineralShards).",
     )
     parser.add_argument(
-        "--no-interrupt", action="store_true",
+        "--no-interrupt",
+        action="store_true",
         help="Skip all 'Press Enter' prompts and run all phases automatically",
     )
     parser.add_argument(
-        "--re-initialize", action="store_true",
-        help="Ignore any existing weights file and restart from scratch, "
-             "including probe and cold-start phases.",
+        "--re-initialize",
+        action="store_true",
+        help="Ignore any existing weights file and restart from scratch, including probe and cold-start phases.",
     )
     parser.add_argument(
         "--live-gui",
@@ -87,7 +88,8 @@ def _build_arg_parser() -> argparse.ArgumentParser:
 
     sc2_mode = parser.add_mutually_exclusive_group()
     sc2_mode.add_argument(
-        "--play", action="store_true",
+        "--play",
+        action="store_true",
         help=(
             "Human-vs-AI interactive play mode (SC2 only).  "
             "Loads the champion policy from the experiment and launches a "
@@ -96,7 +98,8 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         ),
     )
     sc2_mode.add_argument(
-        "--eval", action="store_true",
+        "--eval",
+        action="store_true",
         help=(
             "Evaluation mode (SC2 only).  "
             "Loads the champion policy from the experiment and runs it against "
@@ -112,19 +115,29 @@ def _build_arg_parser() -> argparse.ArgumentParser:
             if iv < 1:
                 raise argparse.ArgumentTypeError(f"{name} must be ≥ 1, got {v}")
             return iv
+
         return _check
 
     parser.add_argument(
-        "--num-episodes", type=_positive_int("--num-episodes"), default=1,
+        "--num-episodes",
+        type=_positive_int("--num-episodes"),
+        default=1,
         help="Number of evaluation episodes to run (default: 1, used with --eval)",
     )
     parser.add_argument(
         "--bot-difficulty",
         default=None,
         choices=[
-            "very_easy", "easy", "medium", "medium_hard",
-            "hard", "harder", "very_hard",
-            "cheat_vision", "cheat_money", "cheat_insane",
+            "very_easy",
+            "easy",
+            "medium",
+            "medium_hard",
+            "hard",
+            "harder",
+            "very_hard",
+            "cheat_vision",
+            "cheat_money",
+            "cheat_insane",
         ],
         help=(
             "SC2 built-in bot difficulty for ladder maps during --eval "
@@ -133,7 +146,10 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
-        "--eval-speed", type=_positive_int("--eval-speed"), default=None, metavar="STEP_MUL",
+        "--eval-speed",
+        type=_positive_int("--eval-speed"),
+        default=None,
+        metavar="STEP_MUL",
         help=(
             "Override step_mul during --eval.  Controls how many game ticks "
             "advance between policy calls — i.e. observation granularity, "
@@ -143,12 +159,16 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
-        "--log-level", default="INFO",
+        "--log-level",
+        default="INFO",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
         help="Logging verbosity (default: INFO)",
     )
     parser.add_argument(
-        "--workers", type=_positive_int("--workers"), default=None, metavar="N",
+        "--workers",
+        type=_positive_int("--workers"),
+        default=None,
+        metavar="N",
         help=(
             "Override training_params n_workers — number of local SC2 binaries "
             "used to evaluate population members in parallel (issue #229).  "
@@ -202,6 +222,7 @@ def main() -> None:
 # Unified runner (all games except assetto)
 # ======================================================================
 
+
 def _run_one(adapter, args: argparse.Namespace) -> None:
     # Read master config to learn the track before the experiment dir exists.
     master_cfg = os.path.join(adapter.config_dir, "training_params.yaml")
@@ -244,18 +265,20 @@ def _run_one(adapter, args: argparse.Namespace) -> None:
     if re_initialize:
         if os.path.exists(trainer_state_file):
             os.remove(trainer_state_file)
-            logger.info("Removed existing trainer state for re-initialization: %s",
-                        trainer_state_file)
+            logger.info("Removed existing trainer state for re-initialization: %s", trainer_state_file)
         if os.path.exists(weights_file):
             os.remove(weights_file)
-            logger.info("Removed existing policy weights for re-initialization: %s",
-                        weights_file)
+            logger.info("Removed existing policy weights for re-initialization: %s", weights_file)
 
     game_spec = adapter.build_game_spec(
-        args.experiment, experiment_dir, weights_file, reward_cfg_file,
-        p, args.track,
+        args.experiment,
+        experiment_dir,
+        weights_file,
+        reward_cfg_file,
+        p,
+        args.track,
     )
-    data = train_rl(
+    train_rl(
         game=game_spec,
         config=RunConfig.from_training_params(p),
         probe=adapter.build_probe(p),
@@ -269,14 +292,15 @@ def _run_one(adapter, args: argparse.Namespace) -> None:
 # SC2 evaluation entry point
 # ======================================================================
 
+
 def _run_eval_sc2(args: argparse.Namespace) -> None:
     try:
         from games.sc2.eval import eval_sc2  # noqa: PLC0415
+
         eval_sc2(args.experiment, args)
     except ImportError as exc:
         raise SystemExit(
-            f"Cannot import SC2 eval dependencies: {exc}\n"
-            "Install pysc2 with:  poetry install --with sc2"
+            f"Cannot import SC2 eval dependencies: {exc}\nInstall pysc2 with:  poetry install --with sc2"
         ) from exc
 
 
@@ -284,20 +308,22 @@ def _run_eval_sc2(args: argparse.Namespace) -> None:
 # SC2 play entry point
 # ======================================================================
 
+
 def _run_play_sc2(args: argparse.Namespace) -> None:
     try:
         from games.sc2.play import play_sc2  # noqa: PLC0415
+
         play_sc2(args.experiment, args)
     except ImportError as exc:
         raise SystemExit(
-            f"Cannot import SC2 play dependencies: {exc}\n"
-            "Install pysc2 with:  poetry install --with sc2"
+            f"Cannot import SC2 play dependencies: {exc}\nInstall pysc2 with:  poetry install --with sc2"
         ) from exc
 
 
 # ======================================================================
 # Assetto Corsa entry point (separate — uses its own runner)
 # ======================================================================
+
 
 def _run_assetto(args: argparse.Namespace) -> None:
     try:

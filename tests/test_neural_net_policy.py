@@ -1,4 +1,5 @@
 """Tests for NeuralNetPolicy in tmnf/policies.py."""
+
 import unittest
 
 import numpy as np
@@ -10,7 +11,6 @@ _N = BASE_OBS_DIM
 
 
 class TestNeuralNetPolicy(unittest.TestCase):
-
     def assert_action_vector(self, action):
         self.assertIsInstance(action, np.ndarray)
         self.assertEqual(action.shape, (3,))

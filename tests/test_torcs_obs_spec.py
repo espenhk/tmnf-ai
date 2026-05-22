@@ -1,16 +1,17 @@
 """Tests for the TORCS observation spec."""
+
 import unittest
 
 import numpy as np
 
+from framework.obs_spec import ObsDim, ObsSpec
 from games.torcs.obs_spec import (
-    TORCS_OBS_SPEC,
     BASE_OBS_DIM,
     OBS_NAMES,
     OBS_SCALES,
     OBS_SPEC,
+    TORCS_OBS_SPEC,
 )
-from framework.obs_spec import ObsDim, ObsSpec
 
 
 class TestTorcsObsSpec(unittest.TestCase):

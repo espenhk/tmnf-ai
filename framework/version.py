@@ -14,6 +14,7 @@ Format follows PEP 440 local version identifiers:
 human-readable version number.  `scripts/release.py` keeps it in sync
 with `pyproject.toml` on every release.
 """
+
 from __future__ import annotations
 
 import functools

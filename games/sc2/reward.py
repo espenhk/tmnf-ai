@@ -190,10 +190,7 @@ class SC2RewardConfig:
         valid_keys = {f.name for f in fields(cls)}
         unknown = set(data.keys()) - valid_keys
         if unknown:
-            raise ValueError(
-                f"{path}: unknown reward config keys: {sorted(unknown)}\n"
-                f"Valid keys: {sorted(valid_keys)}"
-            )
+            raise ValueError(f"{path}: unknown reward config keys: {sorted(unknown)}\nValid keys: {sorted(valid_keys)}")
         return cls(**data)
 
 
@@ -339,12 +336,8 @@ class SC2RewardCalculator(RewardCalculatorBase):
             self._last_non_noop_target_y = raw_target_y
         carried_attack_noop = raw_fn_idx == 0 and self._last_non_noop_fn_idx == 3
         combat_fn_idx = 3 if carried_attack_noop else raw_fn_idx
-        combat_target_x = (
-            self._last_non_noop_target_x if carried_attack_noop else raw_target_x
-        )
-        combat_target_y = (
-            self._last_non_noop_target_y if carried_attack_noop else raw_target_y
-        )
+        combat_target_x = self._last_non_noop_target_x if carried_attack_noop else raw_target_x
+        combat_target_y = self._last_non_noop_target_y if carried_attack_noop else raw_target_y
 
         # Score delta — primary signal for minigames.
         prev_score = info.get("prev_score", 0.0)
@@ -357,9 +350,7 @@ class SC2RewardCalculator(RewardCalculatorBase):
             curr_min = info.get("minerals", 0.0)
             prev_vesp = info.get("prev_vespene", 0.0)
             curr_vesp = info.get("vespene", 0.0)
-            components["economy"] = float(
-                cfg.economy_weight * ((curr_min - prev_min) + (curr_vesp - prev_vesp))
-            )
+            components["economy"] = float(cfg.economy_weight * ((curr_min - prev_min) + (curr_vesp - prev_vesp)))
         else:
             components["economy"] = 0.0
 
@@ -382,12 +373,8 @@ class SC2RewardCalculator(RewardCalculatorBase):
             self_count = info.get("screen_self_count", 0.0)
             enemy_count = info.get("screen_enemy_count", 0.0)
             if self_count > 0 and enemy_count > 0:
-                dx = float(info.get("screen_self_cx", 0.0)) - float(
-                    info.get("screen_enemy_cx", 0.0)
-                )
-                dy = float(info.get("screen_self_cy", 0.0)) - float(
-                    info.get("screen_enemy_cy", 0.0)
-                )
+                dx = float(info.get("screen_self_cx", 0.0)) - float(info.get("screen_enemy_cx", 0.0))
+                dy = float(info.get("screen_self_cy", 0.0)) - float(info.get("screen_enemy_cy", 0.0))
                 dist = (dx * dx + dy * dy) ** 0.5
                 screen_size = float(info.get("screen_size", 64))
                 max_attack_range_px = float(
@@ -546,10 +533,7 @@ class SC2RewardCalculator(RewardCalculatorBase):
 
             # "Click to attack": target pixel is within click_radius of enemy
             # centroid and at least one enemy is visible.
-            on_enemy = (
-                enemy_count > 0
-                and ((tx_px - ecx) ** 2 + (ty_px - ecy) ** 2) ** 0.5 <= click_radius_px
-            )
+            on_enemy = enemy_count > 0 and ((tx_px - ecx) ** 2 + (ty_px - ecy) ** 2) ** 0.5 <= click_radius_px
 
             if on_enemy and cfg.click_attack_bonus != 0.0:
                 # Check cooldown: only blocked when the agent switches to a
@@ -559,9 +543,7 @@ class SC2RewardCalculator(RewardCalculatorBase):
                     same_target = True
                 else:
                     dx = tx_px - self._last_click_x
-                    dy = (
-                        ty_px - self._last_click_y
-                    )  # _last_click_x/_last_click_y are set together
+                    dy = ty_px - self._last_click_y  # _last_click_x/_last_click_y are set together
                     same_target = (dx * dx + dy * dy) ** 0.5 <= click_radius_px
                 if same_target or steps_since >= cfg.click_attack_cooldown_steps:
                     click_attack_bonus = cfg.click_attack_bonus * n_ticks

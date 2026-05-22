@@ -4,6 +4,7 @@ We don't want a hard PySC2 dependency in CI, so these tests construct fake
 TimeStep-shaped objects (NamedTuples / dicts) and pass them through the
 client's flattening path.
 """
+
 import unittest
 from collections import namedtuple
 
@@ -45,17 +46,23 @@ class _FakeTimeStep:
 
 
 class TestSC2ClientMinigameFlatten(unittest.TestCase):
-
     def setUp(self):
         self.client = SC2Client(map_name="MoveToBeacon")
 
     def test_minigame_flat_obs_shape(self):
         observation = {
-            "player": _NamedArr({
-                "minerals": 50, "vespene": 0, "food_used": 1, "food_cap": 15,
-                "army_count": 0, "idle_worker_count": 0,
-                "warp_gate_count": 0, "larva_count": 0,
-            }),
+            "player": _NamedArr(
+                {
+                    "minerals": 50,
+                    "vespene": 0,
+                    "food_used": 1,
+                    "food_cap": 15,
+                    "army_count": 0,
+                    "idle_worker_count": 0,
+                    "warp_gate_count": 0,
+                    "larva_count": 0,
+                }
+            ),
             "single_select": np.zeros((0, 7), dtype=np.int32),
             "multi_select": np.zeros((0, 7), dtype=np.int32),
             "feature_screen": np.zeros((17, 64, 64), dtype=np.int32),
@@ -69,11 +76,18 @@ class TestSC2ClientMinigameFlatten(unittest.TestCase):
     def test_score_delta_threading(self):
         """score becomes prev_score on the second call."""
         ob = {
-            "player": _NamedArr({
-                "minerals": 0, "vespene": 0, "food_used": 0, "food_cap": 0,
-                "army_count": 0, "idle_worker_count": 0,
-                "warp_gate_count": 0, "larva_count": 0,
-            }),
+            "player": _NamedArr(
+                {
+                    "minerals": 0,
+                    "vespene": 0,
+                    "food_used": 0,
+                    "food_cap": 0,
+                    "army_count": 0,
+                    "idle_worker_count": 0,
+                    "warp_gate_count": 0,
+                    "larva_count": 0,
+                }
+            ),
             "feature_screen": np.zeros((17, 64, 64), dtype=np.int32),
             "score_cumulative": np.array([7]),
         }
@@ -93,11 +107,18 @@ class TestSC2ClientMinigameFlatten(unittest.TestCase):
         # Place a single friendly pixel at (10, 20) — channel 5 = player_relative.
         screen[5, 20, 10] = 1  # row=20 → y, col=10 → x
         ob = {
-            "player": _NamedArr({
-                "minerals": 0, "vespene": 0, "food_used": 0, "food_cap": 0,
-                "army_count": 0, "idle_worker_count": 0,
-                "warp_gate_count": 0, "larva_count": 0,
-            }),
+            "player": _NamedArr(
+                {
+                    "minerals": 0,
+                    "vespene": 0,
+                    "food_used": 0,
+                    "food_cap": 0,
+                    "army_count": 0,
+                    "idle_worker_count": 0,
+                    "warp_gate_count": 0,
+                    "larva_count": 0,
+                }
+            ),
             "feature_screen": screen,
             "score_cumulative": np.array([0]),
         }
@@ -111,11 +132,18 @@ class TestSC2ClientMinigameFlatten(unittest.TestCase):
         """For minigames, player_outcome is always None (timestep.reward is
         the per-step score delta, not a terminal win/loss signal)."""
         ob = {
-            "player": _NamedArr({
-                "minerals": 0, "vespene": 0, "food_used": 0, "food_cap": 0,
-                "army_count": 0, "idle_worker_count": 0,
-                "warp_gate_count": 0, "larva_count": 0,
-            }),
+            "player": _NamedArr(
+                {
+                    "minerals": 0,
+                    "vespene": 0,
+                    "food_used": 0,
+                    "food_cap": 0,
+                    "army_count": 0,
+                    "idle_worker_count": 0,
+                    "warp_gate_count": 0,
+                    "larva_count": 0,
+                }
+            ),
             "feature_screen": np.zeros((17, 64, 64), dtype=np.int32),
             "score_cumulative": np.array([0]),
         }
@@ -127,11 +155,18 @@ class TestSC2ClientMinigameFlatten(unittest.TestCase):
     def test_info_includes_unit_aware_attack_range_px(self):
         self.client._unit_type_id_to_attack_range_gu = {1: 5.0}
         ob = {
-            "player": _NamedArr({
-                "minerals": 0, "vespene": 0, "food_used": 0, "food_cap": 0,
-                "army_count": 0, "idle_worker_count": 0,
-                "warp_gate_count": 0, "larva_count": 0,
-            }),
+            "player": _NamedArr(
+                {
+                    "minerals": 0,
+                    "vespene": 0,
+                    "food_used": 0,
+                    "food_cap": 0,
+                    "army_count": 0,
+                    "idle_worker_count": 0,
+                    "warp_gate_count": 0,
+                    "larva_count": 0,
+                }
+            ),
             "feature_screen": np.zeros((17, 64, 64), dtype=np.int32),
             "feature_units": np.array([[1, 1], [1, 4]], dtype=np.int32),
             "score_cumulative": np.array([0]),
@@ -142,11 +177,18 @@ class TestSC2ClientMinigameFlatten(unittest.TestCase):
     def test_info_attack_range_uses_max_visible_friendly_type(self):
         self.client._unit_type_id_to_attack_range_gu = {1: 5.0, 2: 6.0}
         ob = {
-            "player": _NamedArr({
-                "minerals": 0, "vespene": 0, "food_used": 0, "food_cap": 0,
-                "army_count": 0, "idle_worker_count": 0,
-                "warp_gate_count": 0, "larva_count": 0,
-            }),
+            "player": _NamedArr(
+                {
+                    "minerals": 0,
+                    "vespene": 0,
+                    "food_used": 0,
+                    "food_cap": 0,
+                    "army_count": 0,
+                    "idle_worker_count": 0,
+                    "warp_gate_count": 0,
+                    "larva_count": 0,
+                }
+            ),
             "feature_screen": np.zeros((17, 64, 64), dtype=np.int32),
             "feature_units": np.array([[1, 1], [2, 1]], dtype=np.int32),
             "score_cumulative": np.array([0]),
@@ -156,17 +198,27 @@ class TestSC2ClientMinigameFlatten(unittest.TestCase):
 
     def test_info_includes_total_self_hp_from_visible_friendlies(self):
         ob = {
-            "player": _NamedArr({
-                "minerals": 0, "vespene": 0, "food_used": 0, "food_cap": 0,
-                "army_count": 0, "idle_worker_count": 0,
-                "warp_gate_count": 0, "larva_count": 0,
-            }),
+            "player": _NamedArr(
+                {
+                    "minerals": 0,
+                    "vespene": 0,
+                    "food_used": 0,
+                    "food_cap": 0,
+                    "army_count": 0,
+                    "idle_worker_count": 0,
+                    "warp_gate_count": 0,
+                    "larva_count": 0,
+                }
+            ),
             "feature_screen": np.zeros((17, 64, 64), dtype=np.int32),
-            "feature_units": np.array([
-                [1, 1, 10, 2],   # self
-                [2, 1, 20, 3],   # self
-                [3, 4, 99, 99],  # enemy -> excluded
-            ], dtype=np.float32),
+            "feature_units": np.array(
+                [
+                    [1, 1, 10, 2],  # self
+                    [2, 1, 20, 3],  # self
+                    [3, 4, 99, 99],  # enemy -> excluded
+                ],
+                dtype=np.float32,
+            ),
             "score_cumulative": np.array([0]),
         }
         _, info = self.client._timestep_to_obs_info(_FakeTimeStep(ob))
@@ -175,15 +227,25 @@ class TestSC2ClientMinigameFlatten(unittest.TestCase):
 
     def test_info_includes_selected_count(self):
         ob = {
-            "player": _NamedArr({
-                "minerals": 0, "vespene": 0, "food_used": 0, "food_cap": 0,
-                "army_count": 0, "idle_worker_count": 0,
-                "warp_gate_count": 0, "larva_count": 0,
-            }),
-            "single_select": np.array([
-                [48, 1, 45, 0, 0, 0, 0],
-                [48, 1, 45, 0, 0, 0, 0],
-            ], dtype=np.int32),
+            "player": _NamedArr(
+                {
+                    "minerals": 0,
+                    "vespene": 0,
+                    "food_used": 0,
+                    "food_cap": 0,
+                    "army_count": 0,
+                    "idle_worker_count": 0,
+                    "warp_gate_count": 0,
+                    "larva_count": 0,
+                }
+            ),
+            "single_select": np.array(
+                [
+                    [48, 1, 45, 0, 0, 0, 0],
+                    [48, 1, 45, 0, 0, 0, 0],
+                ],
+                dtype=np.int32,
+            ),
             "feature_screen": np.zeros((17, 64, 64), dtype=np.int32),
             "score_cumulative": np.array([0]),
         }
@@ -191,10 +253,13 @@ class TestSC2ClientMinigameFlatten(unittest.TestCase):
         self.assertAlmostEqual(info["selected_count"], 2.0)
 
     def test_total_self_hp_no_self_units_returns_zero(self):
-        feat_units = np.array([
-            [1, 4, 10, 2],
-            [2, 4, 20, 3],
-        ], dtype=np.float32)
+        feat_units = np.array(
+            [
+                [1, 4, 10, 2],
+                [2, 4, 20, 3],
+            ],
+            dtype=np.float32,
+        )
         self.assertEqual(
             self.client._total_self_hp({"feature_units": feat_units}),
             0.0,
@@ -213,17 +278,23 @@ class TestSC2ClientMinigameFlatten(unittest.TestCase):
 
 
 class TestSC2ClientLadderFlatten(unittest.TestCase):
-
     def setUp(self):
         self.client = SC2Client(map_name="Simple64")
 
     def test_ladder_flat_obs_shape(self):
         ob = {
-            "player": _NamedArr({
-                "minerals": 50, "vespene": 0, "food_used": 12, "food_cap": 15,
-                "army_count": 1, "idle_worker_count": 2,
-                "warp_gate_count": 0, "larva_count": 3,
-            }),
+            "player": _NamedArr(
+                {
+                    "minerals": 50,
+                    "vespene": 0,
+                    "food_used": 12,
+                    "food_cap": 15,
+                    "army_count": 1,
+                    "idle_worker_count": 2,
+                    "warp_gate_count": 0,
+                    "larva_count": 3,
+                }
+            ),
             "feature_screen": np.zeros((17, 64, 64), dtype=np.int32),
             "feature_minimap": np.zeros((11, 64, 64), dtype=np.int32),
             "score_cumulative": np.array([0]),
@@ -242,11 +313,18 @@ class TestSC2ClientLadderFlatten(unittest.TestCase):
         # Channel 1 = visibility_map; mark a quadrant visible (value 2).
         mmap[1, :32, :32] = 2
         ob = {
-            "player": _NamedArr({
-                "minerals": 0, "vespene": 0, "food_used": 0, "food_cap": 0,
-                "army_count": 0, "idle_worker_count": 0,
-                "warp_gate_count": 0, "larva_count": 0,
-            }),
+            "player": _NamedArr(
+                {
+                    "minerals": 0,
+                    "vespene": 0,
+                    "food_used": 0,
+                    "food_cap": 0,
+                    "army_count": 0,
+                    "idle_worker_count": 0,
+                    "warp_gate_count": 0,
+                    "larva_count": 0,
+                }
+            ),
             "feature_screen": np.zeros((17, 64, 64), dtype=np.int32),
             "feature_minimap": mmap,
             "score_cumulative": np.array([0]),
@@ -260,7 +338,7 @@ class TestSC2ClientLadderFlatten(unittest.TestCase):
         vis_i = self._name_idx("minimap_visible_frac")
         exp_i = self._name_idx("minimap_explored_frac")
         self.assertGreater(flat1[vis_i], 0.0)  # visible_frac > 0 first call
-        self.assertEqual(flat2[vis_i], 0.0)    # visible_frac = 0 second call
+        self.assertEqual(flat2[vis_i], 0.0)  # visible_frac = 0 second call
         # Explored remains > 0 in both calls.
         self.assertGreater(flat1[exp_i], 0.0)
         self.assertGreater(flat2[exp_i], 0.0)
@@ -270,14 +348,21 @@ class TestSC2ClientLadderFlatten(unittest.TestCase):
         """visible_frac uses == 2; fogged tiles (value 1) must not be counted."""
         mmap = np.zeros((11, 64, 64), dtype=np.int32)
         # Mark top-left quadrant as fogged (1) and bottom-right as visible (2).
-        mmap[1, :32, :32] = 1   # fogged — explored but not currently visible
-        mmap[1, 32:, 32:] = 2   # fully visible
+        mmap[1, :32, :32] = 1  # fogged — explored but not currently visible
+        mmap[1, 32:, 32:] = 2  # fully visible
         ob = {
-            "player": _NamedArr({
-                "minerals": 0, "vespene": 0, "food_used": 0, "food_cap": 0,
-                "army_count": 0, "idle_worker_count": 0,
-                "warp_gate_count": 0, "larva_count": 0,
-            }),
+            "player": _NamedArr(
+                {
+                    "minerals": 0,
+                    "vespene": 0,
+                    "food_used": 0,
+                    "food_cap": 0,
+                    "army_count": 0,
+                    "idle_worker_count": 0,
+                    "warp_gate_count": 0,
+                    "larva_count": 0,
+                }
+            ),
             "feature_screen": np.zeros((17, 64, 64), dtype=np.int32),
             "feature_minimap": mmap,
             "score_cumulative": np.array([0]),
@@ -296,11 +381,18 @@ class TestSC2ClientLadderFlatten(unittest.TestCase):
     def test_ladder_terminal_outcome_set(self):
         """For ladder maps, player_outcome is set from timestep.reward on last step."""
         ob = {
-            "player": _NamedArr({
-                "minerals": 0, "vespene": 0, "food_used": 0, "food_cap": 0,
-                "army_count": 0, "idle_worker_count": 0,
-                "warp_gate_count": 0, "larva_count": 0,
-            }),
+            "player": _NamedArr(
+                {
+                    "minerals": 0,
+                    "vespene": 0,
+                    "food_used": 0,
+                    "food_cap": 0,
+                    "army_count": 0,
+                    "idle_worker_count": 0,
+                    "warp_gate_count": 0,
+                    "larva_count": 0,
+                }
+            ),
             "feature_screen": np.zeros((17, 64, 64), dtype=np.int32),
             "feature_minimap": np.zeros((11, 64, 64), dtype=np.int32),
             "score_cumulative": np.array([0]),
@@ -315,11 +407,18 @@ class TestSC2ClientLadderFlatten(unittest.TestCase):
     def test_ladder_non_terminal_outcome_is_none(self):
         """player_outcome is None on non-terminal ladder steps."""
         ob = {
-            "player": _NamedArr({
-                "minerals": 0, "vespene": 0, "food_used": 0, "food_cap": 0,
-                "army_count": 0, "idle_worker_count": 0,
-                "warp_gate_count": 0, "larva_count": 0,
-            }),
+            "player": _NamedArr(
+                {
+                    "minerals": 0,
+                    "vespene": 0,
+                    "food_used": 0,
+                    "food_cap": 0,
+                    "army_count": 0,
+                    "idle_worker_count": 0,
+                    "warp_gate_count": 0,
+                    "larva_count": 0,
+                }
+            ),
             "feature_screen": np.zeros((17, 64, 64), dtype=np.int32),
             "feature_minimap": np.zeros((11, 64, 64), dtype=np.int32),
             "score_cumulative": np.array([0]),
@@ -334,33 +433,42 @@ class TestSC2ClientLadderFlatten(unittest.TestCase):
 # Issue #126: feature-block extractors and rich preset assembly
 # ---------------------------------------------------------------------------
 
+
 class TestSC2ClientFeatureExtractors(unittest.TestCase):
     """Targeted tests for the per-block extractors added in #126."""
 
     def setUp(self):
         from games.sc2.client import SC2Client
+
         self.client = SC2Client(map_name="Simple64", obs_spec_preset="rich")
 
     def _ladder_ob(self):
         return {
-            "player": _NamedArr({
-                "minerals": 100.0, "vespene": 50.0,
-                "food_used": 10.0, "food_cap": 15.0,
-                "army_count": 3.0, "idle_worker_count": 2.0,
-                "warp_gate_count": 0.0, "larva_count": 1.0,
-                "food_workers": 6.0, "food_army": 4.0,
-            }),
-            "feature_screen":  np.zeros((17, 64, 64), dtype=np.int32),
+            "player": _NamedArr(
+                {
+                    "minerals": 100.0,
+                    "vespene": 50.0,
+                    "food_used": 10.0,
+                    "food_cap": 15.0,
+                    "army_count": 3.0,
+                    "idle_worker_count": 2.0,
+                    "warp_gate_count": 0.0,
+                    "larva_count": 1.0,
+                    "food_workers": 6.0,
+                    "food_army": 4.0,
+                }
+            ),
+            "feature_screen": np.zeros((17, 64, 64), dtype=np.int32),
             "feature_minimap": np.zeros((11, 64, 64), dtype=np.int32),
             "score_cumulative": np.arange(13, dtype=np.int32) * 10,
-            "game_loop":       np.array([100]),
+            "game_loop": np.array([100]),
             "available_actions": np.array([0, 1, 2], dtype=np.int32),
         }
 
     def test_player_features_includes_food_split(self):
         feats = self.client._player_features(self._ladder_ob())
         self.assertEqual(feats["food_workers"], 6.0)
-        self.assertEqual(feats["food_army"],    4.0)
+        self.assertEqual(feats["food_army"], 4.0)
 
     def test_score_features_returns_all_13_named_entries(self):
         feats = self.client._score_features(self._ladder_ob())
@@ -443,9 +551,9 @@ class TestSC2ClientFeatureExtractors(unittest.TestCase):
 
     def test_screen_summary_friendly_only(self):
         screen = np.zeros((17, 64, 64), dtype=np.int32)
-        screen[5, 10, 20] = 1   # one friendly pixel
+        screen[5, 10, 20] = 1  # one friendly pixel
         feats = self.client._screen_summary_features(screen)
-        self.assertEqual(feats["screen_self_count"],  1.0)
+        self.assertEqual(feats["screen_self_count"], 1.0)
         self.assertEqual(feats["screen_enemy_count"], 0.0)
         self.assertAlmostEqual(feats["screen_self_cx"], 20.0)
         self.assertAlmostEqual(feats["screen_self_cy"], 10.0)
@@ -457,8 +565,8 @@ class TestSC2ClientFeatureExtractors(unittest.TestCase):
         # SE (bottom-right): row>=32, col>=32
         screen[5, 50, 50] = 4
         feats = self.client._quadrant_features(screen)
-        self.assertEqual(feats["screen_self_NW_count"],  1.0)
-        self.assertEqual(feats["screen_self_NE_count"],  0.0)
+        self.assertEqual(feats["screen_self_NW_count"], 1.0)
+        self.assertEqual(feats["screen_self_NE_count"], 0.0)
         self.assertEqual(feats["screen_enemy_SE_count"], 1.0)
         self.assertEqual(feats["screen_enemy_NE_count"], 0.0)
 
@@ -473,7 +581,7 @@ class TestSC2ClientFeatureExtractors(unittest.TestCase):
         # enemy at distance 30 (outside the 24-radius bucket)
         screen[5, 32, 62] = 4
         feats = self.client._topk_enemy_features(screen)
-        self.assertEqual(feats["topk_enemy_within_8"],  1.0)
+        self.assertEqual(feats["topk_enemy_within_8"], 1.0)
         self.assertEqual(feats["topk_enemy_within_24"], 2.0)
 
     def test_last_action_features_track_issued_fn(self):
@@ -486,6 +594,7 @@ class TestSC2ClientFeatureExtractors(unittest.TestCase):
     def test_rich_preset_flat_obs_dim(self):
         """Rich preset assembled flat obs has the expected length."""
         from games.sc2.obs_spec import RICH_OBS_DIM
+
         ob = self._ladder_ob()
         flat, _ = self.client._timestep_to_obs_info(_FakeTimeStep(ob))
         self.assertEqual(flat.shape, (RICH_OBS_DIM,))
@@ -494,6 +603,7 @@ class TestSC2ClientFeatureExtractors(unittest.TestCase):
         """Minigame default still produces a BASE_OBS_DIM flat obs."""
         from games.sc2.client import SC2Client
         from games.sc2.obs_spec import BASE_OBS_DIM
+
         c = SC2Client(map_name="MoveToBeacon")
         ob = self._ladder_ob()  # extra fields are tolerated
         flat, _ = c._timestep_to_obs_info(_FakeTimeStep(ob))
@@ -508,14 +618,21 @@ class TestSC2ClientFeatureExtractors(unittest.TestCase):
         c = SC2Client(map_name="MoveToBeacon")
         minimap = np.zeros((11, 64, 64), dtype=np.int32)
         # Place a fake beacon (enemy, player_relative=4) at pixel (40, 20).
-        minimap[5, 20, 40] = 4   # channel 5 = player_relative
+        minimap[5, 20, 40] = 4  # channel 5 = player_relative
         ob = {
-            "player": _NamedArr({
-                "minerals": 0, "vespene": 0, "food_used": 1, "food_cap": 15,
-                "army_count": 1, "idle_worker_count": 0,
-                "warp_gate_count": 0, "larva_count": 0,
-            }),
-            "feature_screen":  np.zeros((17, 64, 64), dtype=np.int32),
+            "player": _NamedArr(
+                {
+                    "minerals": 0,
+                    "vespene": 0,
+                    "food_used": 1,
+                    "food_cap": 15,
+                    "army_count": 1,
+                    "idle_worker_count": 0,
+                    "warp_gate_count": 0,
+                    "larva_count": 0,
+                }
+            ),
+            "feature_screen": np.zeros((17, 64, 64), dtype=np.int32),
             "feature_minimap": minimap,
             "score_cumulative": np.array([0]),
         }
@@ -537,12 +654,19 @@ class TestSC2ClientFeatureExtractors(unittest.TestCase):
         c = SC2Client(map_name="MoveToBeacon")
         # All-zero minimap: no enemies present.
         ob = {
-            "player": _NamedArr({
-                "minerals": 0, "vespene": 0, "food_used": 1, "food_cap": 15,
-                "army_count": 1, "idle_worker_count": 0,
-                "warp_gate_count": 0, "larva_count": 0,
-            }),
-            "feature_screen":  np.zeros((17, 64, 64), dtype=np.int32),
+            "player": _NamedArr(
+                {
+                    "minerals": 0,
+                    "vespene": 0,
+                    "food_used": 1,
+                    "food_cap": 15,
+                    "army_count": 1,
+                    "idle_worker_count": 0,
+                    "warp_gate_count": 0,
+                    "larva_count": 0,
+                }
+            ),
+            "feature_screen": np.zeros((17, 64, 64), dtype=np.int32),
             "feature_minimap": np.zeros((11, 64, 64), dtype=np.int32),
             "score_cumulative": np.array([0]),
         }
@@ -559,13 +683,14 @@ class TestSC2ClientFeatureExtractors(unittest.TestCase):
 # fall back to select_army rather than silently no-op'ing.
 # ---------------------------------------------------------------------------
 
+
 class _FakeFn:
     def __init__(self, fn_id: int):
         self.id = fn_id
 
 
 class _FakeFunctions:
-    no_op       = _FakeFn(0)
+    no_op = _FakeFn(0)
     select_army = _FakeFn(7)
     Move_screen = _FakeFn(331)
     Build_Barracks_screen = _FakeFn(321)
@@ -595,17 +720,22 @@ class TestSC2ClientActionFallback(unittest.TestCase):
 
     def setUp(self):
         from unittest.mock import patch
+
         # Patch pysc2 + the games.sc2.actions.action_to_function_call helper so
         # _action_to_call can be exercised without a real pysc2 install.
-        patcher_pysc2 = patch.dict("sys.modules", {
-            "pysc2":         _FakePySc2,
-            "pysc2.lib":     _FakePySc2.lib,
-            "pysc2.lib.actions": _FakeActionsModule,
-        })
+        patcher_pysc2 = patch.dict(
+            "sys.modules",
+            {
+                "pysc2": _FakePySc2,
+                "pysc2.lib": _FakePySc2.lib,
+                "pysc2.lib.actions": _FakeActionsModule,
+            },
+        )
         patcher_pysc2.start()
         self.addCleanup(patcher_pysc2.stop)
 
         from games.sc2 import client as client_mod
+
         # action_to_function_call also imports pysc2 internally; replace it
         # with a stub that returns a FakeFunctionCall with the obvious mapping.
         def _fake_action_to_call(action, screen_size, minimap_size=None):
@@ -619,19 +749,23 @@ class TestSC2ClientActionFallback(unittest.TestCase):
             return _FakeFunctionCall(fn_id, [])
 
         patcher_helper = patch.object(
-            client_mod, "action_to_function_call", _fake_action_to_call,
+            client_mod,
+            "action_to_function_call",
+            _fake_action_to_call,
         )
         patcher_helper.start()
         self.addCleanup(patcher_helper.stop)
 
         from games.sc2.client import SC2Client
+
         self.client = SC2Client(map_name="MoveToBeacon")
 
     def test_move_screen_with_no_army_selected_substitutes_select_army(self):
         """Issue #124: blocked Move_screen → auto-select-army (not no_op)."""
         # Available actions: no_op (0) + select_army (7).  Move_screen (331) is NOT.
         self.client._available_actions = {
-            _FakeFunctions.no_op.id, _FakeFunctions.select_army.id,
+            _FakeFunctions.no_op.id,
+            _FakeFunctions.select_army.id,
         }
         action = np.array([2, 0.4, 0.6, 0], dtype=np.float32)
         call = self.client._action_to_call(action)
@@ -670,7 +804,8 @@ class TestSC2ClientActionFallback(unittest.TestCase):
         consecutive steps, select_army should be issued ONCE, then no_op on
         subsequent blocked steps — not select_army every time."""
         blocked_available = {
-            _FakeFunctions.no_op.id, _FakeFunctions.select_army.id,
+            _FakeFunctions.no_op.id,
+            _FakeFunctions.select_army.id,
         }
         self.client._available_actions = blocked_available
         action = np.array([2, 0.4, 0.6, 0], dtype=np.float32)
@@ -718,7 +853,8 @@ class TestSC2ClientActionFallback(unittest.TestCase):
         """Long blocked streaks should periodically retry select_army so the
         agent cannot get stuck in endless no_op after a round transition."""
         blocked_available = {
-            _FakeFunctions.no_op.id, _FakeFunctions.select_army.id,
+            _FakeFunctions.no_op.id,
+            _FakeFunctions.select_army.id,
         }
         self.client._available_actions = blocked_available
         action = np.array([2, 0.4, 0.6, 0], dtype=np.float32)
@@ -731,7 +867,8 @@ class TestSC2ClientActionFallback(unittest.TestCase):
     def test_build_action_with_no_units_selected_substitutes_select_army(self):
         """Blocked build action should trigger selection recovery when empty."""
         self.client._available_actions = {
-            _FakeFunctions.no_op.id, _FakeFunctions.select_army.id,
+            _FakeFunctions.no_op.id,
+            _FakeFunctions.select_army.id,
         }
         self.client._selected_count = 0.0
         action = np.array([8, 0.4, 0.6, 0], dtype=np.float32)
@@ -741,23 +878,32 @@ class TestSC2ClientActionFallback(unittest.TestCase):
     def test_does_not_substitute_select_army_when_units_are_already_selected(self):
         """Blocked actions for other reasons should remain no_op fallback."""
         self.client._available_actions = {
-            _FakeFunctions.no_op.id, _FakeFunctions.select_army.id,
+            _FakeFunctions.no_op.id,
+            _FakeFunctions.select_army.id,
         }
         self.client._selected_count = 2.0
         action = np.array([8, 0.4, 0.6, 0], dtype=np.float32)
         call = self.client._action_to_call(action)
         self.assertEqual(call.function, _FakeFunctions.no_op.id)
 
+
 class TestSC2ClientAvailableFnIds(unittest.TestCase):
     """Tests for the info["available_fn_ids"] field added by _timestep_to_obs_info."""
 
     def _minigame_ob(self, available_actions: np.ndarray | None = None) -> dict:
         ob = {
-            "player": _NamedArr({
-                "minerals": 0, "vespene": 0, "food_used": 0, "food_cap": 0,
-                "army_count": 0, "idle_worker_count": 0,
-                "warp_gate_count": 0, "larva_count": 0,
-            }),
+            "player": _NamedArr(
+                {
+                    "minerals": 0,
+                    "vespene": 0,
+                    "food_used": 0,
+                    "food_cap": 0,
+                    "army_count": 0,
+                    "idle_worker_count": 0,
+                    "warp_gate_count": 0,
+                    "larva_count": 0,
+                }
+            ),
             "feature_screen": np.zeros((17, 64, 64), dtype=np.int32),
             "score_cumulative": np.array([0]),
         }
@@ -781,6 +927,7 @@ class TestSC2ClientAvailableFnIds(unittest.TestCase):
         """When the PySC2 ID→fn_idx mapping is empty (PySC2 not installed),
         available_fn_ids is None even if available_actions is present."""
         import games.sc2.client as sc2_client_mod
+
         old_cache = sc2_client_mod._pysc2_id_to_fn_idx
         try:
             # Simulate PySC2 not installed: the cache resolves to an empty dict.
@@ -796,6 +943,7 @@ class TestSC2ClientAvailableFnIds(unittest.TestCase):
         """With an injected PySC2-ID→fn_idx table, available_fn_ids contains
         only the fn_idx values whose PySC2 IDs appear in available_actions."""
         import games.sc2.client as sc2_client_mod
+
         old_cache = sc2_client_mod._pysc2_id_to_fn_idx
         try:
             # Inject a synthetic mapping: PySC2 IDs 0→fn_idx 0, 7→fn_idx 1, 331→fn_idx 2.
@@ -812,6 +960,7 @@ class TestSC2ClientAvailableFnIds(unittest.TestCase):
     def test_available_fn_ids_excludes_unknown_pysc2_ids(self):
         """PySC2 IDs with no mapping entry must be silently dropped."""
         import games.sc2.client as sc2_client_mod
+
         old_cache = sc2_client_mod._pysc2_id_to_fn_idx
         try:
             sc2_client_mod._pysc2_id_to_fn_idx = {0: 0}  # only no_op mapped
@@ -826,6 +975,7 @@ class TestSC2ClientAvailableFnIds(unittest.TestCase):
     def test_available_fn_ids_is_set_type(self):
         """available_fn_ids must be a set (not a list or dict) for O(1) lookup."""
         import games.sc2.client as sc2_client_mod
+
         old_cache = sc2_client_mod._pysc2_id_to_fn_idx
         try:
             sc2_client_mod._pysc2_id_to_fn_idx = {0: 0, 7: 1}
@@ -893,6 +1043,7 @@ class TestSC2ClientAvailableFnIds(unittest.TestCase):
 # Issue #135: new rich-preset feature extractors
 # ---------------------------------------------------------------------------
 
+
 class TestSC2ClientRichExtractors(unittest.TestCase):
     """Targeted tests for the per-block extractors added in #135."""
 
@@ -917,39 +1068,48 @@ class TestSC2ClientRichExtractors(unittest.TestCase):
         # Inject a synthetic unit_type_id_to_name mapping.
         self.client._unit_type_id_to_name = {1: "Marine", 2: "Zergling"}
         # feature_units: columns [unit_type, owner]
-        feat_units = np.array([
-            [1, 1],  # friendly Marine → skip
-            [2, 4],  # enemy Zergling → count
-            [2, 4],  # enemy Zergling → count
-        ], dtype=np.int32)
+        feat_units = np.array(
+            [
+                [1, 1],  # friendly Marine → skip
+                [2, 4],  # enemy Zergling → count
+                [2, 4],  # enemy Zergling → count
+            ],
+            dtype=np.int32,
+        )
         ob = {"feature_units": feat_units}
         feats = self.client._enemy_unit_type_features(ob)
         self.assertEqual(feats["enemy_count_Zergling"], 2.0)
-        self.assertEqual(feats["enemy_count_Marine"],   0.0)
+        self.assertEqual(feats["enemy_count_Marine"], 0.0)
 
     def test_enemy_unit_type_features_neutral_excluded(self):
         """Neutral units (owner == 3) must NOT be counted as enemies."""
         self.client._unit_type_id_to_name = {1: "Marine", 2: "Zergling"}
-        feat_units = np.array([
-            [1, 3],  # neutral Marine → skip
-            [2, 3],  # neutral Zergling → skip
-            [1, 4],  # enemy Marine → count
-        ], dtype=np.int32)
+        feat_units = np.array(
+            [
+                [1, 3],  # neutral Marine → skip
+                [2, 3],  # neutral Zergling → skip
+                [1, 4],  # enemy Marine → count
+            ],
+            dtype=np.int32,
+        )
         ob = {"feature_units": feat_units}
         feats = self.client._enemy_unit_type_features(ob)
-        self.assertEqual(feats["enemy_count_Marine"],   1.0)
+        self.assertEqual(feats["enemy_count_Marine"], 1.0)
         self.assertEqual(feats["enemy_count_Zergling"], 0.0)
 
     def test_enemy_unit_type_features_ally_excluded(self):
         """Ally units (owner == 2) must NOT be counted as enemies."""
         self.client._unit_type_id_to_name = {1: "Marine", 2: "Zergling"}
-        feat_units = np.array([
-            [2, 2],  # ally Zergling → skip
-            [1, 4],  # enemy Marine → count
-        ], dtype=np.int32)
+        feat_units = np.array(
+            [
+                [2, 2],  # ally Zergling → skip
+                [1, 4],  # enemy Marine → count
+            ],
+            dtype=np.int32,
+        )
         ob = {"feature_units": feat_units}
         feats = self.client._enemy_unit_type_features(ob)
-        self.assertEqual(feats["enemy_count_Marine"],   1.0)
+        self.assertEqual(feats["enemy_count_Marine"], 1.0)
         self.assertEqual(feats["enemy_count_Zergling"], 0.0)
 
     def test_enemy_unit_type_features_missing_feature_units(self):
@@ -967,7 +1127,6 @@ class TestSC2ClientRichExtractors(unittest.TestCase):
 
     def test_shield_energy_features_self_shield(self):
         """shield layer pixels at friendly positions are averaged for self_shield."""
-        screen = self._screen_with_pr(friendly_yx=[(10, 10), (10, 11)])
         # Channel index for unit_shields: look it up via named access — fake it
         # by building a _NamedArr-style screen stub.
         screen_named = np.zeros((17, 64, 64), dtype=np.int32)
@@ -1001,9 +1160,9 @@ class TestSC2ClientRichExtractors(unittest.TestCase):
     def test_shield_energy_features_no_units_returns_zeros(self):
         screen = np.zeros((17, 64, 64), dtype=np.int32)
         feats = self.client._shield_energy_features(screen)
-        self.assertEqual(feats["screen_self_shield_mean"],  0.0)
+        self.assertEqual(feats["screen_self_shield_mean"], 0.0)
         self.assertEqual(feats["screen_enemy_shield_mean"], 0.0)
-        self.assertEqual(feats["screen_self_energy_mean"],  0.0)
+        self.assertEqual(feats["screen_self_energy_mean"], 0.0)
 
     def test_shield_energy_features_none_screen(self):
         feats = self.client._shield_energy_features(None)
@@ -1055,41 +1214,49 @@ class TestSC2ClientRichExtractors(unittest.TestCase):
 
     def test_economy_pipeline_all_missing_returns_zeros(self):
         feats = self.client._economy_pipeline_features({})
-        self.assertEqual(feats["upgrade_count"],    0.0)
+        self.assertEqual(feats["upgrade_count"], 0.0)
         self.assertEqual(feats["build_queue_size"], 0.0)
-        self.assertEqual(feats["cargo_count"],      0.0)
+        self.assertEqual(feats["cargo_count"], 0.0)
 
     # --- integration: new dims appear in flat rich obs ---
 
-    def test_rich_obs_includes_new_feature_names(self):
+    def test_rich_obs_includes_issue135_feature_names(self):
         """The rich spec should contain all 15 new feature names from issue #135."""
         from games.sc2.obs_spec import RICH_OBS_NAMES
-        for name in ("enemy_count_Marine", "screen_self_shield_mean",
-                     "minimap_creep_frac", "upgrade_count",
-                     "build_queue_size", "cargo_count"):
+
+        for name in (
+            "enemy_count_Marine",
+            "screen_self_shield_mean",
+            "minimap_creep_frac",
+            "upgrade_count",
+            "build_queue_size",
+            "cargo_count",
+        ):
             self.assertIn(name, RICH_OBS_NAMES, f"{name!r} missing from rich spec")
 
     def test_ladder_spec_unchanged_by_issue_135(self):
         """Ladder spec must NOT contain the new rich-only features."""
         from games.sc2.obs_spec import LADDER_OBS_NAMES
-        for name in ("enemy_count_Marine", "screen_self_shield_mean",
-                     "minimap_creep_frac", "upgrade_count"):
-            self.assertNotIn(name, LADDER_OBS_NAMES,
-                             f"{name!r} should not be in ladder spec")
+
+        for name in ("enemy_count_Marine", "screen_self_shield_mean", "minimap_creep_frac", "upgrade_count"):
+            self.assertNotIn(name, LADDER_OBS_NAMES, f"{name!r} should not be in ladder spec")
 
     # --- selected-unit shield and energy averages ---
 
     def test_selected_features_shields_and_energy(self):
         """selected_avg_shields and selected_avg_energy are computed from cols 3/4."""
         # multi_select rows: [unit_type, player_relative, hp, shields, energy, ...]
-        multi = np.array([
-            [48, 1, 45, 80, 0],   # Marine: hp=45, shields=80, energy=0
-            [48, 1, 55, 20, 0],   # Marine: hp=55, shields=20, energy=0
-        ], dtype=np.int32)
+        multi = np.array(
+            [
+                [48, 1, 45, 80, 0],  # Marine: hp=45, shields=80, energy=0
+                [48, 1, 55, 20, 0],  # Marine: hp=55, shields=20, energy=0
+            ],
+            dtype=np.int32,
+        )
         ob = {"multi_select": multi}
         feats = self.client._selected_features(ob)
         self.assertAlmostEqual(feats["selected_avg_shields"], 50.0)  # (80+20)/2
-        self.assertAlmostEqual(feats["selected_avg_energy"],   0.0)
+        self.assertAlmostEqual(feats["selected_avg_energy"], 0.0)
 
     def test_selected_features_energy_populated(self):
         """selected_avg_energy reflects col 4 of the select array."""
@@ -1097,29 +1264,30 @@ class TestSC2ClientRichExtractors(unittest.TestCase):
         ob = {"single_select": single}
         feats = self.client._selected_features(ob)
         self.assertAlmostEqual(feats["selected_avg_energy"], 150.0)
-        self.assertAlmostEqual(feats["selected_avg_shields"],  0.0)
+        self.assertAlmostEqual(feats["selected_avg_shields"], 0.0)
 
     def test_selected_features_empty_selection_returns_zeros(self):
         """Empty selection → all selected_* features are 0."""
         ob = {
             "single_select": np.zeros((0, 7), dtype=np.int32),
-            "multi_select":  np.zeros((0, 7), dtype=np.int32),
+            "multi_select": np.zeros((0, 7), dtype=np.int32),
         }
         feats = self.client._selected_features(ob)
         self.assertEqual(feats["selected_avg_shields"], 0.0)
-        self.assertEqual(feats["selected_avg_energy"],  0.0)
+        self.assertEqual(feats["selected_avg_energy"], 0.0)
 
     def test_selected_features_short_rows_dont_crash(self):
         """If the select array has fewer than 5 columns, defaults to 0."""
         ob = {"single_select": np.array([[48, 1, 55]], dtype=np.int32)}  # only 3 cols
         feats = self.client._selected_features(ob)
         self.assertEqual(feats["selected_avg_shields"], 0.0)
-        self.assertEqual(feats["selected_avg_energy"],  0.0)
+        self.assertEqual(feats["selected_avg_energy"], 0.0)
 
     # --- screen visibility fraction ---
 
     def test_screen_visibility_features_all_visible(self):
         """All-2 visibility_map → screen_visibility_frac == 1.0."""
+
         class _NamedScreen:
             def __getitem__(self, key):
                 if key == "visibility_map":
@@ -1131,6 +1299,7 @@ class TestSC2ClientRichExtractors(unittest.TestCase):
 
     def test_screen_visibility_features_half_visible(self):
         """Half of tiles visible → screen_visibility_frac ≈ 0.25 (quadrant)."""
+
         class _NamedScreen:
             def __getitem__(self, key):
                 if key == "visibility_map":
@@ -1145,6 +1314,7 @@ class TestSC2ClientRichExtractors(unittest.TestCase):
 
     def test_screen_visibility_features_fogged_not_counted(self):
         """Fogged tiles (value == 1) must NOT count as visible."""
+
         class _NamedScreen:
             def __getitem__(self, key):
                 if key == "visibility_map":
@@ -1168,6 +1338,7 @@ class TestSC2ClientRichExtractors(unittest.TestCase):
 
     def test_screen_antiair_features_mean(self):
         """Mean of unit_density_aa layer is returned."""
+
         class _NamedScreen:
             def __getitem__(self, key):
                 if key == "unit_density_aa":
@@ -1204,9 +1375,12 @@ class TestSC2ClientRichExtractors(unittest.TestCase):
         """Mean cooldown for friendly units is computed from col 25."""
         # 26-column feature_units: col 1 = alliance, col 25 = weapon_cooldown
         feat_units = np.zeros((3, 26), dtype=np.float32)
-        feat_units[0, 1] = 1.0;  feat_units[0, 25] = 10.0   # self, cooldown=10
-        feat_units[1, 1] = 1.0;  feat_units[1, 25] = 30.0   # self, cooldown=30
-        feat_units[2, 1] = 4.0;  feat_units[2, 25] = 99.0   # enemy → excluded
+        feat_units[0, 1] = 1.0
+        feat_units[0, 25] = 10.0  # self, cooldown=10
+        feat_units[1, 1] = 1.0
+        feat_units[1, 25] = 30.0  # self, cooldown=30
+        feat_units[2, 1] = 4.0
+        feat_units[2, 25] = 99.0  # enemy → excluded
         ob = {"feature_units": feat_units}
         feats = self.client._weapon_cooldown_features(ob)
         self.assertAlmostEqual(feats["self_weapon_cooldown_mean"], 20.0)  # (10+30)/2
@@ -1270,6 +1444,7 @@ class TestSC2ClientRichExtractors(unittest.TestCase):
     def test_alert_count_appears_in_ladder_flat_obs(self):
         """alert_count must appear in the ladder flat obs vector."""
         from games.sc2.obs_spec import LADDER_OBS_NAMES
+
         self.assertIn("alert_count", LADDER_OBS_NAMES)
 
     # --- integration: new dims appear in flat rich obs (TestSC2ClientRichExtractors) ---
@@ -1277,18 +1452,27 @@ class TestSC2ClientRichExtractors(unittest.TestCase):
     def test_rich_obs_includes_new_feature_names(self):
         """The rich spec should contain all new feature names."""
         from games.sc2.obs_spec import RICH_OBS_NAMES
-        for name in ("enemy_count_Marine", "screen_self_shield_mean",
-                     "minimap_creep_frac", "upgrade_count",
-                     "build_queue_size", "cargo_count",
-                     "selected_avg_shields", "selected_avg_energy",
-                     "screen_visibility_frac", "screen_unit_density_aa_mean",
-                     "self_weapon_cooldown_mean"):
+
+        for name in (
+            "enemy_count_Marine",
+            "screen_self_shield_mean",
+            "minimap_creep_frac",
+            "upgrade_count",
+            "build_queue_size",
+            "cargo_count",
+            "selected_avg_shields",
+            "selected_avg_energy",
+            "screen_visibility_frac",
+            "screen_unit_density_aa_mean",
+            "self_weapon_cooldown_mean",
+        ):
             self.assertIn(name, RICH_OBS_NAMES, f"{name!r} missing from rich spec")
 
 
 # ---------------------------------------------------------------------------
 # Issue #140: action-mask caching benchmark / regression
 # ---------------------------------------------------------------------------
+
 
 class TestAvailableActionsMaskCachingOverhead(unittest.TestCase):
     """Regression guard: _available_actions_features must use the module-level
@@ -1306,11 +1490,18 @@ class TestAvailableActionsMaskCachingOverhead(unittest.TestCase):
 
     def _minigame_ob(self, available_actions: np.ndarray) -> dict:
         return {
-            "player": _NamedArr({
-                "minerals": 0, "vespene": 0, "food_used": 0, "food_cap": 0,
-                "army_count": 0, "idle_worker_count": 0,
-                "warp_gate_count": 0, "larva_count": 0,
-            }),
+            "player": _NamedArr(
+                {
+                    "minerals": 0,
+                    "vespene": 0,
+                    "food_used": 0,
+                    "food_cap": 0,
+                    "army_count": 0,
+                    "idle_worker_count": 0,
+                    "warp_gate_count": 0,
+                    "larva_count": 0,
+                }
+            ),
             "feature_screen": np.zeros((17, 64, 64), dtype=np.int32),
             "score_cumulative": np.array([0]),
             "available_actions": available_actions,
@@ -1324,6 +1515,7 @@ class TestAvailableActionsMaskCachingOverhead(unittest.TestCase):
         the unit-test environment).
         """
         import games.sc2.client as sc2_client_mod
+
         old_cache = sc2_client_mod._pysc2_id_to_fn_idx
         try:
             sc2_client_mod._pysc2_id_to_fn_idx = dict(self._FAKE_CACHE)
@@ -1348,7 +1540,9 @@ class TestAvailableActionsMaskCachingOverhead(unittest.TestCase):
         calls is deterministic and does not depend on wall-clock timing.
         """
         from unittest.mock import patch
+
         import games.sc2.client as sc2_client_mod
+
         client = SC2Client(map_name="MoveToBeacon")
         ob = self._minigame_ob(np.array([0, 7, 331], dtype=np.int32))
         with patch.object(
@@ -1373,15 +1567,20 @@ class TestSC2ClientLastFnIdx(unittest.TestCase):
 
     def setUp(self):
         from unittest.mock import patch
-        patcher = patch.dict("sys.modules", {
-            "pysc2":             _FakePySc2,
-            "pysc2.lib":         _FakePySc2.lib,
-            "pysc2.lib.actions": _FakeActionsModule,
-        })
+
+        patcher = patch.dict(
+            "sys.modules",
+            {
+                "pysc2": _FakePySc2,
+                "pysc2.lib": _FakePySc2.lib,
+                "pysc2.lib.actions": _FakeActionsModule,
+            },
+        )
         patcher.start()
         self.addCleanup(patcher.stop)
 
         from games.sc2 import client as client_mod
+
         def _fake_atfc(action, screen_size, minimap_size=None):
             fn_idx = int(action[0])
             fn_id = {
@@ -1390,18 +1589,21 @@ class TestSC2ClientLastFnIdx(unittest.TestCase):
                 2: _FakeFunctions.Move_screen.id,
             }.get(fn_idx, _FakeFunctions.no_op.id)
             return _FakeFunctionCall(fn_id, [])
+
         patcher_helper = patch.object(client_mod, "action_to_function_call", _fake_atfc)
         patcher_helper.start()
         self.addCleanup(patcher_helper.stop)
 
         from games.sc2.client import SC2Client
+
         self.client = SC2Client(map_name="MoveToBeacon")
 
     def test_last_fn_idx_reflects_substituted_select_army(self):
         """When Move_screen is blocked and select_army is substituted,
         last_fn_idx should be 1 (select_army), not 2 (Move_screen)."""
         self.client._available_actions = {
-            _FakeFunctions.no_op.id, _FakeFunctions.select_army.id,
+            _FakeFunctions.no_op.id,
+            _FakeFunctions.select_army.id,
         }
         action = np.array([2, 0.4, 0.6, 0], dtype=np.float32)
         self.client._action_to_call(action)
@@ -1436,16 +1638,19 @@ class TestSC2ClientRealtimeParam(unittest.TestCase):
 
     def test_realtime_default_is_false(self):
         from games.sc2.client import SC2Client
+
         client = SC2Client(map_name="MoveToBeacon")
         self.assertFalse(client._realtime)
 
     def test_realtime_true_stored(self):
         from games.sc2.client import SC2Client
+
         client = SC2Client(map_name="MoveToBeacon", realtime=True)
         self.assertTrue(client._realtime)
 
     def test_realtime_forwarded_to_make_sc2_env(self):
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import MagicMock, patch
+
         from games.sc2.client import SC2Client
 
         client = SC2Client(map_name="MoveToBeacon", realtime=True)
@@ -1466,15 +1671,18 @@ class TestSC2ClientRealtimeParam(unittest.TestCase):
         fake_absl_flags = MagicMock()
         fake_absl_flags.FLAGS.is_parsed.return_value = True
 
-        with patch.dict("sys.modules", {
-            "pysc2":                    MagicMock(),
-            "pysc2.env":                fake_pysc2_env_pkg,
-            "pysc2.env.sc2_env":        fake_sc2_env_mod,
-            "pysc2.lib":                fake_pysc2_lib_pkg,
-            "pysc2.lib.features":       fake_features_mod,
-            "absl":                     MagicMock(),
-            "absl.flags":               fake_absl_flags,
-        }):
+        with patch.dict(
+            "sys.modules",
+            {
+                "pysc2": MagicMock(),
+                "pysc2.env": fake_pysc2_env_pkg,
+                "pysc2.env.sc2_env": fake_sc2_env_mod,
+                "pysc2.lib": fake_pysc2_lib_pkg,
+                "pysc2.lib.features": fake_features_mod,
+                "absl": MagicMock(),
+                "absl.flags": fake_absl_flags,
+            },
+        ):
             client._make_sc2_env()
 
         self.assertTrue(
@@ -1492,12 +1700,14 @@ class TestSC2ClientRealtimeParam(unittest.TestCase):
 # stay on the game-over end screen and reject the new RequestCreateGame.
 # ---------------------------------------------------------------------------
 
+
 class TestSC2ClientLadderRestart(unittest.TestCase):
     """SC2Client.reset() calls leave() on controllers for ladder maps."""
 
     def _make_fake_env(self, controllers=None):
         """Return a MagicMock that looks like a PySC2 SC2Env."""
         from unittest.mock import MagicMock
+
         fake_env = MagicMock()
         if controllers is None:
             fake_ctrl = MagicMock()
@@ -1512,19 +1722,23 @@ class TestSC2ClientLadderRestart(unittest.TestCase):
     def _patch_make_env(self, client, fake_env):
         """Replace client._make_sc2_env so it returns *fake_env*."""
         from unittest.mock import MagicMock
+
         client._make_sc2_env = MagicMock(return_value=fake_env)
 
     def _make_ladder_client(self):
         from games.sc2.client import SC2Client
+
         return SC2Client(map_name="Simple64")
 
     def _make_minigame_client(self):
         from games.sc2.client import SC2Client
+
         return SC2Client(map_name="MoveToBeacon")
 
     def _patch_timestep_to_obs_info(self, client):
         """Patch _timestep_to_obs_info to return (zeros_obs, {})."""
         from unittest.mock import MagicMock
+
         dummy_obs = np.zeros(LADDER_OBS_DIM, dtype=np.float32)
         client._timestep_to_obs_info = MagicMock(return_value=(dummy_obs, {}))
 
@@ -1564,6 +1778,7 @@ class TestSC2ClientLadderRestart(unittest.TestCase):
     def test_leave_called_for_each_controller(self):
         """leave() is called on every controller when there are multiple."""
         from unittest.mock import MagicMock
+
         ctrl1, ctrl2 = MagicMock(), MagicMock()
         client = self._make_ladder_client()
         fake_env = self._make_fake_env(controllers=[ctrl1, ctrl2])
@@ -1592,6 +1807,7 @@ class TestSC2ClientLadderRestart(unittest.TestCase):
     def test_leave_failure_triggers_env_recreate(self):
         """If leave() raises, the env is closed and a new one is created."""
         from unittest.mock import MagicMock
+
         client = self._make_ladder_client()
 
         ctrl = MagicMock()
@@ -1607,9 +1823,7 @@ class TestSC2ClientLadderRestart(unittest.TestCase):
         client.reset()  # first reset — creates old env
 
         # Patch _timestep_to_obs_info on the client again after env swap.
-        client._timestep_to_obs_info = MagicMock(
-            return_value=(np.zeros(LADDER_OBS_DIM, dtype=np.float32), {})
-        )
+        client._timestep_to_obs_info = MagicMock(return_value=(np.zeros(LADDER_OBS_DIM, dtype=np.float32), {}))
 
         client.reset()  # second reset — leave fails → old env closed, new env created
 

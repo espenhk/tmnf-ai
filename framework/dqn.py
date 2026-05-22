@@ -7,6 +7,7 @@ DQNPolicy — MLP Q-network (pure numpy) with experience replay, target network,
             masking (switches internal buffer to MaskedReplayBuffer and masks
             Q-values before argmax).
 """
+
 from __future__ import annotations
 
 import logging
@@ -78,28 +79,28 @@ class DQNPolicy(BasePolicy):
         available_actions_fn: Callable[[dict], np.ndarray] | None = None,
         seed: int | None = None,
     ) -> None:
-        self._obs_spec    = obs_spec
-        self._obs_dim     = obs_spec.dim
-        self._scales      = obs_spec.scales
-        self._actions     = np.array(discrete_actions, dtype=np.float32)
-        self._n_actions   = len(self._actions)
-        self._hidden      = list(hidden_sizes or [64, 64])
-        self._buf_maxlen  = int(replay_buffer_size)
-        self._batch_size  = int(batch_size)
-        self._min_replay  = int(min_replay_size)
+        self._obs_spec = obs_spec
+        self._obs_dim = obs_spec.dim
+        self._scales = obs_spec.scales
+        self._actions = np.array(discrete_actions, dtype=np.float32)
+        self._n_actions = len(self._actions)
+        self._hidden = list(hidden_sizes or [64, 64])
+        self._buf_maxlen = int(replay_buffer_size)
+        self._batch_size = int(batch_size)
+        self._min_replay = int(min_replay_size)
         self._target_freq = int(target_update_freq)
-        self._lr          = float(learning_rate)
-        self._eps_start   = float(epsilon_start)
-        self._eps         = float(epsilon_start)
-        self._eps_end     = float(epsilon_end)
-        self._eps_steps   = int(epsilon_decay_steps)
-        self._eps_delta   = (float(epsilon_start) - float(epsilon_end)) / max(1, int(epsilon_decay_steps))
-        self._gamma       = float(gamma)
-        self._avail_fn    = available_actions_fn
-        self._seed        = seed
-        self._rng         = np.random.default_rng(seed)
+        self._lr = float(learning_rate)
+        self._eps_start = float(epsilon_start)
+        self._eps = float(epsilon_start)
+        self._eps_end = float(epsilon_end)
+        self._eps_steps = int(epsilon_decay_steps)
+        self._eps_delta = (float(epsilon_start) - float(epsilon_end)) / max(1, int(epsilon_decay_steps))
+        self._gamma = float(gamma)
+        self._avail_fn = available_actions_fn
+        self._seed = seed
+        self._rng = np.random.default_rng(seed)
 
-        self._masked      = available_actions_fn is not None
+        self._masked = available_actions_fn is not None
         if self._masked:
             self._replay: ReplayBuffer = MaskedReplayBuffer(replay_buffer_size, self._n_actions)
             self._cached_mask = np.ones(self._n_actions, dtype=bool)
@@ -107,7 +108,7 @@ class DQNPolicy(BasePolicy):
             self._replay = ReplayBuffer(replay_buffer_size)
 
         self._total_steps = 0
-        self._grad_steps  = 0
+        self._grad_steps = 0
 
         self._online = self._build_net()
         self._target = self._build_net()
@@ -132,24 +133,24 @@ class DQNPolicy(BasePolicy):
         available_actions_fn: Callable[[dict], np.ndarray] | None = None,
     ) -> "DQNPolicy":
         obj = cls(
-            obs_spec            = obs_spec,
-            discrete_actions    = discrete_actions,
-            hidden_sizes        = cfg.get("hidden_sizes",        [64, 64]),
-            replay_buffer_size  = cfg.get("replay_buffer_size",  10_000),
-            batch_size          = cfg.get("batch_size",          64),
-            min_replay_size     = cfg.get("min_replay_size",     500),
-            target_update_freq  = cfg.get("target_update_freq",  200),
-            learning_rate       = cfg.get("learning_rate",       0.001),
-            epsilon_start       = cfg.get("epsilon_start",       1.0),
-            epsilon_end         = cfg.get("epsilon_end",         0.05),
-            epsilon_decay_steps = cfg.get("epsilon_decay_steps", 5_000),
-            gamma               = cfg.get("gamma",               0.99),
-            available_actions_fn = available_actions_fn,
-            seed                = cfg.get("seed",                None),
+            obs_spec=obs_spec,
+            discrete_actions=discrete_actions,
+            hidden_sizes=cfg.get("hidden_sizes", [64, 64]),
+            replay_buffer_size=cfg.get("replay_buffer_size", 10_000),
+            batch_size=cfg.get("batch_size", 64),
+            min_replay_size=cfg.get("min_replay_size", 500),
+            target_update_freq=cfg.get("target_update_freq", 200),
+            learning_rate=cfg.get("learning_rate", 0.001),
+            epsilon_start=cfg.get("epsilon_start", 1.0),
+            epsilon_end=cfg.get("epsilon_end", 0.05),
+            epsilon_decay_steps=cfg.get("epsilon_decay_steps", 5_000),
+            gamma=cfg.get("gamma", 0.99),
+            available_actions_fn=available_actions_fn,
+            seed=cfg.get("seed", None),
         )
         if "online_weights" in cfg:
             required = ["online_weights", "online_biases", "target_weights", "target_biases"]
-            missing  = [k for k in required if k not in cfg]
+            missing = [k for k in required if k not in cfg]
             if missing:
                 raise KeyError(f"DQNPolicy.from_cfg: missing keys {missing}")
 
@@ -161,22 +162,21 @@ class DQNPolicy(BasePolicy):
                     f"but obs_dim is {obj._obs_dim}"
                 )
             obj._online["weights"] = loaded_w
-            obj._online["biases"]  = [np.array(b, dtype=np.float32) for b in cfg["online_biases"]]
+            obj._online["biases"] = [np.array(b, dtype=np.float32) for b in cfg["online_biases"]]
             obj._target["weights"] = [np.array(w, dtype=np.float32) for w in cfg["target_weights"]]
-            obj._target["biases"]  = [np.array(b, dtype=np.float32) for b in cfg["target_biases"]]
-            obj._eps         = float(cfg.get("epsilon",      obj._eps_end))
-            obj._total_steps = int(cfg.get("total_steps",   0))
-            obj._grad_steps  = int(cfg.get("grad_steps",    0))
+            obj._target["biases"] = [np.array(b, dtype=np.float32) for b in cfg["target_biases"]]
+            obj._eps = float(cfg.get("epsilon", obj._eps_end))
+            obj._total_steps = int(cfg.get("total_steps", 0))
+            obj._grad_steps = int(cfg.get("grad_steps", 0))
             obj._m_w = [np.zeros_like(w) for w in obj._online["weights"]]
             obj._m_b = [np.zeros_like(b) for b in obj._online["biases"]]
             obj._v_w = [np.zeros_like(w) for w in obj._online["weights"]]
             obj._v_b = [np.zeros_like(b) for b in obj._online["biases"]]
-            logger.info("[DQNPolicy] loaded weights from cfg (eps=%.4f, steps=%d)",
-                        obj._eps, obj._total_steps)
+            logger.info("[DQNPolicy] loaded weights from cfg (eps=%.4f, steps=%d)", obj._eps, obj._total_steps)
         return obj
 
     def _build_net(self) -> dict:
-        rng  = np.random.default_rng(self._seed)
+        rng = np.random.default_rng(self._seed)
         dims = [self._obs_dim] + self._hidden + [self._n_actions]
         weights, biases = [], []
         for i in range(len(dims) - 1):
@@ -190,7 +190,7 @@ class DQNPolicy(BasePolicy):
 
     def _sync_target(self) -> None:
         self._target["weights"] = [w.copy() for w in self._online["weights"]]
-        self._target["biases"]  = [b.copy() for b in self._online["biases"]]
+        self._target["biases"] = [b.copy() for b in self._online["biases"]]
 
     # ------------------------------------------------------------------
     # Forward pass
@@ -202,7 +202,7 @@ class DQNPolicy(BasePolicy):
             x = x[np.newaxis, :]
         h: np.ndarray = x.astype(np.float32)
         layer_inputs: list[np.ndarray] = []
-        pre_relu:     list[np.ndarray] = []
+        pre_relu: list[np.ndarray] = []
         for i, (w, b) in enumerate(zip(net["weights"], net["biases"])):
             layer_inputs.append(h)
             z = h @ w.T + b
@@ -230,9 +230,9 @@ class DQNPolicy(BasePolicy):
         done_b: np.ndarray,
         mask_b: np.ndarray | None = None,
     ) -> None:
-        obs_norm  = obs_b  / self._scales
+        obs_norm = obs_b / self._scales
         next_norm = next_b / self._scales
-        B         = len(act_b)
+        B = len(act_b)
 
         q_next = self._q_values(self._target, next_norm)
         if mask_b is not None:
@@ -255,28 +255,28 @@ class DQNPolicy(BasePolicy):
         grad_params: list[tuple[np.ndarray, np.ndarray]] = []
         for i in range(len(self._online["weights"]) - 1, -1, -1):
             a_in = layer_inputs[i]
-            dW   = g.T @ a_in
-            db   = g.sum(axis=0)
+            dW = g.T @ a_in
+            db = g.sum(axis=0)
             grad_params.append((dW, db))
             if i > 0:
                 g = (g @ self._online["weights"][i]) * (pre_relu[i - 1] > 0)
         grad_params.reverse()
 
         self._adam_t += 1
-        t      = self._adam_t
+        t = self._adam_t
         b1, b2 = 0.9, 0.999
-        eps_a  = 1e-8
+        eps_a = 1e-8
         for i, (dW, db) in enumerate(grad_params):
             self._m_w[i] = b1 * self._m_w[i] + (1.0 - b1) * dW
-            self._v_w[i] = b2 * self._v_w[i] + (1.0 - b2) * dW ** 2
-            mw_hat = self._m_w[i] / (1.0 - b1 ** t)
-            vw_hat = self._v_w[i] / (1.0 - b2 ** t)
+            self._v_w[i] = b2 * self._v_w[i] + (1.0 - b2) * dW**2
+            mw_hat = self._m_w[i] / (1.0 - b1**t)
+            vw_hat = self._v_w[i] / (1.0 - b2**t)
             self._online["weights"][i] -= self._lr * mw_hat / (np.sqrt(vw_hat) + eps_a)
 
             self._m_b[i] = b1 * self._m_b[i] + (1.0 - b1) * db
-            self._v_b[i] = b2 * self._v_b[i] + (1.0 - b2) * db ** 2
-            mb_hat = self._m_b[i] / (1.0 - b1 ** t)
-            vb_hat = self._v_b[i] / (1.0 - b2 ** t)
+            self._v_b[i] = b2 * self._v_b[i] + (1.0 - b2) * db**2
+            mb_hat = self._m_b[i] / (1.0 - b1**t)
+            vb_hat = self._v_b[i] / (1.0 - b2**t)
             self._online["biases"][i] -= self._lr * mb_hat / (np.sqrt(vb_hat) + eps_a)
 
         self._grad_steps += 1
@@ -306,7 +306,7 @@ class DQNPolicy(BasePolicy):
             if self._rng.random() < self._eps:
                 return self._actions[self._rng.integers(self._n_actions)].copy()
             obs_norm = (obs / self._scales).astype(np.float32)
-            q        = self._q_values(self._online, obs_norm)
+            q = self._q_values(self._online, obs_norm)
             return self._actions[int(np.argmax(q))].copy()
 
     def update(
@@ -354,24 +354,24 @@ class DQNPolicy(BasePolicy):
 
     def to_cfg(self) -> dict:
         return {
-            "policy_type":         "dqn",
-            "hidden_sizes":        self._hidden,
-            "replay_buffer_size":  self._buf_maxlen,
-            "batch_size":          self._batch_size,
-            "min_replay_size":     self._min_replay,
-            "target_update_freq":  self._target_freq,
-            "learning_rate":       float(self._lr),
-            "epsilon_start":       float(self._eps_start),
-            "epsilon_end":         float(self._eps_end),
+            "policy_type": "dqn",
+            "hidden_sizes": self._hidden,
+            "replay_buffer_size": self._buf_maxlen,
+            "batch_size": self._batch_size,
+            "min_replay_size": self._min_replay,
+            "target_update_freq": self._target_freq,
+            "learning_rate": float(self._lr),
+            "epsilon_start": float(self._eps_start),
+            "epsilon_end": float(self._eps_end),
             "epsilon_decay_steps": self._eps_steps,
-            "gamma":               float(self._gamma),
-            "epsilon":             float(self._eps),
-            "total_steps":         self._total_steps,
-            "grad_steps":          self._grad_steps,
-            "online_weights":      [w.tolist() for w in self._online["weights"]],
-            "online_biases":       [b.tolist() for b in self._online["biases"]],
-            "target_weights":      [w.tolist() for w in self._target["weights"]],
-            "target_biases":       [b.tolist() for b in self._target["biases"]],
+            "gamma": float(self._gamma),
+            "epsilon": float(self._eps),
+            "total_steps": self._total_steps,
+            "grad_steps": self._grad_steps,
+            "online_weights": [w.tolist() for w in self._online["weights"]],
+            "online_biases": [b.tolist() for b in self._online["biases"]],
+            "target_weights": [w.tolist() for w in self._target["weights"]],
+            "target_biases": [b.tolist() for b in self._target["biases"]],
         }
 
     # ------------------------------------------------------------------
@@ -381,19 +381,19 @@ class DQNPolicy(BasePolicy):
     def save_trainer_state(self, path: str) -> None:
         """Persist replay buffer and Adam optimiser moments to an .npz file."""
         buf = list(self._replay._buf)
-        n   = len(buf)
+        n = len(buf)
         if n > 0:
-            obs_arr  = np.stack([t[0] for t in buf]).astype(np.float32)
-            act_arr  = np.array([t[1] for t in buf], dtype=np.int32)
-            rew_arr  = np.array([t[2] for t in buf], dtype=np.float32)
+            obs_arr = np.stack([t[0] for t in buf]).astype(np.float32)
+            act_arr = np.array([t[1] for t in buf], dtype=np.int32)
+            rew_arr = np.array([t[2] for t in buf], dtype=np.float32)
             next_arr = np.stack([t[3] for t in buf]).astype(np.float32)
             done_arr = np.array([t[4] for t in buf], dtype=np.float32)
             if self._masked:
                 mask_arr = np.stack([t[5] for t in buf])  # (n, n_actions) bool
         else:
-            obs_arr  = np.empty((0, self._obs_dim), dtype=np.float32)
-            act_arr  = np.empty(0, dtype=np.int32)
-            rew_arr  = np.empty(0, dtype=np.float32)
+            obs_arr = np.empty((0, self._obs_dim), dtype=np.float32)
+            act_arr = np.empty(0, dtype=np.int32)
+            rew_arr = np.empty(0, dtype=np.float32)
             next_arr = np.empty((0, self._obs_dim), dtype=np.float32)
             done_arr = np.empty(0, dtype=np.float32)
             if self._masked:
@@ -401,21 +401,21 @@ class DQNPolicy(BasePolicy):
 
         n_layers = len(self._m_w)
         arrays: dict = dict(
-            replay_obs  = obs_arr,
-            replay_act  = act_arr,
-            replay_rew  = rew_arr,
-            replay_next = next_arr,
-            replay_done = done_arr,
-            total_steps = np.int64(self._total_steps),
+            replay_obs=obs_arr,
+            replay_act=act_arr,
+            replay_rew=rew_arr,
+            replay_next=next_arr,
+            replay_done=done_arr,
+            total_steps=np.int64(self._total_steps),
         )
         if self._masked:
             arrays["replay_mask"] = mask_arr
         arrays.update(
-            grad_steps  = np.int64(self._grad_steps),
-            adam_t      = np.int64(self._adam_t),
-            epsilon     = np.float32(self._eps),
-            obs_dim     = np.int64(self._obs_dim),
-            n_layers    = np.int64(n_layers),
+            grad_steps=np.int64(self._grad_steps),
+            adam_t=np.int64(self._adam_t),
+            epsilon=np.float32(self._eps),
+            obs_dim=np.int64(self._obs_dim),
+            n_layers=np.int64(n_layers),
         )
         for i in range(n_layers):
             arrays[f"m_w_{i}"] = self._m_w[i]
@@ -463,22 +463,26 @@ class DQNPolicy(BasePolicy):
             for i in range(len(data["replay_obs"])):
                 if has_masks:
                     self._replay.push(
-                        data["replay_obs"][i], int(data["replay_act"][i]),
-                        float(data["replay_rew"][i]), data["replay_next"][i],
+                        data["replay_obs"][i],
+                        int(data["replay_act"][i]),
+                        float(data["replay_rew"][i]),
+                        data["replay_next"][i],
                         bool(data["replay_done"][i]),
                         mask=data["replay_mask"][i],
                     )
                 else:
                     self._replay.push(
-                        data["replay_obs"][i], int(data["replay_act"][i]),
-                        float(data["replay_rew"][i]), data["replay_next"][i],
+                        data["replay_obs"][i],
+                        int(data["replay_act"][i]),
+                        float(data["replay_rew"][i]),
+                        data["replay_next"][i],
                         bool(data["replay_done"][i]),
                     )
 
             self._total_steps = int(data["total_steps"])
-            self._grad_steps  = int(data["grad_steps"])
-            self._adam_t      = int(data["adam_t"])
-            self._eps         = float(data["epsilon"])
+            self._grad_steps = int(data["grad_steps"])
+            self._adam_t = int(data["adam_t"])
+            self._eps = float(data["epsilon"])
             for i in range(n_layers):
                 self._m_w[i] = data[f"m_w_{i}"]
                 self._m_b[i] = data[f"m_b_{i}"]
@@ -486,5 +490,8 @@ class DQNPolicy(BasePolicy):
                 self._v_b[i] = data[f"v_b_{i}"]
         logger.info(
             "[DQNPolicy] trainer state loaded from %s (buf=%d, steps=%d, eps=%.4f)",
-            path, len(self._replay), self._total_steps, self._eps,
+            path,
+            len(self._replay),
+            self._total_steps,
+            self._eps,
         )

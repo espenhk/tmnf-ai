@@ -6,11 +6,11 @@ This module now intentionally only contains:
 
 Legacy bare-name SC2 algorithm classes were removed.
 """
+
 from __future__ import annotations
 
 import numpy as np
 
-from framework.obs_spec import ObsSpec
 from framework.policies import GeneticPolicy, WeightedLinearPolicy
 from games.sc2.actions import FUNCTION_IDS
 

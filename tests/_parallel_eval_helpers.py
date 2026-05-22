@@ -5,9 +5,8 @@ qualified name (``tests._parallel_eval_helpers``).  Conftest puts both
 the repo root and ``tests/`` on ``sys.path`` and re-exports them via
 ``PYTHONPATH`` so the children inherit the search paths.
 """
-from __future__ import annotations
 
-from typing import Any
+from __future__ import annotations
 
 import numpy as np
 

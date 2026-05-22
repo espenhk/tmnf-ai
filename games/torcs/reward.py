@@ -46,16 +46,16 @@ class TorcsRewardConfig:
         Episode ends when ``|lateral_offset| > threshold``.
     """
 
-    progress_weight:    float = 10.0
-    centerline_weight:  float = -0.5
-    centerline_exp:     float = 2.0
-    speed_weight:       float = 0.05
-    step_penalty:       float = -0.01
-    finish_bonus:       float = 100.0
+    progress_weight: float = 10.0
+    centerline_weight: float = -0.5
+    centerline_exp: float = 2.0
+    speed_weight: float = 0.05
+    step_penalty: float = -0.01
+    finish_bonus: float = 100.0
     finish_time_weight: float = -0.1
-    par_time_s:         float = 120.0
-    accel_bonus:        float = 0.5
-    crash_threshold_m:  float = 8.0
+    par_time_s: float = 120.0
+    accel_bonus: float = 0.5
+    crash_threshold_m: float = 8.0
 
     @classmethod
     def from_yaml(cls, path: str) -> TorcsRewardConfig:
@@ -64,10 +64,7 @@ class TorcsRewardConfig:
         valid_keys = {f.name for f in fields(cls)}
         unknown = set(data.keys()) - valid_keys
         if unknown:
-            raise ValueError(
-                f"{path}: unknown reward config keys: {sorted(unknown)}\n"
-                f"Valid keys: {sorted(valid_keys)}"
-            )
+            raise ValueError(f"{path}: unknown reward config keys: {sorted(unknown)}\nValid keys: {sorted(valid_keys)}")
         return cls(**data)
 
 

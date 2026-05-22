@@ -17,6 +17,7 @@ Public API:
 Generation-synchronous: ``evaluate`` blocks until all candidates have
 results.  See plans/issue-229-sc2-multi-instance-intra-run.md.
 """
+
 from __future__ import annotations
 
 import atexit
@@ -35,6 +36,7 @@ logger = logging.getLogger(__name__)
 @dataclasses.dataclass
 class Candidate:
     """A single individual to evaluate."""
+
     individual_idx: int
     flat_weights: np.ndarray
     eval_episodes: int = 1
@@ -43,12 +45,13 @@ class Candidate:
 @dataclasses.dataclass
 class EpisodeResult:
     """Result from evaluating one candidate over eval_episodes episodes."""
+
     individual_idx: int
-    reward: float          # mean over eval_episodes
-    info: dict             # info dict from the last episode (for logging)
-    trace: Any             # RunTrace | None from the last episode
-    total_steps: int       # summed across eval_episodes
-    failed: bool = False   # True if the worker raised on this candidate
+    reward: float  # mean over eval_episodes
+    info: dict  # info dict from the last episode (for logging)
+    trace: Any  # RunTrace | None from the last episode
+    total_steps: int  # summed across eval_episodes
+    failed: bool = False  # True if the worker raised on this candidate
 
 
 # Sentinel used on the job queue to tell a worker to shut down.
@@ -58,6 +61,7 @@ _JOB_SENTINEL = "__shutdown__"
 @dataclasses.dataclass
 class _WorkerError:
     """Wire message: worker hit a fatal error and is about to exit."""
+
     worker_id: int
     individual_idx: int | None
     reason: str
@@ -119,7 +123,9 @@ class ParallelEvaluator:
 
         logger.info(
             "[ParallelEvaluator] spawning %d workers (stagger=%.1fs, warmup=%.1fs)",
-            n_workers, worker_start_stagger_s, worker_warmup_timeout_s,
+            n_workers,
+            worker_start_stagger_s,
+            worker_warmup_timeout_s,
         )
 
         for worker_id in range(n_workers):
@@ -164,10 +170,7 @@ class ParallelEvaluator:
             raise RuntimeError("evaluate() called after close()")
 
         max_eps = max(c.eval_episodes for c in candidates)
-        per_job_budget = (
-            self.worker_warmup_timeout_s
-            + self.per_episode_timeout_s * max_eps * 2.0
-        )
+        per_job_budget = self.worker_warmup_timeout_s + self.per_episode_timeout_s * max_eps * 2.0
 
         # Attach the per-generation episode_time_limit_s to every job rather
         # than broadcasting N copies of a control message on the shared
@@ -175,8 +178,7 @@ class ParallelEvaluator:
         # several copies and leave another worker un-updated for this
         # generation.  Each worker applies the limit before each candidate.
         for cand in candidates:
-            self.job_queue.put((cand, warmup_action, warmup_steps,
-                                episode_time_limit_s))
+            self.job_queue.put((cand, warmup_action, warmup_steps, episode_time_limit_s))
 
         n_active_workers = self.n_workers
         results: dict[int, EpisodeResult] = {}
@@ -190,24 +192,26 @@ class ParallelEvaluator:
             if remaining <= 0:
                 logger.error(
                     "[ParallelEvaluator] timeout: %d/%d results received",
-                    len(results), len(candidates),
+                    len(results),
+                    len(candidates),
                 )
                 break
             try:
                 msg = self.result_queue.get(timeout=remaining)
             except queue_mod.Empty:
                 logger.error(
-                    "[ParallelEvaluator] result queue empty after %.1fs; "
-                    "%d/%d received",
+                    "[ParallelEvaluator] result queue empty after %.1fs; %d/%d received",
                     per_job_budget * len(candidates),
-                    len(results), len(candidates),
+                    len(results),
+                    len(candidates),
                 )
                 break
 
             if isinstance(msg, _WorkerError):
                 logger.warning(
                     "[ParallelEvaluator] worker %d died (%s)",
-                    msg.worker_id, msg.reason,
+                    msg.worker_id,
+                    msg.reason,
                 )
                 n_active_workers -= 1
                 if msg.individual_idx is not None and msg.individual_idx not in results:
@@ -220,7 +224,8 @@ class ParallelEvaluator:
         # Fill in placeholders for any individuals nobody reported on.
         for idx in expected_indices - set(results.keys()):
             logger.warning(
-                "[ParallelEvaluator] no result for individual %d; assigning -inf", idx,
+                "[ParallelEvaluator] no result for individual %d; assigning -inf",
+                idx,
             )
             results[idx] = _failed_result(idx)
 
@@ -331,8 +336,11 @@ def _worker_main(
             for _ in range(candidate.eval_episodes):
                 obs, reset_info = env.reset()
                 reward, info, _, steps, trace = _run_episode(
-                    env, individual, obs,
-                    warmup_action=warmup_action, warmup_steps=warmup_steps,
+                    env,
+                    individual,
+                    obs,
+                    warmup_action=warmup_action,
+                    warmup_steps=warmup_steps,
                     reset_info=reset_info,
                 )
                 ep_rewards.append(reward)
@@ -341,23 +349,27 @@ def _worker_main(
                 total_steps += steps
 
             mean_reward = float(sum(ep_rewards) / len(ep_rewards))
-            result_queue.put(EpisodeResult(
-                individual_idx=candidate.individual_idx,
-                reward=mean_reward,
-                info=last_info,
-                trace=last_trace,
-                total_steps=total_steps,
-            ))
+            result_queue.put(
+                EpisodeResult(
+                    individual_idx=candidate.individual_idx,
+                    reward=mean_reward,
+                    info=last_info,
+                    trace=last_trace,
+                    total_steps=total_steps,
+                )
+            )
             current_idx = None
 
     except Exception as e:
         logger.exception("[Worker %d] crashed: %s", worker_id, e)
         try:
-            result_queue.put(_WorkerError(
-                worker_id=worker_id,
-                individual_idx=current_idx,
-                reason=f"{type(e).__name__}: {e}",
-            ))
+            result_queue.put(
+                _WorkerError(
+                    worker_id=worker_id,
+                    individual_idx=current_idx,
+                    reason=f"{type(e).__name__}: {e}",
+                )
+            )
         except Exception:
             pass
 

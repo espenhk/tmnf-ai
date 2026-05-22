@@ -30,18 +30,18 @@ import logging
 import os
 import subprocess
 import sys
+import uuid as _uuid
 from time import sleep
 from typing import Any
-import uuid as _uuid
 
 import yaml
 
 from framework.env_loader import load_dotenv
+
 load_dotenv()
 
-from distributed.protocol import ComboSpec
 from distributed.coordinator import Coordinator
-
+from distributed.protocol import ComboSpec
 from framework.game_adapter import GAME_ADAPTERS
 from framework.run_config import RunConfig
 from framework.training import train_rl
@@ -239,8 +239,7 @@ def _validate_policy_param_map() -> None:
     }
     if mismatches:
         details = ", ".join(
-            f"{src}->{actual!r} (expected {expected!r})"
-            for src, (expected, actual) in sorted(mismatches.items())
+            f"{src}->{actual!r} (expected {expected!r})" for src, (expected, actual) in sorted(mismatches.items())
         )
         raise RuntimeError(f"Invalid _POLICY_PARAM_MAP entries: {details}")
 
@@ -264,9 +263,7 @@ def _fmt_value(v: Any) -> str:
     return str(v).replace("-", "n")
 
 
-def _make_experiment_name(
-    base_name: str, combo: dict[str, Any], varied_keys: list[str]
-) -> str:
+def _make_experiment_name(base_name: str, combo: dict[str, Any], varied_keys: list[str]) -> str:
     """Build experiment name from base + only the varied param values."""
     parts = [base_name]
     for key in varied_keys:
@@ -303,9 +300,7 @@ def _load_grid_config(
     return base_name, game, track, training_spec, reward_spec, distribute_cfg
 
 
-def _expand_grid(
-    training_spec: dict[str, Any], reward_spec: dict[str, Any]
-) -> tuple[list[dict[str, Any]], list[str]]:
+def _expand_grid(training_spec: dict[str, Any], reward_spec: dict[str, Any]) -> tuple[list[dict[str, Any]], list[str]]:
     """
     Expand all list-valued params into a Cartesian product.
     Each element of the returned list is a flat dict:
@@ -323,9 +318,7 @@ def _expand_grid(
 
     if not axes:
         # No variation — single run with fixed values
-        return [
-            {"training_params": dict(training_spec), "reward_params": dict(reward_spec)}
-        ], []
+        return [{"training_params": dict(training_spec), "reward_params": dict(reward_spec)}], []
 
     varied_keys = [a[0] for a in axes]
     value_lists = [a[1] for a in axes]
@@ -342,9 +335,7 @@ def _expand_grid(
                 t_params[key] = val
             else:
                 r_params[key] = val
-        combos.append(
-            {"training_params": t_params, "reward_params": r_params, "_flat": flat}
-        )
+        combos.append({"training_params": t_params, "reward_params": r_params, "_flat": flat})
 
     return combos, varied_keys
 
@@ -426,9 +417,7 @@ def _run_local(
         r = combo["reward_params"]
         logger.info("=== Run %d/%d: %s ===", i, n, name)
 
-        experiment_dir, weights_file, reward_cfg_file = _setup_experiment_dir(
-            adapter, name, t, r, track_override
-        )
+        experiment_dir, weights_file, reward_cfg_file = _setup_experiment_dir(adapter, name, t, r, track_override)
 
         # Merge promoted policy params so grid axes like `epsilon: [0.5, 1.0]` work.
         t_with_pp = dict(t)
@@ -539,9 +528,7 @@ def _run_distributed(
     all_runs = []
     for name, data in raw_runs:
         base_name, param_suffix = _split_grid_run_name(name)
-        experiment_dir = adapter.experiment_dir(
-            base_name, data.training_params, track_override
-        )
+        experiment_dir = adapter.experiment_dir(base_name, data.training_params, track_override)
         if param_suffix:
             experiment_dir = f"{experiment_dir}/{param_suffix}"
         data.reward_config_file = f"{experiment_dir}/reward_config.yaml"
@@ -698,9 +685,7 @@ def _consolidate(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Grid search over training/reward params (multi-game)"
-    )
+    parser = argparse.ArgumentParser(description="Grid search over training/reward params (multi-game)")
     parser.add_argument(
         "config",
         nargs="?",
@@ -758,8 +743,7 @@ def main() -> None:
     parser.add_argument(
         "--summary-name",
         default="consolidated",
-        help="Base name for the consolidated summary (default: 'consolidated'). "
-        "Used with --consolidate.",
+        help="Base name for the consolidated summary (default: 'consolidated'). Used with --consolidate.",
     )
     parser.add_argument(
         "--summary-dir",
@@ -771,8 +755,7 @@ def main() -> None:
         "--port",
         type=int,
         default=None,
-        help="Coordinator HTTP port when --distribute is set (default: 5555, "
-        "or value from config distribute.port)",
+        help="Coordinator HTTP port when --distribute is set (default: 5555, or value from config distribute.port)",
     )
     parser.add_argument(
         "--bind-host",
@@ -854,17 +837,13 @@ def main() -> None:
 
     if args.local_workers is not None:
         try:
-            args.local_workers = _parse_non_negative_int(
-                args.local_workers, "--local-workers"
-            )
+            args.local_workers = _parse_non_negative_int(args.local_workers, "--local-workers")
         except ValueError as exc:
             parser.error(str(exc))
     if args.local_workers not in (None, 0) and not args.distribute:
         parser.error("--local-workers requires --distribute")
 
-    base_name, game_name, track_override, training_spec, reward_spec, distribute_cfg = (
-        _load_grid_config(args.config)
-    )
+    base_name, game_name, track_override, training_spec, reward_spec, distribute_cfg = _load_grid_config(args.config)
 
     # CLI --game / --track override YAML values
     game_name = getattr(args, "game", None) or game_name
@@ -916,9 +895,7 @@ def main() -> None:
         bind_host = args.bind_host or distribute_cfg.get("bind_host", "0.0.0.0")
         cfg_allow_non_lan = bool(distribute_cfg.get("allow_non_lan", False))
         allow_non_lan = args.allow_non_lan or cfg_allow_non_lan
-        hb_timeout = args.heartbeat_timeout or distribute_cfg.get(
-            "heartbeat_timeout", 60.0
-        )
+        hb_timeout = args.heartbeat_timeout or distribute_cfg.get("heartbeat_timeout", 60.0)
         if args.local_worker_stagger is not None:
             local_worker_stagger = args.local_worker_stagger
         else:
@@ -926,10 +903,7 @@ def main() -> None:
             try:
                 local_worker_stagger = float(raw_stagger)
             except (TypeError, ValueError):
-                parser.error(
-                    f"distribute.local_worker_stagger must be a non-negative "
-                    f"number, got {raw_stagger!r}"
-                )
+                parser.error(f"distribute.local_worker_stagger must be a non-negative number, got {raw_stagger!r}")
         if local_worker_stagger < 0:
             parser.error("--local-worker-stagger must be >= 0")
         token = args.token or os.environ.get("TMNF_GRID_TOKEN") or str(_uuid.uuid4())
@@ -939,16 +913,8 @@ def main() -> None:
                 "Auto-generated token for distributed run (%s). Pass it to workers via --token or TMNF_GRID_TOKEN.",
                 token_preview,
             )
-        monitor_username = (
-            args.monitor_username
-            or distribute_cfg.get("monitor_username")
-            or "monitor"
-        )
-        monitor_password = (
-            args.monitor_password
-            or distribute_cfg.get("monitor_password")
-            or token
-        )
+        monitor_username = args.monitor_username or distribute_cfg.get("monitor_username") or "monitor"
+        monitor_password = args.monitor_password or distribute_cfg.get("monitor_password") or token
         all_runs = _run_distributed(
             adapter,
             combos,
@@ -991,9 +957,7 @@ def main() -> None:
     summary_root = adapter.experiment_dir_root(training_spec, track_override)
     summary_dir = f"{summary_root}/{base_name}__summary"
     try:
-        _analytics_mod = __import__(
-            f"games.{game_name}.analytics", fromlist=["save_grid_summary"]
-        )
+        _analytics_mod = __import__(f"games.{game_name}.analytics", fromlist=["save_grid_summary"])
         _analytics_mod.save_grid_summary(all_runs, varied_keys, summary_dir, base_name)
     except (ImportError, AttributeError):
         logger.debug(

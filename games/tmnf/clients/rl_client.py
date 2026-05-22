@@ -30,6 +30,7 @@ where give_up() is a documented no-op.
 
 from __future__ import annotations
 
+import logging
 import math
 import queue
 import threading
@@ -40,11 +41,9 @@ from tminterface.interface import TMInterface
 
 from games.tmnf.clients.base import PhaseAwareClient
 from games.tmnf.constants import N_ACTIONS, STEER_SCALE
+from games.tmnf.state import StateData
 from games.tmnf.steering import angle_diff
 from games.tmnf.track import Centerline
-from games.tmnf.state import StateData
-
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -72,44 +71,44 @@ _FINISH_THRESHOLD = 0.98
 # ---------------------------------------------------------------------------
 ACTIONS: list[tuple[float, float, int, str]] = [
     # --- full brake (accel=0, brake=1) ---
-    (0., 1., -100, "full brake + full left"),       #  0
-    (0., 1.,  -50, "full brake + half left"),       #  1
-    (0., 1.,    0, "full brake + straight"),        #  2
-    (0., 1.,   50, "full brake + half right"),      #  3
-    (0., 1.,  100, "full brake + full right"),      #  4
+    (0.0, 1.0, -100, "full brake + full left"),  #  0
+    (0.0, 1.0, -50, "full brake + half left"),  #  1
+    (0.0, 1.0, 0, "full brake + straight"),  #  2
+    (0.0, 1.0, 50, "full brake + half right"),  #  3
+    (0.0, 1.0, 100, "full brake + full right"),  #  4
     # --- half brake (accel=0, brake=0.5) ---
-    (0., 0.5,-100, "half brake + full left"),       #  5
-    (0., 0.5, -50, "half brake + half left"),       #  6
-    (0., 0.5,   0, "half brake + straight"),        #  7
-    (0., 0.5,  50, "half brake + half right"),      #  8
-    (0., 0.5, 100, "half brake + full right"),      #  9
+    (0.0, 0.5, -100, "half brake + full left"),  #  5
+    (0.0, 0.5, -50, "half brake + half left"),  #  6
+    (0.0, 0.5, 0, "half brake + straight"),  #  7
+    (0.0, 0.5, 50, "half brake + half right"),  #  8
+    (0.0, 0.5, 100, "half brake + full right"),  #  9
     # --- coast (accel=0, brake=0) ---
-    (0., 0., -100, "coast + full left"),            # 10
-    (0., 0.,  -50, "coast + half left"),            # 11
-    (0., 0.,    0, "coast + straight"),             # 12
-    (0., 0.,   50, "coast + half right"),           # 13
-    (0., 0.,  100, "coast + full right"),           # 14
+    (0.0, 0.0, -100, "coast + full left"),  # 10
+    (0.0, 0.0, -50, "coast + half left"),  # 11
+    (0.0, 0.0, 0, "coast + straight"),  # 12
+    (0.0, 0.0, 50, "coast + half right"),  # 13
+    (0.0, 0.0, 100, "coast + full right"),  # 14
     # --- half accel (accel=0.5, brake=0) ---
-    (0.5, 0., -100, "half accel + full left"),      # 15
-    (0.5, 0.,  -50, "half accel + half left"),      # 16
-    (0.5, 0.,    0, "half accel + straight"),       # 17
-    (0.5, 0.,   50, "half accel + half right"),     # 18
-    (0.5, 0.,  100, "half accel + full right"),     # 19
+    (0.5, 0.0, -100, "half accel + full left"),  # 15
+    (0.5, 0.0, -50, "half accel + half left"),  # 16
+    (0.5, 0.0, 0, "half accel + straight"),  # 17
+    (0.5, 0.0, 50, "half accel + half right"),  # 18
+    (0.5, 0.0, 100, "half accel + full right"),  # 19
     # --- full accel (accel=1, brake=0) ---
-    (1., 0., -100, "full accel + full left"),       # 20
-    (1., 0.,  -50, "full accel + half left"),       # 21
-    (1., 0.,    0, "full accel + straight"),        # 22
-    (1., 0.,   50, "full accel + half right"),      # 23
-    (1., 0.,  100, "full accel + full right"),      # 24
+    (1.0, 0.0, -100, "full accel + full left"),  # 20
+    (1.0, 0.0, -50, "full accel + half left"),  # 21
+    (1.0, 0.0, 0, "full accel + straight"),  # 22
+    (1.0, 0.0, 50, "full accel + half right"),  # 23
+    (1.0, 0.0, 100, "full accel + full right"),  # 24
 ]
 assert len(ACTIONS) == N_ACTIONS, (
-    f"ACTIONS has {len(ACTIONS)} entries but N_ACTIONS={N_ACTIONS}; "
-    "update games/tmnf/constants.py to match."
+    f"ACTIONS has {len(ACTIONS)} entries but N_ACTIONS={N_ACTIONS}; update games/tmnf/constants.py to match."
 )
 
 
 def get_action_description(idx: int) -> str:
     return ACTIONS[idx][3]
+
 
 @dataclass
 class StepState:
@@ -119,9 +118,7 @@ class StepState:
     yaw_error: float  # signed radians: track heading minus car heading, in [-π, π]
     done: bool  # True if game client detected a hard termination condition
     finished: bool = False  # True when car crossed the finish line
-    ticks_this_step: int = (
-        1  # game ticks covered by this RL step (≥1; >1 when events were skipped)
-    )
+    ticks_this_step: int = 1  # game ticks covered by this RL step (≥1; >1 when events were skipped)
 
 
 class RLClient(PhaseAwareClient):
@@ -160,8 +157,7 @@ class RLClient(PhaseAwareClient):
             # and at least one transit tick.
             self._decision_idx: int = max(
                 1,
-                min(action_window_ticks - 1,
-                    int(action_window_ticks * decision_offset_pct)),
+                min(action_window_ticks - 1, int(action_window_ticks * decision_offset_pct)),
             )
         else:
             self._decision_idx = 0
@@ -246,9 +242,9 @@ class RLClient(PhaseAwareClient):
     def request_respawn(self) -> None:
         """Signal the game thread to respawn the car. Call before wait_episode_ready()."""
         logger.debug(
-            "[RLClient] request_respawn: setting _respawn_event "
-            "(running=%s finish_pending=%s queue_size=%d)",
-            self._running, self._finish_respawn_pending,
+            "[RLClient] request_respawn: setting _respawn_event (running=%s finish_pending=%s queue_size=%d)",
+            self._running,
+            self._finish_respawn_pending,
             self._state_queue.qsize(),
         )
         self._episode_ready.clear()
@@ -260,9 +256,9 @@ class RLClient(PhaseAwareClient):
         Returns the first state of the new episode.
         """
         logger.debug(
-            "[RLClient] wait_episode_ready: blocking "
-            "(running=%s finish_pending=%s queue_size=%d)",
-            self._running, self._finish_respawn_pending,
+            "[RLClient] wait_episode_ready: blocking (running=%s finish_pending=%s queue_size=%d)",
+            self._running,
+            self._finish_respawn_pending,
             self._state_queue.qsize(),
         )
         wait_count = 0
@@ -273,8 +269,11 @@ class RLClient(PhaseAwareClient):
             logger.warning(
                 "[RLClient] wait_episode_ready: still waiting after %ds "
                 "(running=%s finish_pending=%s respawn_set=%s queue_size=%d)",
-                wait_count, self._running, self._finish_respawn_pending,
-                self._respawn_event.is_set(), self._state_queue.qsize(),
+                wait_count,
+                self._running,
+                self._finish_respawn_pending,
+                self._respawn_event.is_set(),
+                self._state_queue.qsize(),
             )
         if self._stop_event.is_set():
             raise RuntimeError("RLClient stopped while waiting for episode ready")
@@ -298,9 +297,10 @@ class RLClient(PhaseAwareClient):
         if self._respawn_event.is_set():
             self._respawn_event.clear()
             logger.debug(
-                "[RLClient] on_run_step t=%d: _respawn_event set → give_up() "
-                "(running=%s finish_pending=%s)",
-                _time, self._running, self._finish_respawn_pending,
+                "[RLClient] on_run_step t=%d: _respawn_event set → give_up() (running=%s finish_pending=%s)",
+                _time,
+                self._running,
+                self._finish_respawn_pending,
             )
             iface.give_up()
             self._last_centerline_idx = None  # full scan on next tick after respawn
@@ -311,23 +311,30 @@ class RLClient(PhaseAwareClient):
             return
 
         state = iface.get_simulation_state()
-        data = StateData(
-            state, centerline=self.centerline, hint_idx=self._last_centerline_idx
-        )
+        data = StateData(state, centerline=self.centerline, hint_idx=self._last_centerline_idx)
         self._last_centerline_idx = data._centerline_idx
         speed_ms = data.velocity.magnitude()
 
         if self._tick % 100 == 0:
-            logger.debug("[RLClient] tick=%d t=%d running=%s speed=%.2fm/s progress=%s",
-                        self._tick, _time, self._running, speed_ms, data.track_progress)
+            logger.debug(
+                "[RLClient] tick=%d t=%d running=%s speed=%.2fm/s progress=%s",
+                self._tick,
+                _time,
+                self._running,
+                speed_ms,
+                data.track_progress,
+            )
 
         # Extra logging as car approaches finish.
         if data.track_progress is not None and data.track_progress >= 0.85:
             logger.debug(
                 "[RLClient] on_run_step t=%d: approaching finish progress=%.4f "
                 "(threshold=%.2f running=%s finish_pending=%s)",
-                _time, data.track_progress, _FINISH_THRESHOLD,
-                self._running, self._finish_respawn_pending,
+                _time,
+                data.track_progress,
+                _FINISH_THRESHOLD,
+                self._running,
+                self._finish_respawn_pending,
             )
 
         if not self._running:
@@ -350,9 +357,9 @@ class RLClient(PhaseAwareClient):
             # act on it here so the finish step was already delivered first.
             if self._finish_respawn_pending:
                 logger.debug(
-                    "[RLClient] on_run_step t=%d: _finish_respawn_pending → give_up() "
-                    "(queue_size=%d)",
-                    _time, self._state_queue.qsize(),
+                    "[RLClient] on_run_step t=%d: _finish_respawn_pending → give_up() (queue_size=%d)",
+                    _time,
+                    self._state_queue.qsize(),
                 )
                 self._finish_respawn_pending = False
                 self._episode_ready.clear()
@@ -363,11 +370,8 @@ class RLClient(PhaseAwareClient):
                 self._pending_transit_ticks = 0
                 return
 
-            finished  = data.track_progress is not None and data.track_progress >= _FINISH_THRESHOLD
-            hard_crash = (
-                data.lateral_offset is not None
-                and abs(data.lateral_offset) > _HARD_CRASH_THRESHOLD_M
-            )
+            finished = data.track_progress is not None and data.track_progress >= _FINISH_THRESHOLD
+            hard_crash = data.lateral_offset is not None and abs(data.lateral_offset) > _HARD_CRASH_THRESHOLD_M
 
             # Action windowing (issue #65):
             #   Observation phase (tick 0 .. _decision_idx-1): emit StepState
@@ -381,8 +385,11 @@ class RLClient(PhaseAwareClient):
                 logger.info(
                     "[RLClient] on_run_step t=%d: FINISH DETECTED progress=%.4f >= %.2f "
                     "(auto_respawn=%s finish_pending=%s queue_size=%d)",
-                    _time, data.track_progress, _FINISH_THRESHOLD,
-                    self._auto_respawn_on_finish, self._finish_respawn_pending,
+                    _time,
+                    data.track_progress,
+                    _FINISH_THRESHOLD,
+                    self._auto_respawn_on_finish,
+                    self._finish_respawn_pending,
                     self._state_queue.qsize(),
                 )
 
@@ -432,9 +439,11 @@ class RLClient(PhaseAwareClient):
 
     def on_checkpoint_count_changed(self, iface: TMInterface, current: int, target: int) -> None:
         logger.info(
-            "[RLClient] on_checkpoint_count_changed %d/%d "
-            "(running=%s finish_pending=%s)",
-            current, target, self._running, self._finish_respawn_pending,
+            "[RLClient] on_checkpoint_count_changed %d/%d (running=%s finish_pending=%s)",
+            current,
+            target,
+            self._running,
+            self._finish_respawn_pending,
         )
         if current >= target:
             # Prevent TMInterface from entering replay-validation ("simulation") mode
@@ -444,9 +453,10 @@ class RLClient(PhaseAwareClient):
 
     def on_laps_count_changed(self, iface: TMInterface, current: int) -> None:
         logger.info(
-            "[RLClient] on_laps_count_changed laps=%d "
-            "(running=%s finish_pending=%s respawn_set=%s)",
-            current, self._running, self._finish_respawn_pending,
+            "[RLClient] on_laps_count_changed laps=%d (running=%s finish_pending=%s respawn_set=%s)",
+            current,
+            self._running,
+            self._finish_respawn_pending,
             self._respawn_event.is_set(),
         )
 
@@ -467,8 +477,12 @@ class RLClient(PhaseAwareClient):
         except queue.Empty:
             pass
         if step_state.done or step_state.finished or self._tick % 100 == 0:
-            logger.debug("[RLClient] _drain_and_put: finished=%s done=%s progress=%s",
-                        step_state.finished, step_state.done, step_state.state_data.track_progress)
+            logger.debug(
+                "[RLClient] _drain_and_put: finished=%s done=%s progress=%s",
+                step_state.finished,
+                step_state.done,
+                step_state.state_data.track_progress,
+            )
         self._state_queue.put(step_state)
 
     def _compute_yaw_error(self, data: StateData) -> float:

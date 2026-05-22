@@ -1,4 +1,5 @@
 """Tests for framework/obs_memory.py — FrameStack and TimestampedRingBuffer."""
+
 import unittest
 
 import gymnasium as gym
@@ -28,7 +29,6 @@ class _DummyEnv(gym.Env):
 
 
 class TestFrameStack(unittest.TestCase):
-
     def test_observation_shape(self):
         env = _DummyEnv(obs_dim=3)
         wrapped = FrameStack(env, k=4)
@@ -64,7 +64,6 @@ class TestFrameStack(unittest.TestCase):
 
 
 class TestTimestampedRingBuffer(unittest.TestCase):
-
     def test_most_recent_zero_padded(self):
         buf = TimestampedRingBuffer(capacity=5, obs_dim=3)
         buf.push(0.0, np.array([1, 2, 3], dtype=np.float32))

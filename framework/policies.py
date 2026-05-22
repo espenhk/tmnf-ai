@@ -41,10 +41,11 @@ def _qtable_pkl_path(yaml_path: str) -> str:
 # BasePolicy
 # ---------------------------------------------------------------------------
 
+
 class BasePolicy(ABC):
     """Abstract base class for all driving policies."""
 
-    POLICY_TYPE: ClassVar[str] = ""           # "" = abstract, not registrable
+    POLICY_TYPE: ClassVar[str] = ""  # "" = abstract, not registrable
     LOOP_TYPE: ClassVar[str] = "hill_climbing"  # hill_climbing|q_learning|cmaes|genetic
     VALID_POLICY_PARAMS: ClassVar[frozenset[str]] = frozenset()
 
@@ -56,8 +57,9 @@ class BasePolicy(ABC):
     def to_cfg(self) -> dict:
         """Return a YAML-serializable dict representing this policy's state."""
 
-    def update(self, obs: np.ndarray, action: np.ndarray, reward: float,
-               next_obs: np.ndarray, done: bool, **kwargs) -> None:
+    def update(
+        self, obs: np.ndarray, action: np.ndarray, reward: float, next_obs: np.ndarray, done: bool, **kwargs
+    ) -> None:
         """Per-step feedback from the environment.  No-op for non-online policies."""
 
     def on_episode_start(self, **kwargs) -> None:
@@ -112,18 +114,23 @@ class BasePolicy(ABC):
             )
 
     @classmethod
-    def make(cls, *, obs_spec, head_names, discrete_actions,
-             weights_file, policy_params, re_initialize) -> "BasePolicy":
+    def make(
+        cls, *, obs_spec, head_names, discrete_actions, weights_file, policy_params, re_initialize
+    ) -> "BasePolicy":
         cls._validate_params(policy_params)
         return cls._construct_or_resume(
-            obs_spec=obs_spec, head_names=head_names,
-            discrete_actions=discrete_actions, weights_file=weights_file,
-            policy_params=policy_params, re_initialize=re_initialize,
+            obs_spec=obs_spec,
+            head_names=head_names,
+            discrete_actions=discrete_actions,
+            weights_file=weights_file,
+            policy_params=policy_params,
+            re_initialize=re_initialize,
         )
 
     @classmethod
-    def _construct_or_resume(cls, *, obs_spec, head_names, discrete_actions,
-                             weights_file, policy_params, re_initialize) -> "BasePolicy":
+    def _construct_or_resume(
+        cls, *, obs_spec, head_names, discrete_actions, weights_file, policy_params, re_initialize
+    ) -> "BasePolicy":
         raise NotImplementedError("Subclass must override _construct_or_resume or make")
 
 
@@ -139,18 +146,14 @@ def register_policy(cls: type[BasePolicy]) -> type[BasePolicy]:
         raise ValueError(f"{cls.__name__} must set POLICY_TYPE before @register_policy")
     if cls.POLICY_TYPE in POLICY_REGISTRY:
         existing = POLICY_REGISTRY[cls.POLICY_TYPE]
-        raise ValueError(
-            f"Duplicate policy_type {cls.POLICY_TYPE!r}: "
-            f"{existing.__name__} vs {cls.__name__}"
-        )
+        raise ValueError(f"Duplicate policy_type {cls.POLICY_TYPE!r}: {existing.__name__} vs {cls.__name__}")
     POLICY_REGISTRY[cls.POLICY_TYPE] = cls
     return cls
 
 
 def trainer_state_path(weights_file: str) -> str:
     """Canonical path for a policy's trainer-state .npz file."""
-    return os.path.join(os.path.dirname(os.path.abspath(weights_file)),
-                        "trainer_state.npz")
+    return os.path.join(os.path.dirname(os.path.abspath(weights_file)), "trainer_state.npz")
 
 
 # ---------------------------------------------------------------------------
@@ -177,6 +180,7 @@ def _sc2_incompatible(alternative: str) -> tuple[bool, str]:
 # ---------------------------------------------------------------------------
 # WeightedLinearPolicy
 # ---------------------------------------------------------------------------
+
 
 @register_policy
 class WeightedLinearPolicy(BasePolicy):
@@ -211,8 +215,8 @@ class WeightedLinearPolicy(BasePolicy):
         head_names: list[str],
         weights_file: str | None = None,
     ) -> None:
-        self._obs_spec     = obs_spec
-        self._head_names   = list(head_names)
+        self._obs_spec = obs_spec
+        self._head_names = list(head_names)
         self._weights_file = weights_file
         if weights_file is not None:
             cfg = self._load_or_init()
@@ -231,8 +235,8 @@ class WeightedLinearPolicy(BasePolicy):
         """Create a policy from a weights dict (not backed by a file)."""
         obj = object.__new__(cls)
         obj._weights_file = None
-        obj._obs_spec     = obs_spec
-        obj._head_names   = list(head_names)
+        obj._obs_spec = obs_spec
+        obj._head_names = list(head_names)
         obj._apply_cfg(cfg)
         return obj
 
@@ -242,10 +246,7 @@ class WeightedLinearPolicy(BasePolicy):
 
     def to_cfg(self) -> dict:
         names = self._obs_spec.names
-        return {
-            f"{h}_weights": {n: float(self._weights[h][i]) for i, n in enumerate(names)}
-            for h in self._head_names
-        }
+        return {f"{h}_weights": {n: float(self._weights[h][i]) for i, n in enumerate(names)} for h in self._head_names}
 
     def save(self, path: str) -> None:
         with open(path, "w") as f:
@@ -263,13 +264,13 @@ class WeightedLinearPolicy(BasePolicy):
         """Return a new policy with weights replaced by a flat vector."""
         n = self._obs_spec.dim
         obj = object.__new__(type(self))
-        obj._obs_spec     = self._obs_spec
-        obj._head_names   = self._head_names
+        obj._obs_spec = self._obs_spec
+        obj._head_names = self._head_names
         obj._weights_file = self._weights_file
-        obj._weights      = {}
+        obj._weights = {}
         for i, head in enumerate(self._head_names):
             offset = i * n
-            obj._weights[head] = flat[offset: offset + n].astype(np.float32).copy()
+            obj._weights[head] = flat[offset : offset + n].astype(np.float32).copy()
         return obj
 
     def mutated(self, scale: float = 0.1, share: float = 1.0) -> "WeightedLinearPolicy":
@@ -280,10 +281,10 @@ class WeightedLinearPolicy(BasePolicy):
         """
         rng = np.random.default_rng()
         obj = object.__new__(type(self))
-        obj._obs_spec     = self._obs_spec
-        obj._head_names   = self._head_names
+        obj._obs_spec = self._obs_spec
+        obj._head_names = self._head_names
         obj._weights_file = self._weights_file
-        obj._weights      = {}
+        obj._weights = {}
         for head, w in self._weights.items():
             if share >= 1.0:
                 mask = np.ones(len(w), dtype=bool)
@@ -299,13 +300,13 @@ class WeightedLinearPolicy(BasePolicy):
 
     def __call__(self, obs: np.ndarray) -> np.ndarray:
         norm_obs = obs / self._obs_spec.scales
-        outputs  = []
+        outputs = []
         for i, head in enumerate(self._head_names):
             score = float(np.dot(self._weights[head], norm_obs))
             if i == 0:
                 outputs.append(float(np.clip(score, -1.0, 1.0)))  # continuous head
             else:
-                outputs.append(1.0 if score > 0.0 else 0.0)       # binary head
+                outputs.append(1.0 if score > 0.0 else 0.0)  # binary head
         return np.array(outputs, dtype=np.float32)
 
     # ------------------------------------------------------------------
@@ -316,7 +317,7 @@ class WeightedLinearPolicy(BasePolicy):
         names = self._obs_spec.names
         self._weights = {}
         for head in self._head_names:
-            key      = f"{head}_weights"
+            key = f"{head}_weights"
             head_cfg = cfg.get(key, {})
             self._weights[head] = np.array(
                 [float(head_cfg.get(n, 0.0)) for n in names],
@@ -336,24 +337,23 @@ class WeightedLinearPolicy(BasePolicy):
                     type(cfg).__name__,
                 )
                 cfg = {}
-            first_key   = f"{self._head_names[0]}_weights"
-            loaded_dim  = len(cfg.get(first_key, {}))
+            first_key = f"{self._head_names[0]}_weights"
+            loaded_dim = len(cfg.get(first_key, {}))
             if loaded_dim != len(names):
                 logger.warning(
                     "[WeightedLinearPolicy] loaded weights dim=%d doesn't match obs_dim=%d; "
                     "new features initialised to 0.0 → %s",
-                    loaded_dim, len(names), self._weights_file,
+                    loaded_dim,
+                    len(names),
+                    self._weights_file,
                 )
             return cfg
         return self._init_random()
 
     def _init_random(self) -> dict:
         names = self._obs_spec.names
-        rng   = np.random.default_rng()
-        cfg   = {
-            f"{h}_weights": {n: float(rng.standard_normal()) for n in names}
-            for h in self._head_names
-        }
+        rng = np.random.default_rng()
+        cfg = {f"{h}_weights": {n: float(rng.standard_normal()) for n in names} for h in self._head_names}
         if self._weights_file is not None:
             with open(self._weights_file, "w") as f:
                 yaml.dump(cfg, f, default_flow_style=False, sort_keys=False)
@@ -361,18 +361,19 @@ class WeightedLinearPolicy(BasePolicy):
         return cfg
 
     @classmethod
-    def _construct_or_resume(cls, *, obs_spec, head_names, discrete_actions,
-                             weights_file, policy_params, re_initialize) -> "WeightedLinearPolicy":
+    def _construct_or_resume(
+        cls, *, obs_spec, head_names, discrete_actions, weights_file, policy_params, re_initialize
+    ) -> "WeightedLinearPolicy":
         if re_initialize and os.path.exists(weights_file):
             os.remove(weights_file)
-            logger.info("[WeightedLinearPolicy] removed existing weights file for re-initialization: %s",
-                        weights_file)
+            logger.info("[WeightedLinearPolicy] removed existing weights file for re-initialization: %s", weights_file)
         return cls(obs_spec, head_names, weights_file)
 
 
 # ---------------------------------------------------------------------------
 # NeuralNetPolicy
 # ---------------------------------------------------------------------------
+
 
 @register_policy
 class NeuralNetPolicy(BasePolicy):
@@ -401,13 +402,13 @@ class NeuralNetPolicy(BasePolicy):
         action_dim: int = 3,
         hidden_sizes: list[int] | None = None,
     ) -> None:
-        self._obs_spec   = obs_spec
+        self._obs_spec = obs_spec
         self._action_dim = action_dim
-        self._hidden     = list(hidden_sizes or [16, 16])
-        layer_dims       = [obs_spec.dim] + self._hidden + [action_dim]
-        rng              = np.random.default_rng()
+        self._hidden = list(hidden_sizes or [16, 16])
+        layer_dims = [obs_spec.dim] + self._hidden + [action_dim]
+        rng = np.random.default_rng()
         self._weights: list[np.ndarray] = []
-        self._biases:  list[np.ndarray] = []
+        self._biases: list[np.ndarray] = []
         for i in range(len(layer_dims) - 1):
             fan_in = layer_dims[i]
             w = rng.standard_normal((layer_dims[i + 1], fan_in)).astype(np.float32)
@@ -418,12 +419,12 @@ class NeuralNetPolicy(BasePolicy):
 
     @classmethod
     def from_cfg(cls, cfg: dict, obs_spec: ObsSpec) -> "NeuralNetPolicy":
-        obj              = object.__new__(cls)
-        obj._obs_spec    = obs_spec
-        obj._action_dim  = len(cfg["biases"][-1]) if cfg.get("biases") else 3
-        obj._hidden      = cfg["hidden_sizes"]
-        obj._weights     = [np.array(w, dtype=np.float32) for w in cfg["weights"]]
-        obj._biases      = [np.array(b, dtype=np.float32) for b in cfg["biases"]]
+        obj = object.__new__(cls)
+        obj._obs_spec = obs_spec
+        obj._action_dim = len(cfg["biases"][-1]) if cfg.get("biases") else 3
+        obj._hidden = cfg["hidden_sizes"]
+        obj._weights = [np.array(w, dtype=np.float32) for w in cfg["weights"]]
+        obj._biases = [np.array(b, dtype=np.float32) for b in cfg["biases"]]
         return obj
 
     def __call__(self, obs: np.ndarray) -> np.ndarray:
@@ -441,28 +442,27 @@ class NeuralNetPolicy(BasePolicy):
     def mutated(self, scale: float = 0.1, **_) -> "NeuralNetPolicy":
         """Return a new policy with Gaussian noise added to all weights and biases."""
         rng = np.random.default_rng()
-        obj             = object.__new__(type(self))
-        obj._obs_spec   = self._obs_spec
+        obj = object.__new__(type(self))
+        obj._obs_spec = self._obs_spec
         obj._action_dim = self._action_dim
-        obj._hidden     = self._hidden
-        obj._weights    = [w + rng.normal(0.0, scale, w.shape).astype(np.float32)
-                           for w in self._weights]
-        obj._biases     = [b + rng.normal(0.0, scale, b.shape).astype(np.float32)
-                           for b in self._biases]
+        obj._hidden = self._hidden
+        obj._weights = [w + rng.normal(0.0, scale, w.shape).astype(np.float32) for w in self._weights]
+        obj._biases = [b + rng.normal(0.0, scale, b.shape).astype(np.float32) for b in self._biases]
         return obj
 
     def to_cfg(self) -> dict:
         return {
-            "policy_type":  "neural_net",
+            "policy_type": "neural_net",
             "hidden_sizes": self._hidden,
-            "action_dim":   self._action_dim,
-            "weights":      [w.tolist() for w in self._weights],
-            "biases":       [b.tolist() for b in self._biases],
+            "action_dim": self._action_dim,
+            "weights": [w.tolist() for w in self._weights],
+            "biases": [b.tolist() for b in self._biases],
         }
 
     @classmethod
-    def _construct_or_resume(cls, *, obs_spec, head_names, discrete_actions,
-                             weights_file, policy_params, re_initialize) -> "NeuralNetPolicy":
+    def _construct_or_resume(
+        cls, *, obs_spec, head_names, discrete_actions, weights_file, policy_params, re_initialize
+    ) -> "NeuralNetPolicy":
         if os.path.exists(weights_file) and not re_initialize:
             with open(weights_file) as f:
                 loaded_cfg = yaml.safe_load(f)
@@ -479,6 +479,7 @@ class NeuralNetPolicy(BasePolicy):
 # Observation discretization helper
 # ---------------------------------------------------------------------------
 
+
 def _discretize_obs(obs: np.ndarray, scales: np.ndarray, n_bins: int) -> tuple[int, ...]:
     """
     Map a continuous observation vector to a discrete state key.
@@ -486,15 +487,16 @@ def _discretize_obs(obs: np.ndarray, scales: np.ndarray, n_bins: int) -> tuple[i
     Each feature is normalised by *scales*, clipped to [-3, 3], then
     mapped to one of *n_bins* integer buckets.  Returns a hashable tuple.
     """
-    norm    = obs / scales
+    norm = obs / scales
     clipped = np.clip(norm, -3.0, 3.0)
-    bins    = ((clipped + 3.0) / 6.0 * (n_bins - 1)).astype(np.int32)
+    bins = ((clipped + 3.0) / 6.0 * (n_bins - 1)).astype(np.int32)
     return tuple(bins.tolist())
 
 
 # ---------------------------------------------------------------------------
 # QTablePolicy — shared base for tabular Q-learning policies
 # ---------------------------------------------------------------------------
+
 
 class QTablePolicy(BasePolicy):
     """
@@ -512,17 +514,17 @@ class QTablePolicy(BasePolicy):
         gamma: float = 0.99,
         n_bins: int = 3,
     ) -> None:
-        self._obs_spec        = obs_spec
+        self._obs_spec = obs_spec
         self._discrete_actions = discrete_actions
-        self._n_actions       = len(discrete_actions)
-        self._alpha           = alpha
-        self._gamma           = gamma
-        self._n_bins          = n_bins
-        self._scales          = obs_spec.scales
+        self._n_actions = len(discrete_actions)
+        self._alpha = alpha
+        self._gamma = gamma
+        self._n_bins = n_bins
+        self._scales = obs_spec.scales
         self._q_table: dict[tuple, np.ndarray] = {}
-        self._n_sa:    dict[tuple, np.ndarray] = {}
-        self._n_s:     dict[tuple, int]        = {}
-        self._last_obs    = None
+        self._n_sa: dict[tuple, np.ndarray] = {}
+        self._n_s: dict[tuple, int] = {}
+        self._last_obs = None
         self._last_action = None
 
     def _q(self, s: tuple) -> np.ndarray:
@@ -541,15 +543,14 @@ class QTablePolicy(BasePolicy):
 
     def __call__(self, obs: np.ndarray) -> np.ndarray:
         s = _discretize_obs(obs, self._scales, self._n_bins)
-        self._last_obs    = obs
-        action_idx        = self._select_action(s)
+        self._last_obs = obs
+        action_idx = self._select_action(s)
         self._last_action = action_idx
         return self._discrete_actions[action_idx].copy()
 
-    def update(self, obs: np.ndarray, action, reward: float,
-               next_obs: np.ndarray, done: bool, **kwargs) -> None:
+    def update(self, obs: np.ndarray, action, reward: float, next_obs: np.ndarray, done: bool, **kwargs) -> None:
         action_idx = int(action) if np.isscalar(action) else self._nearest_action(action)
-        s  = _discretize_obs(obs,      self._scales, self._n_bins)
+        s = _discretize_obs(obs, self._scales, self._n_bins)
         s_ = _discretize_obs(next_obs, self._scales, self._n_bins)
         q_next = 0.0 if done else float(np.max(self._q(s_)))
         td = reward + self._gamma * q_next - self._q(s)[action_idx]
@@ -562,7 +563,7 @@ class QTablePolicy(BasePolicy):
         return int(np.argmin(diffs))
 
     def on_episode_end(self) -> None:
-        self._last_obs    = None
+        self._last_obs = None
         self._last_action = None
 
     @property
@@ -574,7 +575,8 @@ class QTablePolicy(BasePolicy):
         if len(self._q_table) > _MAX_QTABLE_ENTRIES:
             logger.warning(
                 "Q-table has %d entries (>%d), skipping pickle.",
-                len(self._q_table), _MAX_QTABLE_ENTRIES,
+                len(self._q_table),
+                _MAX_QTABLE_ENTRIES,
             )
             return
         pkl_path = _qtable_pkl_path(path)
@@ -588,14 +590,15 @@ class QTablePolicy(BasePolicy):
             with open(pkl_path, "rb") as f:
                 q_table, n_sa, n_s = pickle.load(f)
             self._q_table = q_table
-            self._n_sa    = n_sa
-            self._n_s     = n_s
+            self._n_sa = n_sa
+            self._n_s = n_s
             logger.info("Q-table loaded: %d states from %s", len(q_table), pkl_path)
 
 
 # ---------------------------------------------------------------------------
 # EpsilonGreedyPolicy
 # ---------------------------------------------------------------------------
+
 
 @register_policy
 class EpsilonGreedyPolicy(QTablePolicy):
@@ -609,7 +612,9 @@ class EpsilonGreedyPolicy(QTablePolicy):
 
     POLICY_TYPE = "epsilon_greedy"
     LOOP_TYPE = "q_learning"
-    VALID_POLICY_PARAMS: ClassVar[frozenset] = frozenset({"epsilon", "n_bins", "epsilon_decay", "epsilon_min", "alpha", "gamma"})
+    VALID_POLICY_PARAMS: ClassVar[frozenset] = frozenset(
+        {"epsilon", "n_bins", "epsilon_decay", "epsilon_min", "alpha", "gamma"}
+    )
 
     def __init__(
         self,
@@ -623,9 +628,9 @@ class EpsilonGreedyPolicy(QTablePolicy):
         gamma: float = 0.99,
     ) -> None:
         super().__init__(obs_spec, discrete_actions, alpha=alpha, gamma=gamma, n_bins=n_bins)
-        self._epsilon       = epsilon
+        self._epsilon = epsilon
         self._epsilon_decay = epsilon_decay
-        self._epsilon_min   = epsilon_min
+        self._epsilon_min = epsilon_min
 
     def _select_action(self, state_key: tuple) -> int:
         if np.random.random() < self._epsilon:
@@ -634,24 +639,24 @@ class EpsilonGreedyPolicy(QTablePolicy):
 
     def on_episode_end(self) -> None:
         super().on_episode_end()
-        self._epsilon = max(self._epsilon_min,
-                            self._epsilon * self._epsilon_decay)
+        self._epsilon = max(self._epsilon_min, self._epsilon * self._epsilon_decay)
 
     def to_cfg(self) -> dict:
         return {
-            "policy_type":      "epsilon_greedy",
-            "n_bins":           self._n_bins,
-            "epsilon":          float(self._epsilon),
-            "epsilon_decay":    float(self._epsilon_decay),
-            "epsilon_min":      float(self._epsilon_min),
-            "alpha":            float(self._alpha),
-            "gamma":            float(self._gamma),
+            "policy_type": "epsilon_greedy",
+            "n_bins": self._n_bins,
+            "epsilon": float(self._epsilon),
+            "epsilon_decay": float(self._epsilon_decay),
+            "epsilon_min": float(self._epsilon_min),
+            "alpha": float(self._alpha),
+            "gamma": float(self._gamma),
             "n_states_visited": self.n_states_visited,
         }
 
     @classmethod
-    def _construct_or_resume(cls, *, obs_spec, head_names, discrete_actions,
-                             weights_file, policy_params, re_initialize) -> "EpsilonGreedyPolicy":
+    def _construct_or_resume(
+        cls, *, obs_spec, head_names, discrete_actions, weights_file, policy_params, re_initialize
+    ) -> "EpsilonGreedyPolicy":
         epsilon = policy_params.get("epsilon", 1.0)
         if os.path.exists(weights_file) and not re_initialize:
             with open(weights_file) as f:
@@ -676,6 +681,7 @@ class EpsilonGreedyPolicy(QTablePolicy):
 # ---------------------------------------------------------------------------
 # MCTSPolicy  (UCT-style online learner)
 # ---------------------------------------------------------------------------
+
 
 @register_policy
 class MCTSPolicy(QTablePolicy):
@@ -709,9 +715,7 @@ class MCTSPolicy(QTablePolicy):
         n_s = self._n_s.get(state_key, 0)
         if n_s == 0:
             return int(np.random.randint(self._n_actions))
-        ucb = self._q(state_key) + self._c * np.sqrt(
-            math.log(n_s + 1) / (self._n(state_key) + 1e-8)
-        )
+        ucb = self._q(state_key) + self._c * np.sqrt(math.log(n_s + 1) / (self._n(state_key) + 1e-8))
         return int(np.argmax(ucb))
 
     def on_episode_end(self) -> None:
@@ -719,17 +723,18 @@ class MCTSPolicy(QTablePolicy):
 
     def to_cfg(self) -> dict:
         return {
-            "policy_type":      "mcts",
-            "c":                float(self._c),
-            "alpha":            float(self._alpha),
-            "gamma":            float(self._gamma),
-            "n_bins":           self._n_bins,
+            "policy_type": "mcts",
+            "c": float(self._c),
+            "alpha": float(self._alpha),
+            "gamma": float(self._gamma),
+            "n_bins": self._n_bins,
             "n_states_visited": self.n_states_visited,
         }
 
     @classmethod
-    def _construct_or_resume(cls, *, obs_spec, head_names, discrete_actions,
-                             weights_file, policy_params, re_initialize) -> "MCTSPolicy":
+    def _construct_or_resume(
+        cls, *, obs_spec, head_names, discrete_actions, weights_file, policy_params, re_initialize
+    ) -> "MCTSPolicy":
         policy = cls(
             obs_spec=obs_spec,
             discrete_actions=discrete_actions,
@@ -746,6 +751,7 @@ class MCTSPolicy(QTablePolicy):
 # ---------------------------------------------------------------------------
 # GeneticPolicy
 # ---------------------------------------------------------------------------
+
 
 @register_policy
 class GeneticPolicy(BasePolicy):
@@ -764,7 +770,9 @@ class GeneticPolicy(BasePolicy):
 
     POLICY_TYPE = "genetic"
     LOOP_TYPE = "genetic"
-    VALID_POLICY_PARAMS: ClassVar[frozenset] = frozenset({"population_size", "elite_k", "mutation_scale", "mutation_share", "eval_episodes"})
+    VALID_POLICY_PARAMS: ClassVar[frozenset] = frozenset(
+        {"population_size", "elite_k", "mutation_scale", "mutation_share", "eval_episodes"}
+    )
 
     @classmethod
     def compatible_with(cls, game_name: str) -> tuple[bool, str | None]:
@@ -782,16 +790,16 @@ class GeneticPolicy(BasePolicy):
         mutation_share: float = 1.0,
         eval_episodes: int = 1,
     ) -> None:
-        self._obs_spec        = obs_spec
-        self._head_names      = list(head_names)
-        self._pop_size        = population_size
-        self._elite_k         = min(elite_k, population_size)
-        self._mutation_scale  = mutation_scale
-        self._mutation_share  = mutation_share
-        self._eval_episodes   = max(1, int(eval_episodes))
+        self._obs_spec = obs_spec
+        self._head_names = list(head_names)
+        self._pop_size = population_size
+        self._elite_k = min(elite_k, population_size)
+        self._mutation_scale = mutation_scale
+        self._mutation_share = mutation_share
+        self._eval_episodes = max(1, int(eval_episodes))
         self._population: list[WeightedLinearPolicy] = []
-        self._champion: WeightedLinearPolicy | None  = None
-        self._champion_reward: float                  = float("-inf")
+        self._champion: WeightedLinearPolicy | None = None
+        self._champion_reward: float = float("-inf")
 
     def _make_member(self, cfg: dict) -> WeightedLinearPolicy:
         """Factory for population members.  Subclasses can override."""
@@ -815,14 +823,11 @@ class GeneticPolicy(BasePolicy):
 
     def initialize_random(self) -> None:
         """Build a fresh random population."""
-        rng   = np.random.default_rng()
+        rng = np.random.default_rng()
         names = self._obs_spec.names
-        pop   = []
+        pop = []
         for _ in range(self._pop_size):
-            cfg = {
-                f"{h}_weights": {n: float(rng.standard_normal()) for n in names}
-                for h in self._head_names
-            }
+            cfg = {f"{h}_weights": {n: float(rng.standard_normal()) for n in names} for h in self._head_names}
             pop.append(self._make_member(cfg))
         self._population = pop
         if self._champion is None:
@@ -836,15 +841,13 @@ class GeneticPolicy(BasePolicy):
         population drifting away from a known-good solution purely due to
         mutation noise in a stochastic environment.
         """
-        self._champion    = champion
-        self._population  = [champion] + [
-            champion.mutated(self._mutation_scale, self._mutation_share)
-            for _ in range(self._pop_size - 1)
+        self._champion = champion
+        self._population = [champion] + [
+            champion.mutated(self._mutation_scale, self._mutation_share) for _ in range(self._pop_size - 1)
         ]
 
     def __call__(self, obs: np.ndarray) -> np.ndarray:
-        assert self._champion is not None, \
-            "GeneticPolicy: champion not set — call initialize_*() first"
+        assert self._champion is not None, "GeneticPolicy: champion not set — call initialize_*() first"
         return self._champion(obs)
 
     def evaluate_and_evolve(self, rewards: list[float]) -> bool:
@@ -854,15 +857,15 @@ class GeneticPolicy(BasePolicy):
         Returns True if the champion was updated this generation.
         """
         assert len(rewards) == len(self._population)
-        ranked   = sorted(zip(rewards, self._population), key=lambda x: -x[0])
+        ranked = sorted(zip(rewards, self._population), key=lambda x: -x[0])
         improved = False
 
         if ranked[0][0] > self._champion_reward:
             self._champion_reward = ranked[0][0]
-            self._champion        = ranked[0][1]
-            improved              = True
+            self._champion = ranked[0][1]
+            improved = True
 
-        elites  = [ind for _, ind in ranked[:self._elite_k]]
+        elites = [ind for _, ind in ranked[: self._elite_k]]
         new_pop = list(elites)
         rng_idx = np.random.default_rng()
 
@@ -870,7 +873,7 @@ class GeneticPolicy(BasePolicy):
             i1 = int(rng_idx.integers(self._elite_k))
             i2 = int(rng_idx.integers(self._elite_k))
             child_cfg = self._crossover(elites[i1].to_cfg(), elites[i2].to_cfg())
-            child     = self._make_member(child_cfg)
+            child = self._make_member(child_cfg)
             new_pop.append(child.mutated(self._mutation_scale, self._mutation_share))
 
         self._population = new_pop
@@ -885,19 +888,18 @@ class GeneticPolicy(BasePolicy):
                 continue
             result[key] = {}
             for k in cfg1[key]:
-                result[key][k] = (cfg1[key][k] if np.random.random() < 0.5
-                                  else cfg2[key].get(k, cfg1[key][k]))
+                result[key][k] = cfg1[key][k] if np.random.random() < 0.5 else cfg2[key].get(k, cfg1[key][k])
         return result
 
     def to_cfg(self) -> dict:
         return {
-            "policy_type":      "genetic",
-            "population_size":  self._pop_size,
-            "elite_k":          self._elite_k,
-            "mutation_scale":   float(self._mutation_scale),
-            "mutation_share":   float(self._mutation_share),
-            "eval_episodes":    self._eval_episodes,
-            "champion_reward":  float(self._champion_reward),
+            "policy_type": "genetic",
+            "population_size": self._pop_size,
+            "elite_k": self._elite_k,
+            "mutation_scale": float(self._mutation_scale),
+            "mutation_share": float(self._mutation_share),
+            "eval_episodes": self._eval_episodes,
+            "champion_reward": float(self._champion_reward),
             "champion_weights": self._champion.to_cfg() if self._champion else {},
         }
 
@@ -907,26 +909,24 @@ class GeneticPolicy(BasePolicy):
             self._champion.save(path)
 
     @classmethod
-    def _construct_or_resume(cls, *, obs_spec, head_names, discrete_actions,
-                             weights_file, policy_params, re_initialize) -> "GeneticPolicy":
+    def _construct_or_resume(
+        cls, *, obs_spec, head_names, discrete_actions, weights_file, policy_params, re_initialize
+    ) -> "GeneticPolicy":
         pop_size = policy_params.get("population_size", 10)
-        elite_k  = policy_params.get("elite_k", 3)
-        policy   = cls(
-            obs_spec        = obs_spec,
-            head_names      = head_names,
-            population_size = pop_size,
-            elite_k         = elite_k,
-            mutation_scale  = policy_params.get("mutation_scale",
-                              policy_params.get("_mutation_scale_fallback", 0.1)),
-            mutation_share  = policy_params.get("mutation_share",
-                              policy_params.get("_mutation_share_fallback", 1.0)),
-            eval_episodes   = policy_params.get("eval_episodes", 1),
+        elite_k = policy_params.get("elite_k", 3)
+        policy = cls(
+            obs_spec=obs_spec,
+            head_names=head_names,
+            population_size=pop_size,
+            elite_k=elite_k,
+            mutation_scale=policy_params.get("mutation_scale", policy_params.get("_mutation_scale_fallback", 0.1)),
+            mutation_share=policy_params.get("mutation_share", policy_params.get("_mutation_share_fallback", 1.0)),
+            eval_episodes=policy_params.get("eval_episodes", 1),
         )
         if os.path.exists(weights_file) and not re_initialize:
             champion = WeightedLinearPolicy(obs_spec, head_names, weights_file)
             policy.initialize_from_champion(champion)
-            logger.info("[GeneticPolicy] seeded population from champion at %s",
-                        weights_file)
+            logger.info("[GeneticPolicy] seeded population from champion at %s", weights_file)
         else:
             policy.initialize_random()
             logger.info("[GeneticPolicy] random population of %d", pop_size)

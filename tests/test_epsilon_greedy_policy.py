@@ -1,4 +1,5 @@
 """Tests for EpsilonGreedyPolicy in tmnf/policies.py."""
+
 import unittest
 
 import numpy as np
@@ -16,7 +17,6 @@ def _state_key(obs: np.ndarray) -> tuple:
 
 
 class TestEpsilonGreedyPolicy(unittest.TestCase):
-
     def test_action_in_range(self):
         p = EpsilonGreedyPolicy(epsilon=1.0)
         self.assertIn(_action_to_idx(p(_zero_obs())), range(25))
@@ -45,9 +45,9 @@ class TestEpsilonGreedyPolicy(unittest.TestCase):
     def test_bellman_backup(self):
         alpha, gamma = 0.5, 0.9
         p = EpsilonGreedyPolicy(epsilon=0.0, alpha=alpha, gamma=gamma)
-        obs      = _zero_obs()
+        obs = _zero_obs()
         next_obs = np.ones(BASE_OBS_DIM, dtype=np.float32)
-        s  = _state_key(obs)
+        s = _state_key(obs)
         s_ = _state_key(next_obs)
         # Seed Q(s', 2) = 5 → max_Q(s') = 5
         p._q_table[s_] = np.zeros(25, dtype=np.float32)

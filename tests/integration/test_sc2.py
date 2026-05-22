@@ -89,6 +89,7 @@ def _make_env():
 # SC2Client low-level tests
 # ---------------------------------------------------------------------------
 
+
 @_skip_no_sc2
 class TestSC2ClientBasics(unittest.TestCase):
     """Verify SC2Client reset/step against the real SC2 binary."""
@@ -165,6 +166,7 @@ class TestSC2ClientBasics(unittest.TestCase):
 # SC2Env lifecycle tests
 # ---------------------------------------------------------------------------
 
+
 @_skip_no_sc2
 class TestSC2EnvLifecycle(unittest.TestCase):
     """Verify SC2Env reset/step/close against the real binary."""
@@ -208,9 +210,7 @@ class TestSC2EnvLifecycle(unittest.TestCase):
             action = np.array([0.0, 0.0, 0.0, 0.0], dtype=np.float32)
             for _ in range(5):
                 _, reward, terminated, truncated, _ = env.step(action)
-                self.assertTrue(
-                    math.isfinite(reward), f"reward {reward} is not finite"
-                )
+                self.assertTrue(math.isfinite(reward), f"reward {reward} is not finite")
                 if terminated or truncated:
                     break
         finally:
@@ -275,6 +275,7 @@ class TestSC2EnvLifecycle(unittest.TestCase):
 # Full episode with action variety
 # ---------------------------------------------------------------------------
 
+
 @_skip_no_sc2
 class TestSC2FullEpisode(unittest.TestCase):
     """Run a full episode with varied actions, validating obs and reward."""
@@ -321,9 +322,7 @@ class TestSC2FullEpisode(unittest.TestCase):
             env.reset()
             # select_army then move to force score
             env.step(np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32))
-            _, _, _, _, info = env.step(
-                np.array([2.0, 0.5, 0.5, 0.0], dtype=np.float32)
-            )
+            _, _, _, _, info = env.step(np.array([2.0, 0.5, 0.5, 0.0], dtype=np.float32))
             # Info should contain score related keys
             self.assertIn("score", info)
         finally:
@@ -334,15 +333,16 @@ class TestSC2FullEpisode(unittest.TestCase):
 # Training loop integration
 # ---------------------------------------------------------------------------
 
+
 @_skip_no_sc2
 class TestSC2TrainingLoop(unittest.TestCase):
     """Run framework training loops against the real SC2 binary."""
 
     def test_genetic_one_generation(self):
         """_greedy_loop_genetic runs 1 generation with a tiny population."""
+        from framework.training import _greedy_loop_genetic
         from games.sc2.obs_spec import SC2_MINIGAME_OBS_SPEC
         from games.sc2.sc2_policies import SC2GeneticPolicy
-        from framework.training import _greedy_loop_genetic
 
         env = _make_env()
         try:
@@ -370,10 +370,10 @@ class TestSC2TrainingLoop(unittest.TestCase):
 
     def test_epsilon_greedy_one_episode(self):
         """_greedy_loop_q_learning runs 1 episode with ε-greedy policy."""
-        from games.sc2.obs_spec import SC2_MINIGAME_OBS_SPEC
-        from games.sc2.actions import DISCRETE_ACTIONS
         from framework.policies import EpsilonGreedyPolicy
         from framework.training import _greedy_loop_q_learning
+        from games.sc2.actions import DISCRETE_ACTIONS
+        from games.sc2.obs_spec import SC2_MINIGAME_OBS_SPEC
 
         env = _make_env()
         try:

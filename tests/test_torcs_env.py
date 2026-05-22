@@ -3,14 +3,15 @@
 These tests validate the env's spaces, episode logic, and termination
 without requiring TORCS to be installed (gym_torcs import is lazy).
 """
+
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import numpy as np
 
 from games.torcs.env import TorcsEnv
-from games.torcs.reward import TorcsRewardConfig
 from games.torcs.obs_spec import BASE_OBS_DIM
+from games.torcs.reward import TorcsRewardConfig
 
 
 class TestTorcsEnvSpaces(unittest.TestCase):
@@ -28,12 +29,8 @@ class TestTorcsEnvSpaces(unittest.TestCase):
         self.assertEqual(self.env.action_space.shape, (3,))
 
     def test_action_space_bounds(self):
-        np.testing.assert_array_equal(
-            self.env.action_space.low, [-1.0, 0.0, 0.0]
-        )
-        np.testing.assert_array_equal(
-            self.env.action_space.high, [1.0, 1.0, 1.0]
-        )
+        np.testing.assert_array_equal(self.env.action_space.low, [-1.0, 0.0, 0.0])
+        np.testing.assert_array_equal(self.env.action_space.high, [1.0, 1.0, 1.0])
 
 
 class TestTorcsEnvEpisodeTime(unittest.TestCase):
@@ -99,15 +96,14 @@ class TestTorcsEnvStepLogic(unittest.TestCase):
         self.mock_client.step.return_value = (obs_far, 0.0, False, {})
 
         env.reset()
-        _, _, terminated, _, info = env.step(np.array([0., 1., 0.]))
+        _, _, terminated, _, info = env.step(np.array([0.0, 1.0, 0.0]))
         self.assertTrue(terminated)
         self.assertEqual(info["termination_reason"], "crash")
 
     def test_info_contains_expected_keys(self):
         self.env.reset()
-        _, _, _, _, info = self.env.step(np.array([0., 1., 0.]))
-        for key in ("speed_ms", "lateral_offset", "track_progress",
-                     "termination_reason", "elapsed_s"):
+        _, _, _, _, info = self.env.step(np.array([0.0, 1.0, 0.0]))
+        for key in ("speed_ms", "lateral_offset", "track_progress", "termination_reason", "elapsed_s"):
             self.assertIn(key, info)
 
     def test_close_calls_client_close(self):
@@ -120,14 +116,17 @@ class TestTorcsEnvActions(unittest.TestCase):
 
     def test_discrete_actions_shape(self):
         from games.torcs.actions import DISCRETE_ACTIONS
+
         self.assertEqual(DISCRETE_ACTIONS.shape, (25, 3))
 
     def test_probe_actions_count(self):
         from games.torcs.actions import PROBE_ACTIONS
+
         self.assertEqual(len(PROBE_ACTIONS), 6)
 
     def test_warmup_action_shape(self):
         from games.torcs.actions import WARMUP_ACTION
+
         self.assertEqual(WARMUP_ACTION.shape, (3,))
 
 

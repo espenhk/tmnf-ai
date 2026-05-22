@@ -47,7 +47,6 @@ import numpy as np
 from framework.obs_spec import ObsDim, ObsSpec
 from games.sc2.actions import FUNCTION_IDS
 
-
 # ---------------------------------------------------------------------------
 # Per-block dim definitions
 # ---------------------------------------------------------------------------
@@ -56,96 +55,90 @@ from games.sc2.actions import FUNCTION_IDS
 
 # --- Player totals (PySC2 obs.observation["player"]) -------------------------
 _PLAYER_BASE_DIMS: list[ObsDim] = [
-    ObsDim("minerals",         1000.0,  "Current mineral count"),
-    ObsDim("vespene",          1000.0,  "Current vespene count"),
-    ObsDim("food_used",         200.0,  "Supply used"),
-    ObsDim("food_cap",          200.0,  "Supply cap"),
-    ObsDim("army_count",        100.0,  "Total army units"),
+    ObsDim("minerals", 1000.0, "Current mineral count"),
+    ObsDim("vespene", 1000.0, "Current vespene count"),
+    ObsDim("food_used", 200.0, "Supply used"),
+    ObsDim("food_cap", 200.0, "Supply cap"),
+    ObsDim("army_count", 100.0, "Total army units"),
 ]
 
 _SELECTED_DIMS: list[ObsDim] = [
-    ObsDim("selected_count",     50.0,  "Number of units currently selected"),
-    ObsDim("selected_avg_hp",   100.0,  "Mean HP of selected units"),
+    ObsDim("selected_count", 50.0, "Number of units currently selected"),
+    ObsDim("selected_avg_hp", 100.0, "Mean HP of selected units"),
 ]
 
 # --- Screen summary (player_relative) ----------------------------------------
 _SCREEN_SUMMARY_DIMS: list[ObsDim] = [
-    ObsDim("screen_self_count", 200.0,  "Friendly unit pixel count on screen"),
-    ObsDim("screen_enemy_count",200.0,  "Enemy unit pixel count on screen"),
-    ObsDim("screen_self_cx",     64.0,  "Friendly unit centroid x (screen)"),
-    ObsDim("screen_self_cy",     64.0,  "Friendly unit centroid y (screen)"),
-    ObsDim("screen_enemy_cx",    64.0,  "Enemy unit centroid x (screen)"),
-    ObsDim("screen_enemy_cy",    64.0,  "Enemy unit centroid y (screen)"),
+    ObsDim("screen_self_count", 200.0, "Friendly unit pixel count on screen"),
+    ObsDim("screen_enemy_count", 200.0, "Enemy unit pixel count on screen"),
+    ObsDim("screen_self_cx", 64.0, "Friendly unit centroid x (screen)"),
+    ObsDim("screen_self_cy", 64.0, "Friendly unit centroid y (screen)"),
+    ObsDim("screen_enemy_cx", 64.0, "Enemy unit centroid x (screen)"),
+    ObsDim("screen_enemy_cy", 64.0, "Enemy unit centroid y (screen)"),
 ]
 
 # --- Player extras (used by the ladder spec) ---------------------------------
 _PLAYER_EXTRA_DIMS: list[ObsDim] = [
-    ObsDim("idle_worker_count",  50.0,  "Idle worker count"),
-    ObsDim("warp_gate_count",    20.0,  "Warp gate count"),
-    ObsDim("larva_count",        20.0,  "Larva count"),
-    ObsDim("food_workers",      200.0,  "Supply tied up in workers"),
-    ObsDim("food_army",         200.0,  "Supply tied up in army units"),
+    ObsDim("idle_worker_count", 50.0, "Idle worker count"),
+    ObsDim("warp_gate_count", 20.0, "Warp gate count"),
+    ObsDim("larva_count", 20.0, "Larva count"),
+    ObsDim("food_workers", 200.0, "Supply tied up in workers"),
+    ObsDim("food_army", 200.0, "Supply tied up in army units"),
 ]
 
 # --- Minimap summary (ladder-only) -------------------------------------------
 _MINIMAP_SUMMARY_DIMS: list[ObsDim] = [
     ObsDim("minimap_self_count", 200.0, "Friendly pixel count on minimap"),
-    ObsDim("minimap_enemy_count",200.0, "Enemy pixel count on minimap (visible only)"),
+    ObsDim("minimap_enemy_count", 200.0, "Enemy pixel count on minimap (visible only)"),
     ObsDim("minimap_visible_frac", 1.0, "Fraction of minimap currently visible"),
-    ObsDim("minimap_explored_frac",1.0, "Fraction of minimap ever explored"),
-    ObsDim("minimap_camera_x",    64.0, "Camera centroid x on minimap"),
-    ObsDim("minimap_camera_y",    64.0, "Camera centroid y on minimap"),
-    ObsDim("game_loop",        20000.0, "Current game loop tick"),
+    ObsDim("minimap_explored_frac", 1.0, "Fraction of minimap ever explored"),
+    ObsDim("minimap_camera_x", 64.0, "Camera centroid x on minimap"),
+    ObsDim("minimap_camera_y", 64.0, "Camera centroid y on minimap"),
+    ObsDim("game_loop", 20000.0, "Current game loop tick"),
 ]
 
 # --- Score-cumulative breakdown (ladder + rich) ------------------------------
 # PySC2's score_cumulative has 13 entries; we expose the most informative ones.
 _SCORE_DIMS: list[ObsDim] = [
-    ObsDim("score_total",                  10000.0, "Cumulative environment score"),
-    ObsDim("idle_production_time",         10000.0, "Time structures spent idle (sum)"),
-    ObsDim("idle_worker_time",             10000.0, "Time workers spent idle (sum)"),
-    ObsDim("total_value_units",            10000.0, "Mineral+vespene value of all units built"),
-    ObsDim("total_value_structures",       10000.0, "Mineral+vespene value of all structures built"),
-    ObsDim("killed_value_units",           10000.0, "Mineral+vespene value of enemy units killed"),
-    ObsDim("killed_value_structures",      10000.0, "Mineral+vespene value of enemy structures killed"),
-    ObsDim("collected_minerals",           10000.0, "Cumulative minerals collected"),
-    ObsDim("collected_vespene",            10000.0, "Cumulative vespene collected"),
-    ObsDim("collection_rate_minerals",      2000.0, "Mineral collection rate (per minute)"),
-    ObsDim("collection_rate_vespene",       2000.0, "Vespene collection rate (per minute)"),
-    ObsDim("spent_minerals",               10000.0, "Cumulative minerals spent"),
-    ObsDim("spent_vespene",                10000.0, "Cumulative vespene spent"),
+    ObsDim("score_total", 10000.0, "Cumulative environment score"),
+    ObsDim("idle_production_time", 10000.0, "Time structures spent idle (sum)"),
+    ObsDim("idle_worker_time", 10000.0, "Time workers spent idle (sum)"),
+    ObsDim("total_value_units", 10000.0, "Mineral+vespene value of all units built"),
+    ObsDim("total_value_structures", 10000.0, "Mineral+vespene value of all structures built"),
+    ObsDim("killed_value_units", 10000.0, "Mineral+vespene value of enemy units killed"),
+    ObsDim("killed_value_structures", 10000.0, "Mineral+vespene value of enemy structures killed"),
+    ObsDim("collected_minerals", 10000.0, "Cumulative minerals collected"),
+    ObsDim("collected_vespene", 10000.0, "Cumulative vespene collected"),
+    ObsDim("collection_rate_minerals", 2000.0, "Mineral collection rate (per minute)"),
+    ObsDim("collection_rate_vespene", 2000.0, "Vespene collection rate (per minute)"),
+    ObsDim("spent_minerals", 10000.0, "Cumulative minerals spent"),
+    ObsDim("spent_vespene", 10000.0, "Cumulative vespene spent"),
 ]
 
 # --- Screen unit-density / HP summaries (ladder + rich) ----------------------
 _SCREEN_HP_DIMS: list[ObsDim] = [
-    ObsDim("screen_unit_density_mean",     16.0,  "Mean unit density across screen"),
-    ObsDim("screen_self_hp_mean",         100.0,  "Mean friendly unit HP on screen"),
-    ObsDim("screen_enemy_hp_mean",        100.0,  "Mean enemy unit HP on screen"),
+    ObsDim("screen_unit_density_mean", 16.0, "Mean unit density across screen"),
+    ObsDim("screen_self_hp_mean", 100.0, "Mean friendly unit HP on screen"),
+    ObsDim("screen_enemy_hp_mean", 100.0, "Mean enemy unit HP on screen"),
 ]
 
 # --- Top-K enemy summary (ladder gives counts; rich gives positions) ---------
 _TOPK_ENEMY_COUNTS_DIMS: list[ObsDim] = [
-    ObsDim("topk_enemy_within_8",          50.0,  "Enemy units within 8 px of friendly centroid"),
-    ObsDim("topk_enemy_within_24",         50.0,  "Enemy units within 24 px of friendly centroid"),
+    ObsDim("topk_enemy_within_8", 50.0, "Enemy units within 8 px of friendly centroid"),
+    ObsDim("topk_enemy_within_24", 50.0, "Enemy units within 24 px of friendly centroid"),
 ]
 
 #: Top-3 closest enemies relative to friendly centroid (rich spec only).
 _TOPK_ENEMY_FEATURES_DIMS: list[ObsDim] = [
     *(
-        ObsDim(f"topk_enemy_{i}_rel_x", 64.0,
-               f"Top-{i + 1} closest enemy: rel x to friendly centroid")
+        ObsDim(f"topk_enemy_{i}_rel_x", 64.0, f"Top-{i + 1} closest enemy: rel x to friendly centroid")
         for i in range(3)
     ),
     *(
-        ObsDim(f"topk_enemy_{i}_rel_y", 64.0,
-               f"Top-{i + 1} closest enemy: rel y to friendly centroid")
+        ObsDim(f"topk_enemy_{i}_rel_y", 64.0, f"Top-{i + 1} closest enemy: rel y to friendly centroid")
         for i in range(3)
     ),
-    *(
-        ObsDim(f"topk_enemy_{i}_hp_ratio", 1.0,
-               f"Top-{i + 1} closest enemy: HP / max HP")
-        for i in range(3)
-    ),
+    *(ObsDim(f"topk_enemy_{i}_hp_ratio", 1.0, f"Top-{i + 1} closest enemy: HP / max HP") for i in range(3)),
 ]
 
 # --- Per-unit-type counts (rich) ---------------------------------------------
@@ -154,51 +147,54 @@ _TOPK_ENEMY_FEATURES_DIMS: list[ObsDim] = [
 # friendly label using pysc2.lib.units.
 
 _RICH_UNIT_TYPES: tuple[str, ...] = (
-    "Marine", "SCV", "Zergling", "Drone", "Probe", "Stalker", "Roach", "Mutalisk",
+    "Marine",
+    "SCV",
+    "Zergling",
+    "Drone",
+    "Probe",
+    "Stalker",
+    "Roach",
+    "Mutalisk",
 )
 
 _PER_UNIT_TYPE_DIMS: list[ObsDim] = [
-    ObsDim(f"unit_count_{name}", 50.0, f"Friendly count of unit type {name}")
-    for name in _RICH_UNIT_TYPES
+    ObsDim(f"unit_count_{name}", 50.0, f"Friendly count of unit type {name}") for name in _RICH_UNIT_TYPES
 ]
 
 # --- Per-quadrant screen counts (rich) ---------------------------------------
 _QUADRANT_DIMS: list[ObsDim] = [
-    ObsDim("screen_self_NE_count",   100.0, "Friendly count, NE screen quadrant"),
-    ObsDim("screen_self_NW_count",   100.0, "Friendly count, NW screen quadrant"),
-    ObsDim("screen_self_SE_count",   100.0, "Friendly count, SE screen quadrant"),
-    ObsDim("screen_self_SW_count",   100.0, "Friendly count, SW screen quadrant"),
-    ObsDim("screen_enemy_NE_count",  100.0, "Enemy count, NE screen quadrant"),
-    ObsDim("screen_enemy_NW_count",  100.0, "Enemy count, NW screen quadrant"),
-    ObsDim("screen_enemy_SE_count",  100.0, "Enemy count, SE screen quadrant"),
-    ObsDim("screen_enemy_SW_count",  100.0, "Enemy count, SW screen quadrant"),
+    ObsDim("screen_self_NE_count", 100.0, "Friendly count, NE screen quadrant"),
+    ObsDim("screen_self_NW_count", 100.0, "Friendly count, NW screen quadrant"),
+    ObsDim("screen_self_SE_count", 100.0, "Friendly count, SE screen quadrant"),
+    ObsDim("screen_self_SW_count", 100.0, "Friendly count, SW screen quadrant"),
+    ObsDim("screen_enemy_NE_count", 100.0, "Enemy count, NE screen quadrant"),
+    ObsDim("screen_enemy_NW_count", 100.0, "Enemy count, NW screen quadrant"),
+    ObsDim("screen_enemy_SE_count", 100.0, "Enemy count, SE screen quadrant"),
+    ObsDim("screen_enemy_SW_count", 100.0, "Enemy count, SW screen quadrant"),
 ]
 
 # --- Available-actions binary mask + last-action one-hot (rich) --------------
 _AVAILABLE_ACTIONS_DIMS: list[ObsDim] = [
-    ObsDim(f"available_fn_{i}", 1.0, f"1 if PySC2 function id index {i} is available")
-    for i in range(len(FUNCTION_IDS))
+    ObsDim(f"available_fn_{i}", 1.0, f"1 if PySC2 function id index {i} is available") for i in range(len(FUNCTION_IDS))
 ]
 
 _LAST_ACTION_DIMS: list[ObsDim] = [
-    ObsDim(f"last_fn_{i}", 1.0, f"1 if last issued action had fn_idx == {i}")
-    for i in range(len(FUNCTION_IDS))
+    ObsDim(f"last_fn_{i}", 1.0, f"1 if last issued action had fn_idx == {i}") for i in range(len(FUNCTION_IDS))
 ]
 
 # --- Enemy unit-type counts (rich) -------------------------------------------
 # Mirrors _PER_UNIT_TYPE_DIMS but counts visible enemy units from feature_units.
 _ENEMY_UNIT_TYPE_DIMS: list[ObsDim] = [
-    ObsDim(f"enemy_count_{name}", 50.0, f"Enemy count of unit type {name}")
-    for name in _RICH_UNIT_TYPES
+    ObsDim(f"enemy_count_{name}", 50.0, f"Enemy count of unit type {name}") for name in _RICH_UNIT_TYPES
 ]
 
 # --- Shield and energy screen summaries (rich) --------------------------------
 # PySC2 exposes unit_shields and unit_energy as spatial feature layers on
 # the screen.  Summing over player_relative masks gives per-side mean values.
 _SHIELD_ENERGY_DIMS: list[ObsDim] = [
-    ObsDim("screen_self_shield_mean",  100.0, "Mean shield of friendly units on screen"),
+    ObsDim("screen_self_shield_mean", 100.0, "Mean shield of friendly units on screen"),
     ObsDim("screen_enemy_shield_mean", 100.0, "Mean shield of enemy units on screen"),
-    ObsDim("screen_self_energy_mean",  200.0, "Mean energy of friendly units on screen"),
+    ObsDim("screen_self_energy_mean", 200.0, "Mean energy of friendly units on screen"),
 ]
 
 # --- Creep coverage (rich) ---------------------------------------------------
@@ -211,9 +207,9 @@ _CREEP_DIMS: list[ObsDim] = [
 # PySC2 exposes upgrades (completed list), build_queue (units under
 # construction), and cargo (units in transports).
 _ECONOMY_PIPELINE_DIMS: list[ObsDim] = [
-    ObsDim("upgrade_count",    30.0, "Number of completed upgrades"),
+    ObsDim("upgrade_count", 30.0, "Number of completed upgrades"),
     ObsDim("build_queue_size", 20.0, "Units/structures currently under construction"),
-    ObsDim("cargo_count",      10.0, "Units currently in transports"),
+    ObsDim("cargo_count", 10.0, "Units currently in transports"),
 ]
 
 
@@ -225,7 +221,7 @@ _ECONOMY_PIPELINE_DIMS: list[ObsDim] = [
 # Cols 3 (shields) and 4 (energy) add protoss / caster signal.
 _SELECTED_EXTRA_DIMS: list[ObsDim] = [
     ObsDim("selected_avg_shields", 100.0, "Mean shield of currently selected units"),
-    ObsDim("selected_avg_energy",  200.0, "Mean energy of currently selected units"),
+    ObsDim("selected_avg_energy", 200.0, "Mean energy of currently selected units"),
 ]
 
 # --- Screen visibility fraction (rich only) ----------------------------------
@@ -233,16 +229,14 @@ _SELECTED_EXTRA_DIMS: list[ObsDim] = [
 # 2=visible).  The scalar fraction of tiles that are fully visible
 # complements minimap_visible_frac and captures current camera coverage.
 _SCREEN_VISIBILITY_DIMS: list[ObsDim] = [
-    ObsDim("screen_visibility_frac", 1.0,
-           "Fraction of screen tiles currently visible (visibility_map == 2)"),
+    ObsDim("screen_visibility_frac", 1.0, "Fraction of screen tiles currently visible (visibility_map == 2)"),
 ]
 
 # --- Anti-air density (rich only) --------------------------------------------
 # PySC2 feature_screen includes a unit_density_aa channel (anti-air unit
 # density per tile).  The mean gives a signal for air-threat awareness.
 _SCREEN_ANTIAIR_DIMS: list[ObsDim] = [
-    ObsDim("screen_unit_density_aa_mean", 16.0,
-           "Mean anti-air unit density across screen (unit_density_aa layer)"),
+    ObsDim("screen_unit_density_aa_mean", 16.0, "Mean anti-air unit density across screen (unit_density_aa layer)"),
 ]
 
 # --- Friendly weapon cooldown (rich only) ------------------------------------
@@ -250,8 +244,7 @@ _SCREEN_ANTIAIR_DIMS: list[ObsDim] = [
 # mean cooldown signals that friendly units recently fired and cannot fire
 # again immediately; near-zero means all weapons are ready.
 _WEAPON_COOLDOWN_DIMS: list[ObsDim] = [
-    ObsDim("self_weapon_cooldown_mean", 50.0,
-           "Mean weapon cooldown for friendly units (0 = all ready to fire)"),
+    ObsDim("self_weapon_cooldown_mean", 50.0, "Mean weapon cooldown for friendly units (0 = all ready to fire)"),
 ]
 
 # --- Alerts (ladder + rich) --------------------------------------------------
@@ -261,8 +254,7 @@ _WEAPON_COOLDOWN_DIMS: list[ObsDim] = [
 # that is not derivable from the spatial layers alone.  Max value is 2 per PySC2
 # docs; we scale by 2.0 so the normalised value is always in [0, 1].
 _ALERTS_DIMS: list[ObsDim] = [
-    ObsDim("alert_count", 2.0,
-           "Number of active alerts (0–2); >0 means under major attack"),
+    ObsDim("alert_count", 2.0, "Number of active alerts (0–2); >0 means under major attack"),
 ]
 
 # --- Minimap enemy centroid — shared baseline block --------------------------
@@ -275,8 +267,8 @@ _ALERTS_DIMS: list[ObsDim] = [
 # These dims are part of _MINIGAME_DIMS and therefore inherited by the
 # ladder and rich presets as well.
 _MINIMAP_BEACON_DIMS: list[ObsDim] = [
-    ObsDim("minimap_enemy_cx",  64.0, "Enemy (beacon) centroid x on minimap"),
-    ObsDim("minimap_enemy_cy",  64.0, "Enemy (beacon) centroid y on minimap"),
+    ObsDim("minimap_enemy_cx", 64.0, "Enemy (beacon) centroid x on minimap"),
+    ObsDim("minimap_enemy_cy", 64.0, "Enemy (beacon) centroid y on minimap"),
 ]
 
 
@@ -286,12 +278,7 @@ _MINIMAP_BEACON_DIMS: list[ObsDim] = [
 
 # Minigame preset — kept exactly as before #126 for backward compatibility
 # with existing minigame champion weight files.
-_MINIGAME_DIMS: list[ObsDim] = (
-    _PLAYER_BASE_DIMS
-    + _SELECTED_DIMS
-    + _SCREEN_SUMMARY_DIMS
-    + _MINIMAP_BEACON_DIMS
-)
+_MINIGAME_DIMS: list[ObsDim] = _PLAYER_BASE_DIMS + _SELECTED_DIMS + _SCREEN_SUMMARY_DIMS + _MINIMAP_BEACON_DIMS
 
 #: 13-dim preset for PySC2 minigames.
 SC2_MINIGAME_OBS_SPEC: ObsSpec = ObsSpec(_MINIGAME_DIMS)
@@ -366,8 +353,8 @@ MINIGAME_NAMES: tuple[str, ...] = (
 
 _PRESETS: dict[str, ObsSpec] = {
     "minigame": SC2_MINIGAME_OBS_SPEC,
-    "ladder":   SC2_LADDER_OBS_SPEC,
-    "rich":     SC2_RICH_OBS_SPEC,
+    "ladder": SC2_LADDER_OBS_SPEC,
+    "rich": SC2_RICH_OBS_SPEC,
 }
 
 
@@ -391,10 +378,7 @@ def get_spec(map_name: str, preset: str | None = None) -> ObsSpec:
     """
     if preset is not None:
         if preset not in _PRESETS:
-            raise ValueError(
-                f"Unknown obs_spec_preset {preset!r}.  "
-                f"Valid keys: {sorted(_PRESETS.keys())}"
-            )
+            raise ValueError(f"Unknown obs_spec_preset {preset!r}.  Valid keys: {sorted(_PRESETS.keys())}")
         return _PRESETS[preset]
     if map_name in MINIGAME_NAMES:
         return SC2_MINIGAME_OBS_SPEC

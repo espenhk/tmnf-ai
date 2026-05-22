@@ -11,8 +11,7 @@ _DEFAULT_UP: np.ndarray = np.array([0.0, 1.0, 0.0])
 
 
 class Centerline:
-    def __init__(self, path: str,
-                 up_vector: np.ndarray | None = None) -> None:
+    def __init__(self, path: str, up_vector: np.ndarray | None = None) -> None:
         """Load a centerline from a .npy file of shape (N, 3).
 
         Args:
@@ -54,7 +53,7 @@ class Centerline:
             lo = max(0, hint_idx - w)
             hi = min(n - 2, hint_idx + w)
             if lo <= hi:
-                local_dists = np.linalg.norm(self._points[lo:hi + 1] - p, axis=1)
+                local_dists = np.linalg.norm(self._points[lo : hi + 1] - p, axis=1)
                 idx = lo + int(np.argmin(local_dists))
             else:
                 _, idx = self._kdtree.query(p)
@@ -69,7 +68,7 @@ class Centerline:
         b = self._points[idx + 1].astype(np.float64)
         ab = b - a
         seg_len = float(np.linalg.norm(ab))
-        t = float(np.dot(p - a, ab) / (seg_len ** 2)) if seg_len > 1e-9 else 0.0
+        t = float(np.dot(p - a, ab) / (seg_len**2)) if seg_len > 1e-9 else 0.0
         t = max(0.0, min(1.0, t))
 
         foot = a + t * ab
@@ -85,7 +84,7 @@ class Centerline:
         else:
             right = np.array([1.0, 0.0, 0.0])
 
-        lateral_offset  = float(np.dot(offset, right))
+        lateral_offset = float(np.dot(offset, right))
         vertical_offset = float(np.dot(offset, self._up))
 
         return float(progress), lateral_offset, vertical_offset, forward, idx
@@ -128,7 +127,7 @@ class Centerline:
         # Heading change: signed angle between fwd0 and fwd1
         cos_a = float(np.clip(np.dot(fwd0, fwd1), -1.0, 1.0))
         cross = np.cross(fwd0, fwd1)
-        sign  = 1.0 if float(np.dot(cross, self._up)) >= 0.0 else -1.0
+        sign = 1.0 if float(np.dot(cross, self._up)) >= 0.0 else -1.0
         heading_change = sign * math.acos(cos_a)
 
         return lateral_offset, heading_change

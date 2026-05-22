@@ -15,6 +15,7 @@ Covers:
   supply_capped_fraction, build_order, army_count_series, resource_series
 - save_experiment_results: completes without error; writes results.md
 """
+
 from __future__ import annotations
 
 import os
@@ -33,18 +34,18 @@ from games.sc2.analytics import (
     plot_gs_reward_component_breakdown,
     plot_obs_averages,
     plot_outcome_breakdown,
-    plot_skipped_frames,
     plot_resource_series,
+    plot_skipped_frames,
     plot_spatial_heatmap,
     plot_supply_capped,
-    save_grid_summary,
     save_experiment_results,
+    save_grid_summary,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_sim(
     sim: int = 1,
@@ -91,8 +92,10 @@ def _make_experiment(sims: list, name: str = "test_exp") -> ExperimentData:
         reward_config_file="/tmp/r.yaml",
         training_params={},
         timings={
-            "start": "2024-01-01", "end": "2024-01-02",
-            "total_s": 100.0, "greedy_s": 90.0,
+            "start": "2024-01-01",
+            "end": "2024-01-02",
+            "total_s": 100.0,
+            "greedy_s": 90.0,
         },
     )
 
@@ -106,8 +109,8 @@ def _xy_hist(val: int = 1) -> list:
 # Flag constants
 # ---------------------------------------------------------------------------
 
-class TestSC2AnalyticsFlags(unittest.TestCase):
 
+class TestSC2AnalyticsFlags(unittest.TestCase):
     def test_supports_throttle_is_false(self):
         self.assertFalse(SUPPORTS_THROTTLE)
 
@@ -119,26 +122,35 @@ class TestSC2AnalyticsFlags(unittest.TestCase):
 # GreedySimResult new fields
 # ---------------------------------------------------------------------------
 
-class TestGreedySimResultNewFields(unittest.TestCase):
 
+class TestGreedySimResultNewFields(unittest.TestCase):
     def test_action_counts_default_none(self):
         s = GreedySimResult(
-            sim=1, reward=5.0, improved=False,
-            throttle_counts=[0, 0, 0], total_steps=1,
+            sim=1,
+            reward=5.0,
+            improved=False,
+            throttle_counts=[0, 0, 0],
+            total_steps=1,
         )
         self.assertIsNone(s.action_counts)
 
     def test_obs_averages_default_none(self):
         s = GreedySimResult(
-            sim=1, reward=5.0, improved=False,
-            throttle_counts=[0, 0, 0], total_steps=1,
+            sim=1,
+            reward=5.0,
+            improved=False,
+            throttle_counts=[0, 0, 0],
+            total_steps=1,
         )
         self.assertIsNone(s.obs_averages)
 
     def test_xy_hist_default_none(self):
         s = GreedySimResult(
-            sim=1, reward=5.0, improved=False,
-            throttle_counts=[0, 0, 0], total_steps=1,
+            sim=1,
+            reward=5.0,
+            improved=False,
+            throttle_counts=[0, 0, 0],
+            total_steps=1,
         )
         self.assertIsNone(s.xy_hist)
 
@@ -159,8 +171,11 @@ class TestGreedySimResultNewFields(unittest.TestCase):
 
     def test_skipped_frames_default_none(self):
         s = GreedySimResult(
-            sim=1, reward=5.0, improved=False,
-            throttle_counts=[0, 0, 0], total_steps=1,
+            sim=1,
+            reward=5.0,
+            improved=False,
+            throttle_counts=[0, 0, 0],
+            total_steps=1,
         )
         self.assertIsNone(s.skipped_frames)
 
@@ -173,8 +188,8 @@ class TestGreedySimResultNewFields(unittest.TestCase):
 # plot_action_frequency
 # ---------------------------------------------------------------------------
 
-class TestPlotActionFrequency(unittest.TestCase):
 
+class TestPlotActionFrequency(unittest.TestCase):
     def test_renders_to_file(self):
         sims = [
             _make_sim(1, action_counts={0: 10, 1: 5, 2: 85}),
@@ -212,13 +227,12 @@ class TestPlotActionFrequency(unittest.TestCase):
 # plot_obs_averages
 # ---------------------------------------------------------------------------
 
-class TestPlotObsAverages(unittest.TestCase):
 
+class TestPlotObsAverages(unittest.TestCase):
     def test_renders_to_file(self):
         sims = [
             _make_sim(1, obs_averages={"army_count": 2.0, "minerals": 150.0}),
-            _make_sim(2, obs_averages={"army_count": 3.0, "minerals": 200.0},
-                      improved=True),
+            _make_sim(2, obs_averages={"army_count": 3.0, "minerals": 200.0}, improved=True),
             _make_sim(3, obs_averages={"army_count": 4.0, "minerals": 180.0}),
         ]
         data = _make_experiment(sims)
@@ -243,8 +257,7 @@ class TestPlotObsAverages(unittest.TestCase):
 
     def test_unknown_feature_key_does_not_crash(self):
         """Unexpected feature keys are silently skipped (no label → omitted)."""
-        sims = [_make_sim(1, obs_averages={"army_count": 5.0,
-                                           "some_new_feature": 99.0})]
+        sims = [_make_sim(1, obs_averages={"army_count": 5.0, "some_new_feature": 99.0})]
         data = _make_experiment(sims)
         with tempfile.TemporaryDirectory() as d:
             plot_obs_averages(data, d)
@@ -255,8 +268,8 @@ class TestPlotObsAverages(unittest.TestCase):
 # plot_spatial_heatmap
 # ---------------------------------------------------------------------------
 
-class TestPlotSpatialHeatmap(unittest.TestCase):
 
+class TestPlotSpatialHeatmap(unittest.TestCase):
     def test_renders_to_file(self):
         sims = [
             _make_sim(1, xy_hist=_xy_hist(5)),
@@ -284,7 +297,7 @@ class TestPlotSpatialHeatmap(unittest.TestCase):
     def test_partial_xy_hist_none_sims_ignored(self):
         sims = [
             _make_sim(1, xy_hist=_xy_hist(3)),
-            _make_sim(2),                      # xy_hist=None
+            _make_sim(2),  # xy_hist=None
         ]
         data = _make_experiment(sims)
         with tempfile.TemporaryDirectory() as d:
@@ -296,8 +309,8 @@ class TestPlotSpatialHeatmap(unittest.TestCase):
 # plot_outcome_breakdown
 # ---------------------------------------------------------------------------
 
-class TestPlotOutcomeBreakdown(unittest.TestCase):
 
+class TestPlotOutcomeBreakdown(unittest.TestCase):
     def test_renders_to_file(self):
         sims = [
             _make_sim(1, termination_reason="timeout"),
@@ -338,8 +351,8 @@ class TestPlotOutcomeBreakdown(unittest.TestCase):
 # plot_skipped_frames
 # ---------------------------------------------------------------------------
 
-class TestPlotSkippedFrames(unittest.TestCase):
 
+class TestPlotSkippedFrames(unittest.TestCase):
     def test_renders_to_file(self):
         sims = [
             _make_sim(1, skipped_frames=0),
@@ -382,35 +395,42 @@ class TestPlotSkippedFrames(unittest.TestCase):
 # save_experiment_results — integration
 # ---------------------------------------------------------------------------
 
-class TestSaveExperimentResults(unittest.TestCase):
 
+class TestSaveExperimentResults(unittest.TestCase):
     def _make_full_sims(self) -> list:
         series_pts = [[float(i) * 0.5, 100.0 + i * 5] for i in range(20)]
-        army_pts   = [[float(i) * 0.5, float(i // 3)] for i in range(20)]
-        build_evt  = [[2.0, "Marine"], [5.0, "SCV"], [8.0, "Marine"]]
+        army_pts = [[float(i) * 0.5, float(i // 3)] for i in range(20)]
+        build_evt = [[2.0, "Marine"], [5.0, "SCV"], [8.0, "Marine"]]
         return [
-            _make_sim(1, reward=5.0,
-                      action_counts={0: 20, 1: 5, 2: 75},
-                      obs_averages={"army_count": 2.0, "minerals": 100.0},
-                      xy_hist=_xy_hist(4),
-                      termination_reason="timeout",
-                      reward_components={"score": 5.0, "step_penalty": -0.5},
-                      skipped_frames=3,
-                      supply_capped_fraction=0.3,
-                      resource_series=series_pts,
-                      army_count_series=army_pts,
-                      build_order=build_evt),
-            _make_sim(2, reward=8.0, improved=True,
-                      action_counts={0: 5, 1: 10, 2: 85},
-                      obs_averages={"army_count": 3.0, "minerals": 150.0},
-                      xy_hist=_xy_hist(6),
-                      termination_reason="finish",
-                      reward_components={"score": 8.5, "step_penalty": -0.5},
-                      skipped_frames=1,
-                      supply_capped_fraction=0.1,
-                      resource_series=series_pts,
-                      army_count_series=army_pts,
-                      build_order=build_evt),
+            _make_sim(
+                1,
+                reward=5.0,
+                action_counts={0: 20, 1: 5, 2: 75},
+                obs_averages={"army_count": 2.0, "minerals": 100.0},
+                xy_hist=_xy_hist(4),
+                termination_reason="timeout",
+                reward_components={"score": 5.0, "step_penalty": -0.5},
+                skipped_frames=3,
+                supply_capped_fraction=0.3,
+                resource_series=series_pts,
+                army_count_series=army_pts,
+                build_order=build_evt,
+            ),
+            _make_sim(
+                2,
+                reward=8.0,
+                improved=True,
+                action_counts={0: 5, 1: 10, 2: 85},
+                obs_averages={"army_count": 3.0, "minerals": 150.0},
+                xy_hist=_xy_hist(6),
+                termination_reason="finish",
+                reward_components={"score": 8.5, "step_penalty": -0.5},
+                skipped_frames=1,
+                supply_capped_fraction=0.1,
+                resource_series=series_pts,
+                army_count_series=army_pts,
+                build_order=build_evt,
+            ),
         ]
 
     def test_writes_results_md(self):
@@ -469,7 +489,6 @@ class TestSaveExperimentResults(unittest.TestCase):
 
 
 class TestSaveGridSummary(unittest.TestCase):
-
     def test_passes_sc2_extra_plots_hook_to_framework(self):
         with tempfile.TemporaryDirectory() as d:
             data = _make_experiment([_make_sim(sim=1, reward=1.0)], name="exp_hook")
@@ -598,16 +617,13 @@ class TestSaveGridSummary(unittest.TestCase):
             sim = _make_sim(sim=1, reward=2.0, reward_components={"scout": 2.0})
             data = _make_experiment([sim], name="exp_g")
 
-            with mock.patch.object(sc2_analytics, "_framework_save_grid_summary"), \
-                    mock.patch.object(sc2_analytics.logger, "warning") as warn:
+            with (
+                mock.patch.object(sc2_analytics, "_framework_save_grid_summary"),
+                mock.patch.object(sc2_analytics.logger, "warning") as warn,
+            ):
                 save_grid_summary([("exp_g", data)], [], d, "gs_test")
 
-            self.assertTrue(
-                all(
-                    "unmapped reward component" not in str(call.args[0])
-                    for call in warn.call_args_list
-                )
-            )
+            self.assertTrue(all("unmapped reward component" not in str(call.args[0]) for call in warn.call_args_list))
 
     def test_step_penalty_with_weight_below_1_passes_through_raw(self):
         """step_penalty weight < 1.0 → scale=1.0 → raw value passes through unchanged.
@@ -621,7 +637,8 @@ class TestSaveGridSummary(unittest.TestCase):
                 f.write("step_penalty: -0.001\n")
 
             sim = _make_sim(
-                sim=1, reward=-0.5,
+                sim=1,
+                reward=-0.5,
                 reward_components={"step_penalty": -0.5},
             )
             data = _make_experiment([sim], name="exp_sp")
@@ -643,7 +660,8 @@ class TestSaveGridSummary(unittest.TestCase):
                 f.write("idle_penalty: -0.001\n")
 
             sim = _make_sim(
-                sim=1, reward=-0.3,
+                sim=1,
+                reward=-0.3,
                 reward_components={"idle_penalty": -0.3},
             )
             data = _make_experiment([sim], name="exp_ip")
@@ -669,7 +687,8 @@ class TestSaveGridSummary(unittest.TestCase):
                 f.write("step_penalty: -0.0001\n")
 
             sim = _make_sim(
-                sim=1, reward=-0.5,
+                sim=1,
+                reward=-0.5,
                 reward_components={"step_penalty": -0.5},
             )
             data = _make_experiment([sim], name="exp_small")
@@ -692,11 +711,12 @@ class TestSaveGridSummary(unittest.TestCase):
 
             # Mirrors a real SC2 sim: 648 idle steps, 1504 total steps, score=-9.
             sim = _make_sim(
-                sim=1, reward=313.5,
+                sim=1,
+                reward=313.5,
                 reward_components={
                     "score": -9.0,
-                    "idle_bonus": 324.0,   # 648 idle steps × 0.5
-                    "step_penalty": -1.504, # 1504 steps × 0.001
+                    "idle_bonus": 324.0,  # 648 idle steps × 0.5
+                    "step_penalty": -1.504,  # 1504 steps × 0.001
                 },
             )
             data = _make_experiment([sim], name="exp_real")
@@ -718,11 +738,7 @@ class TestSaveGridSummary(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             reward_cfg_path = os.path.join(d, "reward_config.yaml")
             with open(reward_cfg_path, "w", encoding="utf-8") as f:
-                f.write(
-                    "unit_loss_penalty: -3.0\n"
-                    "damage_taken_penalty: -4.0\n"
-                    "passive_under_fire_penalty: -2.0\n"
-                )
+                f.write("unit_loss_penalty: -3.0\ndamage_taken_penalty: -4.0\npassive_under_fire_penalty: -2.0\n")
 
             sim = _make_sim(
                 sim=1,
@@ -736,8 +752,10 @@ class TestSaveGridSummary(unittest.TestCase):
             data = _make_experiment([sim], name="exp_penalties")
             data.reward_config_file = reward_cfg_path
 
-            with mock.patch.object(sc2_analytics, "_framework_save_grid_summary") as m, \
-                    mock.patch.object(sc2_analytics.logger, "warning") as warn:
+            with (
+                mock.patch.object(sc2_analytics, "_framework_save_grid_summary") as m,
+                mock.patch.object(sc2_analytics.logger, "warning") as warn,
+            ):
                 save_grid_summary([("exp_penalties", data)], [], d, "gs_test")
 
             forwarded_runs = m.call_args.args[0]
@@ -815,40 +833,52 @@ class TestSaveGridSummary(unittest.TestCase):
 # GreedySimResult new fields (supply_capped_fraction, build_order, series)
 # ---------------------------------------------------------------------------
 
-class TestGreedySimResultEndScreenFields(unittest.TestCase):
 
+class TestGreedySimResultEndScreenFields(unittest.TestCase):
     def test_supply_capped_fraction_default_none(self):
         s = GreedySimResult(
-            sim=1, reward=5.0, improved=False,
-            throttle_counts=[0, 0, 0], total_steps=1,
+            sim=1,
+            reward=5.0,
+            improved=False,
+            throttle_counts=[0, 0, 0],
+            total_steps=1,
         )
         self.assertIsNone(s.supply_capped_fraction)
 
     def test_build_order_default_none(self):
         s = GreedySimResult(
-            sim=1, reward=5.0, improved=False,
-            throttle_counts=[0, 0, 0], total_steps=1,
+            sim=1,
+            reward=5.0,
+            improved=False,
+            throttle_counts=[0, 0, 0],
+            total_steps=1,
         )
         self.assertIsNone(s.build_order)
 
     def test_army_count_series_default_none(self):
         s = GreedySimResult(
-            sim=1, reward=5.0, improved=False,
-            throttle_counts=[0, 0, 0], total_steps=1,
+            sim=1,
+            reward=5.0,
+            improved=False,
+            throttle_counts=[0, 0, 0],
+            total_steps=1,
         )
         self.assertIsNone(s.army_count_series)
 
     def test_resource_series_default_none(self):
         s = GreedySimResult(
-            sim=1, reward=5.0, improved=False,
-            throttle_counts=[0, 0, 0], total_steps=1,
+            sim=1,
+            reward=5.0,
+            improved=False,
+            throttle_counts=[0, 0, 0],
+            total_steps=1,
         )
         self.assertIsNone(s.resource_series)
 
     def test_fields_stored_correctly(self):
         bo = [[1.0, "Marine"], [5.0, "SCV"]]
         army = [[0.5, 0.0], [1.0, 1.0]]
-        res  = [[0.5, 200.0], [1.0, 180.0]]
+        res = [[0.5, 200.0], [1.0, 180.0]]
         s = _make_sim(
             supply_capped_fraction=0.25,
             build_order=bo,
@@ -865,8 +895,8 @@ class TestGreedySimResultEndScreenFields(unittest.TestCase):
 # plot_supply_capped
 # ---------------------------------------------------------------------------
 
-class TestPlotSupplyCapped(unittest.TestCase):
 
+class TestPlotSupplyCapped(unittest.TestCase):
     def test_renders_to_file(self):
         sims = [
             _make_sim(1, supply_capped_fraction=0.1),
@@ -905,12 +935,11 @@ class TestPlotSupplyCapped(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 _SERIES = [[float(i) * 0.5, 100.0 + i * 10] for i in range(20)]
-_ARMY   = [[float(i) * 0.5, float(i // 3)]   for i in range(20)]
-_BUILD  = [[2.0, "Marine"], [4.0, "SCV"], [7.0, "Marine"]]
+_ARMY = [[float(i) * 0.5, float(i // 3)] for i in range(20)]
+_BUILD = [[2.0, "Marine"], [4.0, "SCV"], [7.0, "Marine"]]
 
 
 class TestPlotResourceSeries(unittest.TestCase):
-
     def test_renders_to_file(self):
         sims = [
             _make_sim(1, resource_series=_SERIES),
@@ -959,8 +988,8 @@ class TestPlotResourceSeries(unittest.TestCase):
 # plot_army_count
 # ---------------------------------------------------------------------------
 
-class TestPlotArmyCount(unittest.TestCase):
 
+class TestPlotArmyCount(unittest.TestCase):
     def test_renders_to_file(self):
         sims = [_make_sim(1, army_count_series=_ARMY, improved=True)]
         data = _make_experiment(sims)
@@ -986,8 +1015,8 @@ class TestPlotArmyCount(unittest.TestCase):
 # plot_build_order
 # ---------------------------------------------------------------------------
 
-class TestPlotBuildOrder(unittest.TestCase):
 
+class TestPlotBuildOrder(unittest.TestCase):
     def test_renders_to_file(self):
         sims = [_make_sim(1, build_order=_BUILD, improved=True)]
         data = _make_experiment(sims)
@@ -1019,8 +1048,7 @@ class TestPlotBuildOrder(unittest.TestCase):
 
     def test_multiple_unit_types(self):
         """Build order with multiple unit types renders correctly."""
-        events = [[1.0, "Marine"], [2.0, "SCV"], [3.0, "Zergling"],
-                  [4.0, "Marine"], [5.0, "SCV"]]
+        events = [[1.0, "Marine"], [2.0, "SCV"], [3.0, "Zergling"], [4.0, "Marine"], [5.0, "SCV"]]
         sims = [_make_sim(1, build_order=events, improved=True)]
         data = _make_experiment(sims)
         with tempfile.TemporaryDirectory() as d:
@@ -1032,8 +1060,8 @@ class TestPlotBuildOrder(unittest.TestCase):
 # _sc2_task_metric and _GS_SUCCESS_REASONS (issue #209)
 # ---------------------------------------------------------------------------
 
-class TestSC2TaskMetric(unittest.TestCase):
 
+class TestSC2TaskMetric(unittest.TestCase):
     def test_empty_sims_returns_zero(self):
         data = _make_experiment([])
         self.assertEqual(sc2_analytics._sc2_task_metric(data), 0.0)
@@ -1073,13 +1101,12 @@ class TestSC2TaskMetric(unittest.TestCase):
 # plot_gs_reward_component_breakdown (issue #252)
 # ---------------------------------------------------------------------------
 
-class TestPlotGsRewardComponentBreakdown(unittest.TestCase):
 
+class TestPlotGsRewardComponentBreakdown(unittest.TestCase):
     def _runs_with_components(self) -> list:
         sims_a = [
             _make_sim(1, reward_components={"score": 5.0, "step_penalty": -0.5}),
-            _make_sim(2, reward_components={"score": 7.0, "step_penalty": -0.8},
-                      improved=True),
+            _make_sim(2, reward_components={"score": 7.0, "step_penalty": -0.8}, improved=True),
         ]
         sims_b = [
             _make_sim(1, reward_components={"score": 2.0, "step_penalty": -0.3}),

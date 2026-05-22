@@ -6,47 +6,51 @@ throttle-state traces, and WeightedLinearPolicy weight heatmaps / evolution char
 Entry point called by save_experiment_results():
     save_tmnf_plots(data: ExperimentData, results_dir: str) -> None
 """
+
 from __future__ import annotations
 
 import logging
 import os
+
+import matplotlib
 import numpy as np
 import yaml
-import matplotlib
 
 try:
-    import matplotlib.pyplot as plt
+    import sys
+
     import matplotlib.cm as cm
+    import matplotlib.pyplot as plt
     from matplotlib.axes import Axes
     from matplotlib.figure import Figure
-    import sys
-    if 'plt' not in sys.modules:
-        matplotlib.use('Agg')  # prevent TkAgg GC-from-daemon-thread crashes between experiments
+
+    if "plt" not in sys.modules:
+        matplotlib.use("Agg")  # prevent TkAgg GC-from-daemon-thread crashes between experiments
     _HAS_MPL = True
 except ImportError:
     _HAS_MPL = False
 
 from framework.analytics import (
     ExperimentData,
-    RunTrace,
-    plot_probe_rewards,
-    plot_cold_start_rewards,
-    plot_greedy_rewards,
-    plot_reward_trajectory,
-    plot_task_metrics,
-    plot_reward_components,
-    _probe_table_md,
     _cold_start_table_md,
     _greedy_table_md,
+    _probe_table_md,
+    _summary_md,
     _task_metrics_table_md,
     _timings_md,
-    _summary_md,
+    plot_cold_start_rewards,
+    plot_greedy_rewards,
+    plot_probe_rewards,
+    plot_reward_components,
+    plot_reward_trajectory,
+    plot_task_metrics,
+)
+from framework.analytics import (
     save_grid_summary as _framework_save_grid_summary,
 )
 from games.tmnf.obs_spec import OBS_NAMES
 
 logger = logging.getLogger(__name__)
-
 
 
 def _save(fig: "Figure", path: str) -> None:
@@ -62,6 +66,7 @@ _THROTTLE_COLORS = ["#c0392b", "#95a5a6", "#27ae60"]
 # ---------------------------------------------------------------------------
 # Throttle / position helpers
 # ---------------------------------------------------------------------------
+
 
 def _plot_throttle_trace(ax: "Axes", throttle_state: list, title: str) -> None:
     if not _HAS_MPL:
@@ -83,19 +88,18 @@ def _plot_throttle_trace(ax: "Axes", throttle_state: list, title: str) -> None:
 # Probe paths
 # ---------------------------------------------------------------------------
 
+
 def plot_probe_paths(data: ExperimentData, results_dir: str) -> None:
     if not _HAS_MPL:
         return
-    probes = [p for p in sorted(data.probe_results, key=lambda p: p.action_idx)
-              if p.trace and p.trace.pos_x]
+    probes = [p for p in sorted(data.probe_results, key=lambda p: p.action_idx) if p.trace and p.trace.pos_x]
     if not probes:
         return
 
     fig, ax = plt.subplots(figsize=(8, 8))
-    colors  = cm.tab10(np.linspace(0, 1, len(probes)))
+    colors = cm.tab10(np.linspace(0, 1, len(probes)))
     for p, color in zip(probes, colors):
-        ax.plot(p.trace.pos_x, p.trace.pos_z, color=color, linewidth=1.2,
-                label=p.action_name, alpha=0.85)
+        ax.plot(p.trace.pos_x, p.trace.pos_z, color=color, linewidth=1.2, label=p.action_name, alpha=0.85)
         ax.plot(p.trace.pos_x[0], p.trace.pos_z[0], "o", color=color, markersize=5)
     ax.set_title(f"{data.experiment_name} — Probe Phase: Paths (bird's eye)")
     ax.set_xlabel("World X")
@@ -110,15 +114,16 @@ def plot_probe_paths(data: ExperimentData, results_dir: str) -> None:
 # Cold-start best run
 # ---------------------------------------------------------------------------
 
+
 def plot_cold_start_best_run(data: ExperimentData, results_dir: str) -> None:
     if not _HAS_MPL:
         return
     best_sim = None
-    best_r   = float("-inf")
+    best_r = float("-inf")
     for restart in data.cold_start_restarts:
         for s in restart.sims:
             if s.reward > best_r:
-                best_r   = s.reward
+                best_r = s.reward
                 best_sim = s
     if best_sim is None or not best_sim.trace or not best_sim.trace.pos_x:
         return
@@ -131,8 +136,7 @@ def plot_cold_start_best_run(data: ExperimentData, results_dir: str) -> None:
     ax_path.set_xlabel("World X")
     ax_path.set_ylabel("World Z")
     ax_path.set_aspect("equal", adjustable="datalim")
-    _plot_throttle_trace(ax_thr, trace.throttle_state,
-                         f"Throttle/brake  (reward {trace.total_reward:+.1f})")
+    _plot_throttle_trace(ax_thr, trace.throttle_state, f"Throttle/brake  (reward {trace.total_reward:+.1f})")
     fig.suptitle(f"{data.experiment_name} — Cold-Start Best Run", fontsize=11)
     fig.tight_layout()
     _save(fig, os.path.join(results_dir, "cold_start_best_run.png"))
@@ -148,16 +152,16 @@ def plot_cold_start_action_dist(data: ExperimentData, results_dir: str) -> None:
         total_b = total_c = total_a = 0
         for s in r.sims:
             b, c, a = s.throttle_counts
-            total_b += b; total_c += c; total_a += a
+            total_b += b
+            total_c += c
+            total_a += a
         total = total_b + total_c + total_a or 1
         accel_pcts.append(100 * total_a / total)
         brake_pcts.append(100 * total_b / total)
 
     fig, ax = plt.subplots(figsize=(max(6, len(xs) * 0.8), 5))
-    ax.plot(xs, accel_pcts, color=_THROTTLE_COLORS[2], linewidth=1.8,
-            marker="o", markersize=4, label="accel %")
-    ax.plot(xs, brake_pcts, color=_THROTTLE_COLORS[0], linewidth=1.8,
-            marker="o", markersize=4, label="brake %")
+    ax.plot(xs, accel_pcts, color=_THROTTLE_COLORS[2], linewidth=1.8, marker="o", markersize=4, label="accel %")
+    ax.plot(xs, brake_pcts, color=_THROTTLE_COLORS[0], linewidth=1.8, marker="o", markersize=4, label="brake %")
     ax.set_title(f"{data.experiment_name} — Cold-Start: Accel / Brake % per Restart")
     ax.set_xlabel("Restart")
     ax.set_ylabel("% Steps (threshold ≥ 0.5)")
@@ -172,12 +176,13 @@ def plot_cold_start_action_dist(data: ExperimentData, results_dir: str) -> None:
 # Greedy best run
 # ---------------------------------------------------------------------------
 
+
 def plot_greedy_best_run(data: ExperimentData, results_dir: str) -> None:
     if not _HAS_MPL:
         return
     if not data.greedy_sims:
         return
-    best  = max(data.greedy_sims, key=lambda s: s.reward)
+    best = max(data.greedy_sims, key=lambda s: s.reward)
     trace = best.trace
     if not trace or not trace.pos_x:
         return
@@ -189,8 +194,7 @@ def plot_greedy_best_run(data: ExperimentData, results_dir: str) -> None:
     ax_path.set_xlabel("World X")
     ax_path.set_ylabel("World Z")
     ax_path.set_aspect("equal", adjustable="datalim")
-    _plot_throttle_trace(ax_thr, trace.throttle_state,
-                         f"Throttle/brake  (reward {trace.total_reward:+.1f})")
+    _plot_throttle_trace(ax_thr, trace.throttle_state, f"Throttle/brake  (reward {trace.total_reward:+.1f})")
     fig.suptitle(f"{data.experiment_name} — Greedy Best Run (sim {best.sim})", fontsize=11)
     fig.tight_layout()
     _save(fig, os.path.join(results_dir, "greedy_best_run.png"))
@@ -200,7 +204,7 @@ def plot_greedy_action_dist(data: ExperimentData, results_dir: str) -> None:
     if not _HAS_MPL:
         return
     sims = data.greedy_sims
-    xs   = [s.sim for s in sims]
+    xs = [s.sim for s in sims]
     accel_pcts, brake_pcts = [], []
     for s in sims:
         b, c, a = s.throttle_counts
@@ -209,10 +213,8 @@ def plot_greedy_action_dist(data: ExperimentData, results_dir: str) -> None:
         brake_pcts.append(100 * b / total)
 
     fig, ax = plt.subplots(figsize=(max(8, len(xs) * 0.15), 5))
-    ax.plot(xs, accel_pcts, color=_THROTTLE_COLORS[2], linewidth=1.2,
-            alpha=0.85, label="accel %")
-    ax.plot(xs, brake_pcts, color=_THROTTLE_COLORS[0], linewidth=1.2,
-            alpha=0.85, label="brake %")
+    ax.plot(xs, accel_pcts, color=_THROTTLE_COLORS[2], linewidth=1.2, alpha=0.85, label="accel %")
+    ax.plot(xs, brake_pcts, color=_THROTTLE_COLORS[0], linewidth=1.2, alpha=0.85, label="brake %")
     ax.set_title(f"{data.experiment_name} — Greedy Phase: Accel / Brake % per Sim")
     ax.set_xlabel("Simulation")
     ax.set_ylabel("% Steps (threshold ≥ 0.5)")
@@ -226,33 +228,28 @@ def plot_greedy_progress(data: ExperimentData, results_dir: str) -> None:
     if not _HAS_MPL:
         return
     sims = data.greedy_sims
-    xs   = [s.sim for s in sims]
-    ys   = [s.laps_completed + s.final_track_progress for s in sims]
+    xs = [s.sim for s in sims]
+    ys = [s.laps_completed + s.final_track_progress for s in sims]
 
     running_best = 0.0
-    best_so_far  = []
+    best_so_far = []
     for y in ys:
         running_best = max(running_best, y)
         best_so_far.append(running_best)
 
     improvement_xs = [s.sim for s in sims if s.improved]
-    improvement_ys = [s.laps_completed + s.final_track_progress
-                      for s in sims if s.improved]
+    improvement_ys = [s.laps_completed + s.final_track_progress for s in sims if s.improved]
 
     fig, ax = plt.subplots(figsize=(max(8, len(xs) * 0.15), 5))
-    ax.scatter(xs, ys, color="#95a5a6", s=18, alpha=0.7, zorder=2,
-               label="candidate progress")
-    ax.step(xs, best_so_far, where="post", color="#e67e22",
-            linewidth=2.0, zorder=3, label="best so far")
-    ax.scatter(improvement_xs, improvement_ys, color="#27ae60",
-               s=60, zorder=4, marker="^", label="improvement")
+    ax.scatter(xs, ys, color="#95a5a6", s=18, alpha=0.7, zorder=2, label="candidate progress")
+    ax.step(xs, best_so_far, where="post", color="#e67e22", linewidth=2.0, zorder=3, label="best so far")
+    ax.scatter(improvement_xs, improvement_ys, color="#27ae60", s=60, zorder=4, marker="^", label="improvement")
 
     max_prog = max(ys) if ys else 1.0
     for lap in range(1, int(max_prog) + 2):
         if lap <= max_prog + 0.1:
             ax.axhline(lap, color="#bdc3c7", linestyle="--", linewidth=0.8, zorder=1)
-            ax.text(xs[-1] + 0.3, lap, f"lap {lap}", va="center", fontsize=7,
-                    color="#7f8c8d")
+            ax.text(xs[-1] + 0.3, lap, f"lap {lap}", va="center", fontsize=7, color="#7f8c8d")
 
     ax.set_title(f"{data.experiment_name} — Greedy Phase: Track Progress per Sim")
     ax.set_xlabel("Simulation")
@@ -265,6 +262,7 @@ def plot_greedy_progress(data: ExperimentData, results_dir: str) -> None:
 # ---------------------------------------------------------------------------
 # Weight heatmap and evolution (WLP-specific)
 # ---------------------------------------------------------------------------
+
 
 def plot_weight_heatmap(data: ExperimentData, results_dir: str) -> None:
     if not _HAS_MPL:
@@ -280,8 +278,8 @@ def plot_weight_heatmap(data: ExperimentData, results_dir: str) -> None:
     steer_w = np.array([cfg["steer_weights"].get(n, 0.0) for n in obs_names])
     accel_w = np.array([cfg["accel_weights"].get(n, 0.0) for n in obs_names])
     brake_w = np.array([cfg["brake_weights"].get(n, 0.0) for n in obs_names])
-    matrix  = np.vstack([steer_w, accel_w, brake_w])
-    vmax    = max(abs(matrix).max(), 1e-6)
+    matrix = np.vstack([steer_w, accel_w, brake_w])
+    vmax = max(abs(matrix).max(), 1e-6)
 
     fig, ax = plt.subplots(figsize=(13, 4))
     im = ax.imshow(matrix, cmap="RdBu", aspect="auto", vmin=-vmax, vmax=vmax)
@@ -298,8 +296,7 @@ def plot_weight_heatmap(data: ExperimentData, results_dir: str) -> None:
 def plot_weight_evolution(data: ExperimentData, results_dir: str) -> None:
     if not _HAS_MPL:
         return
-    sims = [s for s in data.greedy_sims
-            if s.weights is not None and "steer_weights" in s.weights]
+    sims = [s for s in data.greedy_sims if s.weights is not None and "steer_weights" in s.weights]
     if len(sims) < 2:
         return
 
@@ -307,12 +304,9 @@ def plot_weight_evolution(data: ExperimentData, results_dir: str) -> None:
     xs = [s.sim for s in sims]
     improvement_xs = [s.sim for s in sims if s.improved]
 
-    steer_m = np.array([[s.weights["steer_weights"].get(n, 0.0) for n in obs_names]
-                        for s in sims])
-    accel_m = np.array([[s.weights["accel_weights"].get(n, 0.0) for n in obs_names]
-                        for s in sims])
-    brake_m = np.array([[s.weights["brake_weights"].get(n, 0.0) for n in obs_names]
-                        for s in sims])
+    steer_m = np.array([[s.weights["steer_weights"].get(n, 0.0) for n in obs_names] for s in sims])
+    accel_m = np.array([[s.weights["accel_weights"].get(n, 0.0) for n in obs_names] for s in sims])
+    brake_m = np.array([[s.weights["brake_weights"].get(n, 0.0) for n in obs_names] for s in sims])
 
     fig, axes = plt.subplots(3, 1, figsize=(14, 10), sharex=True)
     cmap = plt.cm.get_cmap("tab20", len(obs_names))
@@ -324,15 +318,13 @@ def plot_weight_evolution(data: ExperimentData, results_dir: str) -> None:
         for ix in improvement_xs:
             ax.axvline(ix, color="grey", alpha=0.25, linewidth=1)
         for i, name in enumerate(obs_names):
-            ax.plot(xs, matrix[:, i], label=name, color=cmap(i),
-                    linewidth=0.9, alpha=0.85)
+            ax.plot(xs, matrix[:, i], label=name, color=cmap(i), linewidth=0.9, alpha=0.85)
         ax.axhline(0, color="black", linewidth=0.5, linestyle="--")
         ax.set_ylabel("Weight value")
         ax.set_title(title)
         ax.legend(loc="upper right", fontsize=6, ncol=3, framealpha=0.6)
     axes[-1].set_xlabel("Simulation #")
-    fig.suptitle(f"{data.experiment_name} — Weight evolution (greedy phase)\n"
-                 "Grey lines = improvements")
+    fig.suptitle(f"{data.experiment_name} — Weight evolution (greedy phase)\nGrey lines = improvements")
     fig.tight_layout()
     _save(fig, os.path.join(results_dir, "greedy_weight_evolution.png"))
 
@@ -342,10 +334,10 @@ def plot_weight_evolution(data: ExperimentData, results_dir: str) -> None:
 # ---------------------------------------------------------------------------
 
 _REASON_COLORS = {
-    "finish":     "#27ae60",
-    "crash":      "#c0392b",
+    "finish": "#27ae60",
+    "crash": "#c0392b",
     "hard_crash": "#e74c3c",
-    "timeout":    "#f39c12",
+    "timeout": "#f39c12",
 }
 _REASON_ORDER = ["finish", "crash", "hard_crash", "timeout"]
 
@@ -362,11 +354,11 @@ def plot_termination_reasons(data: ExperimentData, results_dir: str) -> None:
         r = s.termination_reason or "unknown"
         counts[r] = counts.get(r, 0) + 1
 
-    order  = _REASON_ORDER + sorted(k for k in counts if k not in _REASON_ORDER)
+    order = _REASON_ORDER + sorted(k for k in counts if k not in _REASON_ORDER)
     labels = [r for r in order if r in counts]
     values = [counts[r] for r in labels]
     colors = [_REASON_COLORS.get(r, "#95a5a6") for r in labels]
-    total  = len(sims)
+    total = len(sims)
 
     fig, ax = plt.subplots(figsize=(max(5, len(labels) * 1.4), 5))
     bars = ax.bar(labels, values, color=colors, edgecolor="white", linewidth=0.6)
@@ -375,11 +367,11 @@ def plot_termination_reasons(data: ExperimentData, results_dir: str) -> None:
             bar.get_x() + bar.get_width() / 2,
             bar.get_height() + max(total * 0.005, 0.3),
             f"{v} ({100 * v / total:.0f}%)",
-            ha="center", va="bottom", fontsize=9,
+            ha="center",
+            va="bottom",
+            fontsize=9,
         )
-    ax.set_title(
-        f"{data.experiment_name} — Greedy Phase: Termination Reasons ({total} sims)"
-    )
+    ax.set_title(f"{data.experiment_name} — Greedy Phase: Termination Reasons ({total} sims)")
     ax.set_xlabel("Reason")
     ax.set_ylabel("Count")
     ax.set_ylim(0, max(values) * 1.2)
@@ -390,6 +382,7 @@ def plot_termination_reasons(data: ExperimentData, results_dir: str) -> None:
 # ---------------------------------------------------------------------------
 # Grid-search path comparison
 # ---------------------------------------------------------------------------
+
 
 def plot_gs_comparison_paths(
     runs: list[tuple[str, ExperimentData]],
@@ -408,13 +401,12 @@ def plot_gs_comparison_paths(
         return
 
     traced.sort(key=lambda x: x[1])
-    n      = len(traced)
+    n = len(traced)
     colors = cm.RdYlGn(np.linspace(0.15, 0.85, n))
 
     fig, ax = plt.subplots(figsize=(9, 9))
     for (name, reward, trace), color in zip(traced, colors):
-        ax.plot(trace.pos_x, trace.pos_z, color=color, linewidth=1.0,
-                label=f"{name}  ({reward:+.0f})", alpha=0.8)
+        ax.plot(trace.pos_x, trace.pos_z, color=color, linewidth=1.0, label=f"{name}  ({reward:+.0f})", alpha=0.8)
         ax.plot(trace.pos_x[0], trace.pos_z[0], "o", color=color, markersize=4)
     ax.set_title("Grid Search — Best-Run Paths (green = higher reward)")
     ax.set_xlabel("World X")
@@ -435,9 +427,9 @@ def plot_gs_comparison_progress(
     for name, data in runs:
         if not data.greedy_sims:
             continue
-        xs           = [s.sim for s in data.greedy_sims]
+        xs = [s.sim for s in data.greedy_sims]
         running_best = 0.0
-        ys           = []
+        ys = []
         for s in data.greedy_sims:
             p = s.laps_completed + s.final_track_progress
             running_best = max(running_best, p)
@@ -447,13 +439,12 @@ def plot_gs_comparison_progress(
         return
 
     series.sort(key=lambda x: -x[3])
-    n      = len(series)
+    n = len(series)
     colors = cm.RdYlGn(np.linspace(0.15, 0.85, n))
 
     fig, ax = plt.subplots(figsize=(12, 6))
     for (name, xs, ys, final_best), color in zip(series, colors):
-        ax.step(xs, ys, where="post", color=color, linewidth=1.4, alpha=0.85,
-                label=f"{name}  ({final_best:.2f})")
+        ax.step(xs, ys, where="post", color=color, linewidth=1.4, alpha=0.85, label=f"{name}  ({final_best:.2f})")
     max_prog = max(s[3] for s in series) if series else 1.0
     for lap in range(1, int(max_prog) + 2):
         if lap <= max_prog + 0.1:
@@ -461,8 +452,7 @@ def plot_gs_comparison_progress(
     ax.set_title("Grid Search — Best-So-Far Track Progress per Simulation")
     ax.set_xlabel("Simulation #")
     ax.set_ylabel("Effective progress (laps + fraction)")
-    ax.legend(fontsize=6, loc="upper left", framealpha=0.7,
-              ncol=max(1, n // 12))
+    ax.legend(fontsize=6, loc="upper left", framealpha=0.7, ncol=max(1, n // 12))
     fig.tight_layout()
     _save(fig, os.path.join(summary_dir, "comparison_progress.png"))
 
@@ -470,6 +460,7 @@ def plot_gs_comparison_progress(
 # ---------------------------------------------------------------------------
 # Entry point: called by save_experiment_results
 # ---------------------------------------------------------------------------
+
 
 def save_tmnf_plots(data: ExperimentData, results_dir: str) -> None:
     """Generate all TMNF-specific plots into results_dir."""
@@ -490,6 +481,7 @@ def save_tmnf_plots(data: ExperimentData, results_dir: str) -> None:
 # ---------------------------------------------------------------------------
 # Combined entry points (generic framework report + TMNF-specific plots)
 # ---------------------------------------------------------------------------
+
 
 def save_experiment_results(data: ExperimentData, results_dir: str) -> None:
     """Generate all plots and write a single results.md report to *results_dir*."""
@@ -552,7 +544,7 @@ def save_experiment_results(data: ExperimentData, results_dir: str) -> None:
         f.writelines(sections)
 
     # Eagerly close all figures to prevent tkinter GC crashes from daemon threads
-    plt.close('all')
+    plt.close("all")
 
     n = len(os.listdir(results_dir))
     logger.info("Saved %d file(s) to %s/ (report: results.md)", n, results_dir)
@@ -571,6 +563,9 @@ def save_grid_summary(
         plot_gs_comparison_progress(r, d)
 
     _framework_save_grid_summary(
-        runs, varied_keys, summary_dir, base_name,
+        runs,
+        varied_keys,
+        summary_dir,
+        base_name,
         extra_plots_fn=_tmnf_extra,
     )

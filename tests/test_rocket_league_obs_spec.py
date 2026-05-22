@@ -1,16 +1,17 @@
 """Tests for the Rocket League observation spec."""
+
 import unittest
 
 import numpy as np
 
+from framework.obs_spec import ObsDim, ObsSpec
 from games.rocket_league.obs_spec import (
-    ROCKET_LEAGUE_OBS_SPEC,
     BASE_OBS_DIM,
     OBS_NAMES,
     OBS_SCALES,
     OBS_SPEC,
+    ROCKET_LEAGUE_OBS_SPEC,
 )
-from framework.obs_spec import ObsDim, ObsSpec
 
 
 class TestRocketLeagueObsSpec(unittest.TestCase):
@@ -50,8 +51,7 @@ class TestRocketLeagueObsSpec(unittest.TestCase):
         self.assertIn("boost_amount", OBS_NAMES)
 
     def test_ball_features_present(self):
-        for name in ("ball_pos_x", "ball_pos_y", "ball_pos_z",
-                     "ball_vel_x", "ball_vel_y", "ball_vel_z"):
+        for name in ("ball_pos_x", "ball_pos_y", "ball_pos_z", "ball_vel_x", "ball_vel_y", "ball_vel_z"):
             self.assertIn(name, OBS_NAMES)
 
     def test_opponent_features_present(self):
@@ -63,8 +63,13 @@ class TestRocketLeagueObsSpec(unittest.TestCase):
             self.assertIn(name, OBS_NAMES)
 
     def test_relative_features_present(self):
-        for name in ("rel_ball_pos_x", "dist_to_ball", "vel_towards_ball",
-                     "ball_to_opp_goal_dist", "car_to_own_goal_dist"):
+        for name in (
+            "rel_ball_pos_x",
+            "dist_to_ball",
+            "vel_towards_ball",
+            "ball_to_opp_goal_dist",
+            "car_to_own_goal_dist",
+        ):
             self.assertIn(name, OBS_NAMES)
 
     def test_boost_pad_features_present(self):
