@@ -13,7 +13,7 @@ if _root not in sys.path:
     sys.path.insert(0, _root)
 
 # framework.training has no top-level shim; import directly.
-from framework.training import _greedy_loop, _greedy_loop_q_learning
+from framework.training import _greedy_loop, _greedy_loop_q_learning, GreedyLoopResult
 # framework.policies.WeightedLinearPolicy is used directly because the TMNF shim
 # in policies.py bakes in TMNF's obs_spec and a different from_cfg signature;
 # these tests exercise framework internals with a custom 3-dim obs_spec.
@@ -143,16 +143,16 @@ class TestPatienceEarlyStopping(unittest.TestCase):
             n_sims   = 100
             patience = 5
 
-            _, _, sims, early_stopped, early_stop_sim = _greedy_loop(
+            loop: GreedyLoopResult = _greedy_loop(
                 env=env, policy=policy, n_sims=n_sims,
                 mutation_scale=0.01, weights_file=wf,
                 best_reward=100.0,  # higher than any candidate reward → never improves
                 patience=patience, adaptive_mutation=False,
             )
 
-            self.assertTrue(early_stopped)
-            self.assertEqual(early_stop_sim, patience)
-            self.assertEqual(len(sims), patience)
+            self.assertTrue(loop.early_stopped)
+            self.assertEqual(loop.early_stop_sim, patience)
+            self.assertEqual(len(loop.greedy_sims), patience)
         finally:
             os.unlink(wf)
 
@@ -165,15 +165,15 @@ class TestPatienceEarlyStopping(unittest.TestCase):
             env    = _FixedRewardEnv(reward=10.0)
             n_sims   = 10
 
-            _, _, sims, early_stopped, early_stop_sim = _greedy_loop(
+            loop: GreedyLoopResult = _greedy_loop(
                 env=env, policy=policy, n_sims=n_sims,
                 mutation_scale=0.01, weights_file=wf,
                 patience=0, adaptive_mutation=False,
             )
 
-            self.assertFalse(early_stopped)
-            self.assertIsNone(early_stop_sim)
-            self.assertEqual(len(sims), n_sims)
+            self.assertFalse(loop.early_stopped)
+            self.assertIsNone(loop.early_stop_sim)
+            self.assertEqual(len(loop.greedy_sims), n_sims)
         finally:
             os.unlink(wf)
 
@@ -187,15 +187,15 @@ class TestPatienceEarlyStopping(unittest.TestCase):
             n_sims   = 20
             patience = 5
 
-            _, _, sims, early_stopped, early_stop_sim = _greedy_loop(
+            loop: GreedyLoopResult = _greedy_loop(
                 env=env, policy=policy, n_sims=n_sims,
                 mutation_scale=0.01, weights_file=wf,
                 patience=patience, adaptive_mutation=False,
             )
 
-            self.assertFalse(early_stopped)
-            self.assertIsNone(early_stop_sim)
-            self.assertEqual(len(sims), n_sims)
+            self.assertFalse(loop.early_stopped)
+            self.assertIsNone(loop.early_stop_sim)
+            self.assertEqual(len(loop.greedy_sims), n_sims)
         finally:
             os.unlink(wf)
 
@@ -208,15 +208,15 @@ class TestPatienceEarlyStopping(unittest.TestCase):
             env    = _FixedRewardEnv(reward=5.0)
             patience = 3
 
-            _, _, sims, early_stopped, early_stop_sim = _greedy_loop(
+            loop: GreedyLoopResult = _greedy_loop(
                 env=env, policy=policy, n_sims=50,
                 mutation_scale=0.01, weights_file=wf,
                 patience=patience, adaptive_mutation=False,
             )
 
-            self.assertTrue(early_stopped)
-            self.assertIsNotNone(early_stop_sim)
-            self.assertEqual(sims[-1].sim, early_stop_sim)
+            self.assertTrue(loop.early_stopped)
+            self.assertIsNotNone(loop.early_stop_sim)
+            self.assertEqual(loop.greedy_sims[-1].sim, loop.early_stop_sim)
         finally:
             os.unlink(wf)
 
@@ -237,16 +237,16 @@ class TestPatienceEarlyStoppingQLoop(unittest.TestCase):
             patience = 4
 
             # Seed best_reward above the fixed reward so nothing ever improves.
-            _, _, sims, early_stopped, early_stop_sim = _greedy_loop_q_learning(
+            loop: GreedyLoopResult = _greedy_loop_q_learning(
                 env=env, policy=policy, n_episodes=100,
                 weights_file=wf, patience=patience,
             )
 
             # The stub always returns reward=5.0; first episode sets best from -inf,
             # so streak starts counting from episode 2. Stop at episode 1+patience.
-            self.assertTrue(early_stopped)
-            self.assertEqual(len(sims), 1 + patience)
-            self.assertEqual(sims[-1].sim, early_stop_sim)
+            self.assertTrue(loop.early_stopped)
+            self.assertEqual(len(loop.greedy_sims), 1 + patience)
+            self.assertEqual(loop.greedy_sims[-1].sim, loop.early_stop_sim)
         finally:
             os.unlink(wf)
 
@@ -259,14 +259,14 @@ class TestPatienceEarlyStoppingQLoop(unittest.TestCase):
             env      = _FixedRewardEnv(reward=5.0)
             n_eps    = 8
 
-            _, _, sims, early_stopped, early_stop_sim = _greedy_loop_q_learning(
+            loop: GreedyLoopResult = _greedy_loop_q_learning(
                 env=env, policy=policy, n_episodes=n_eps,
                 weights_file=wf, patience=0,
             )
 
-            self.assertFalse(early_stopped)
-            self.assertIsNone(early_stop_sim)
-            self.assertEqual(len(sims), n_eps)
+            self.assertFalse(loop.early_stopped)
+            self.assertIsNone(loop.early_stop_sim)
+            self.assertEqual(len(loop.greedy_sims), n_eps)
         finally:
             os.unlink(wf)
 

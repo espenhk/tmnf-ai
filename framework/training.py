@@ -150,6 +150,44 @@ class EpisodeResult:
     trace: RunTrace            # sampled trajectory
 
 
+@_dataclass
+class ProbePhaseResult:
+    """Result of the cold-start probe phase returned by ``_run_probes``."""
+
+    best_reward: float          # reward of the best probe action
+    probe_results: list[ProbeResult]  # per-action probe results
+
+
+@_dataclass
+class ColdStartPhaseResult:
+    """Result of the cold-start search returned by ``_cold_start_search``."""
+
+    policy: WeightedLinearPolicy          # best policy found
+    best_reward: float                    # reward achieved by best policy
+    restart_results: list[ColdStartRestartResult]  # per-restart detail
+
+
+@_dataclass
+class EvaluatorBatch:
+    """Per-generation scores returned by ``_evaluate_with_evaluator``."""
+
+    rewards: list[float]    # per-individual mean reward (submission order)
+    total_steps: int        # summed step count across all individuals
+    info: dict              # info dict from the best-scoring individual
+    trace: Any              # RunTrace | None from the best-scoring individual
+
+
+@_dataclass
+class GreedyLoopResult:
+    """Combined output of any greedy / ES / CMA-ES / genetic training loop."""
+
+    policy: Any                          # trained policy (concrete type varies)
+    best_reward: float                   # best reward seen during training
+    greedy_sims: list[GreedySimResult]   # per-sim telemetry
+    early_stopped: bool                  # True if patience triggered early stop
+    early_stop_sim: int | None           # sim/gen index where early stop fired
+
+
 def _run_episode(
     env,
     policy,
@@ -493,7 +531,7 @@ def _run_probes(
     warmup_action: np.ndarray | None = None,
     warmup_steps: int = 0,
     live_monitor: Any = None,
-) -> tuple[float, list[ProbeResult]]:
+) -> ProbePhaseResult:
     saved_limit = env.get_episode_time_limit()
     env.set_episode_time_limit(probe_in_game_s / speed)
 
@@ -509,7 +547,7 @@ def _run_probes(
         for i, probe_action in enumerate(probe_actions):
             logger.info("Probe %d/%d: %s", i + 1, len(probe_actions), probe_action.name)
             obs, reset_info = env.reset()
-            ep = _run_episode(
+            ep: EpisodeResult = _run_episode(
                 env, _ConstantPolicy(probe_action.action), obs,
                 warmup_action=warmup_action, warmup_steps=warmup_steps,
                 reset_info=reset_info,
@@ -532,7 +570,7 @@ def _run_probes(
                     i, probe_actions[i].name, r, marker)
     logger.info("Probe best: %+.1f", results[best_idx])
     time.sleep(1)
-    return results[best_idx], probe_results
+    return ProbePhaseResult(best_reward=results[best_idx], probe_results=probe_results)
 
 
 # ---------------------------------------------------------------------------
@@ -552,7 +590,7 @@ def _cold_start_search(
     warmup_action: np.ndarray | None = None,
     warmup_steps: int = 0,
     live_monitor: Any = None,
-) -> tuple[WeightedLinearPolicy, float, list[ColdStartRestartResult]]:
+) -> ColdStartPhaseResult:
     overall_best_policy = None
     overall_best_reward = float("-inf")
     restart_results: list[ColdStartRestartResult] = []
@@ -578,7 +616,7 @@ def _cold_start_search(
         for sim in range(1, sims_per_restart + 1):
             candidate = local_best_policy.mutated(scale=mutation_scale, share=mutation_share)
             obs, reset_info = env.reset()
-            ep = _run_episode(
+            ep: EpisodeResult = _run_episode(
                 env, candidate, obs,
                 warmup_action=warmup_action, warmup_steps=warmup_steps,
                 reset_info=reset_info,
@@ -618,7 +656,11 @@ def _cold_start_search(
 
     logger.info("Cold-start complete — best: %+.1f  → %s",
                 overall_best_reward, weights_file)
-    return overall_best_policy, overall_best_reward, restart_results
+    return ColdStartPhaseResult(
+        policy=overall_best_policy,
+        best_reward=overall_best_reward,
+        restart_results=restart_results,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -729,7 +771,7 @@ def _greedy_loop(
     live_monitor: Any = None,
     patience: int = 0,
     log_stats_every_n_sims: int = 0,
-) -> tuple[BasePolicy, float, list[GreedySimResult], bool, int | None]:
+) -> GreedyLoopResult:
     """ES gradient-estimation loop for WeightedLinearPolicy / NeuralNetPolicy."""
     ADAPT_WINDOW = 20
     ADAPT_UP     = 1.2
@@ -759,7 +801,7 @@ def _greedy_loop(
                         _scaled_episode_time(sim, n_sims, full_episode_time_s)
                     )
                 obs, reset_info = env.reset()
-                ep = _run_episode(
+                ep: EpisodeResult = _run_episode(
                     env, candidate, obs,
                     warmup_action=warmup_action, warmup_steps=warmup_steps,
                     reset_info=reset_info,
@@ -822,7 +864,11 @@ def _greedy_loop(
                     break
         except KeyboardInterrupt:
             logger.warning("Training interrupted.")
-        return best_policy, best_reward, greedy_sims, early_stopped, early_stop_sim
+        return GreedyLoopResult(
+            policy=best_policy, best_reward=best_reward,
+            greedy_sims=greedy_sims, early_stopped=early_stopped,
+            early_stop_sim=early_stop_sim,
+        )
 
     if not isinstance(best_policy, WeightedLinearPolicy):
         raise TypeError(
@@ -851,7 +897,7 @@ def _greedy_loop(
                 )
 
             obs, reset_info = env.reset()
-            ep_plus = _run_episode(
+            ep_plus: EpisodeResult = _run_episode(
                 env, policy_plus, obs,
                 warmup_action=warmup_action, warmup_steps=warmup_steps,
                 reset_info=reset_info,
@@ -864,7 +910,7 @@ def _greedy_loop(
                 if ep_plus.reward > best_reward else None
             )
             obs, reset_info = env.reset()
-            ep_minus = _run_episode(
+            ep_minus: EpisodeResult = _run_episode(
                 env, policy_minus, obs,
                 warmup_action=warmup_action, warmup_steps=warmup_steps,
                 reset_info=reset_info,
@@ -954,7 +1000,11 @@ def _greedy_loop(
     except KeyboardInterrupt:
         logger.warning("Training interrupted.")
 
-    return best_policy, best_reward, greedy_sims, early_stopped, early_stop_sim
+    return GreedyLoopResult(
+        policy=best_policy, best_reward=best_reward,
+        greedy_sims=greedy_sims, early_stopped=early_stopped,
+        early_stop_sim=early_stop_sim,
+    )
 
 
 def _maybe_adapt_scale(history, current, sim, window, up, down, mn, mx, enabled, out):
@@ -981,13 +1031,13 @@ def _evaluate_with_evaluator(
     warmup_action: np.ndarray | None,
     warmup_steps: int,
     episode_time_limit_s: float | None,
-) -> tuple[list[float], int, dict, Any]:
+) -> EvaluatorBatch:
     """Score *individuals* in parallel via ParallelEvaluator (issue #229).
 
-    Returns the per-individual reward list (in submission order), the
-    summed step count, and the info/trace tuple from the best-scoring
-    individual (so generation-level logging in the greedy loops sees
-    metadata for the champion of the generation, not an arbitrary one).
+    Returns an EvaluatorBatch with the per-individual reward list, the
+    summed step count, and the info/trace from the best-scoring individual
+    (so generation-level logging in the greedy loops sees metadata for the
+    champion of the generation, not an arbitrary one).
     """
     from framework.parallel_eval import Candidate
 
@@ -1008,9 +1058,12 @@ def _evaluate_with_evaluator(
     rewards     = [r.reward for r in results]
     total_steps = sum(r.total_steps for r in results)
     best_i      = int(np.argmax(rewards))
-    info        = results[best_i].info
-    trace       = results[best_i].trace
-    return rewards, total_steps, info, trace
+    return EvaluatorBatch(
+        rewards=rewards,
+        total_steps=total_steps,
+        info=results[best_i].info,
+        trace=results[best_i].trace,
+    )
 
 
 def _greedy_loop_cmaes(
@@ -1024,7 +1077,7 @@ def _greedy_loop_cmaes(
     patience: int = 0,
     evaluator: Any = None,
     log_stats_every_n_sims: int = 0,
-) -> tuple[Any, float, list[GreedySimResult], bool, int | None]:
+) -> GreedyLoopResult:
     """CMA-ES loop: sample λ offspring, evaluate each for eval_episodes episodes, update distribution.
 
     When *evaluator* is a :class:`framework.parallel_eval.ParallelEvaluator`,
@@ -1074,11 +1127,15 @@ def _greedy_loop_cmaes(
                 # for any individual.  Skip candidate-replay saving on the
                 # parallel path; champion replays from the (separate) eval
                 # run are still available via `python main.py --eval`.
-                rewards, total_steps, info, trace = _evaluate_with_evaluator(
+                eval_batch: EvaluatorBatch = _evaluate_with_evaluator(
                     evaluator, offspring, eval_episodes,
                     warmup_action=warmup_action, warmup_steps=warmup_steps,
                     episode_time_limit_s=scaled_t,
                 )
+                rewards     = eval_batch.rewards
+                total_steps = eval_batch.total_steps
+                info        = eval_batch.info
+                trace       = eval_batch.trace
             else:
                 rewards     = []
                 total_steps = 0
@@ -1087,7 +1144,7 @@ def _greedy_loop_cmaes(
                     ep_last: EpisodeResult | None = None
                     for _ in range(eval_episodes):
                         obs, reset_info = env.reset()
-                        ep = _run_episode(
+                        ep: EpisodeResult = _run_episode(
                             env, individual, obs,
                             warmup_action=warmup_action, warmup_steps=warmup_steps,
                             reset_info=reset_info,
@@ -1162,7 +1219,11 @@ def _greedy_loop_cmaes(
     except KeyboardInterrupt:
         logger.warning("Training interrupted.")
 
-    return policy, best_reward, greedy_sims, early_stopped, early_stop_sim
+    return GreedyLoopResult(
+        policy=policy, best_reward=best_reward,
+        greedy_sims=greedy_sims, early_stopped=early_stopped,
+        early_stop_sim=early_stop_sim,
+    )
 
 
 def _greedy_loop_q_learning(
@@ -1175,7 +1236,7 @@ def _greedy_loop_q_learning(
     live_monitor: Any = None,
     patience: int = 0,
     log_stats_every_n_sims: int = 0,
-) -> tuple[BasePolicy, float, list[GreedySimResult], bool, int | None]:
+) -> GreedyLoopResult:
     """Q-learning greedy loop for epsilon_greedy and mcts policy types."""
     best_reward       = float("-inf")
     greedy_sims: list[GreedySimResult] = []
@@ -1192,7 +1253,7 @@ def _greedy_loop_q_learning(
                     episode, n_episodes, full_episode_time_s,
                 ))
             obs, reset_info = env.reset()
-            ep = _run_episode(
+            ep: EpisodeResult = _run_episode(
                 env, policy, obs,
                 warmup_action=warmup_action, warmup_steps=warmup_steps,
                 reset_info=reset_info,
@@ -1252,7 +1313,11 @@ def _greedy_loop_q_learning(
     except KeyboardInterrupt:
         logger.warning("Training interrupted.")
 
-    return policy, best_reward, greedy_sims, early_stopped, early_stop_sim
+    return GreedyLoopResult(
+        policy=policy, best_reward=best_reward,
+        greedy_sims=greedy_sims, early_stopped=early_stopped,
+        early_stop_sim=early_stop_sim,
+    )
 
 
 def _greedy_loop_genetic(
@@ -1267,7 +1332,7 @@ def _greedy_loop_genetic(
     adaptive_mutation: bool = True,
     evaluator: Any = None,
     log_stats_every_n_sims: int = 0,
-) -> tuple[GeneticPolicy, float, list[GreedySimResult], bool, int | None]:
+) -> GreedyLoopResult:
     """Genetic algorithm loop: N_pop episodes per generation.
 
     When *evaluator* is a :class:`framework.parallel_eval.ParallelEvaluator`,
@@ -1324,11 +1389,15 @@ def _greedy_loop_genetic(
             if evaluator is not None:
                 # See parallel-path note in _greedy_loop_cmaes — replay saving
                 # is bypassed when episodes run in worker SC2 binaries.
-                rewards, total_steps, info, trace = _evaluate_with_evaluator(
+                eval_batch: EvaluatorBatch = _evaluate_with_evaluator(
                     evaluator, policy.population, eval_episodes,
                     warmup_action=warmup_action, warmup_steps=warmup_steps,
                     episode_time_limit_s=scaled_t,
                 )
+                rewards     = eval_batch.rewards
+                total_steps = eval_batch.total_steps
+                info        = eval_batch.info
+                trace       = eval_batch.trace
             else:
                 rewards     = []
                 total_steps = 0
@@ -1337,7 +1406,7 @@ def _greedy_loop_genetic(
                     ep_last: EpisodeResult | None = None
                     for _ in range(eval_episodes):
                         obs, reset_info = env.reset()
-                        ep = _run_episode(
+                        ep: EpisodeResult = _run_episode(
                             env, individual, obs,
                             warmup_action=warmup_action, warmup_steps=warmup_steps,
                             reset_info=reset_info,
@@ -1431,7 +1500,11 @@ def _greedy_loop_genetic(
     except KeyboardInterrupt:
         logger.warning("Training interrupted.")
 
-    return policy, best_reward, greedy_sims, early_stopped, early_stop_sim
+    return GreedyLoopResult(
+        policy=policy, best_reward=best_reward,
+        greedy_sims=greedy_sims, early_stopped=early_stopped,
+        early_stop_sim=early_stop_sim,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1637,23 +1710,28 @@ def train_rl(
     t_after_probe = t_after_cold = None
 
     if cold_start and not pretrained:
-        probe_best, probe_results = _run_probes(
+        probe_phase: ProbePhaseResult = _run_probes(
             env, probe_actions, probe_in_game_s, speed,
             warmup_action=warmup_action, warmup_steps=warmup_steps,
             live_monitor=live_monitor,
         )
+        probe_best    = probe_phase.best_reward
+        probe_results = probe_phase.probe_results
         t_after_probe = datetime.datetime.now()
 
         if not no_interrupt:
             input("\n  [COLD-START SEARCH]  Press Enter to start random-restart search...")
         time.sleep(1)
-        best_policy, best_reward, cold_start_data = _cold_start_search(
+        cold: ColdStartPhaseResult = _cold_start_search(
             env, obs_spec, head_names, probe_best, weights_file,
             mutation_scale, mutation_share=mutation_share,
             n_restarts=cold_start_restarts, sims_per_restart=cold_start_sims,
             warmup_action=warmup_action, warmup_steps=warmup_steps,
             live_monitor=live_monitor,
         )
+        best_policy    = cold.policy
+        best_reward    = cold.best_reward
+        cold_start_data = cold.restart_results
         t_after_cold = datetime.datetime.now()
     else:
         best_policy = _make_policy(
@@ -1703,7 +1781,7 @@ def train_rl(
 
     try:
         if loop_type == "hill_climbing":
-            best_policy, best_reward, greedy_sims, early_stopped, early_stop_sim = _greedy_loop(
+            loop: GreedyLoopResult = _greedy_loop(
                 env=env, policy=best_policy, n_sims=n_sims,
                 mutation_scale=mutation_scale, mutation_share=mutation_share,
                 best_reward=best_reward, weights_file=weights_file,
@@ -1711,20 +1789,20 @@ def train_rl(
                 log_stats_every_n_sims=log_stats_every_n_sims, **kw,
             )
         elif loop_type == "q_learning":
-            best_policy, best_reward, greedy_sims, early_stopped, early_stop_sim = _greedy_loop_q_learning(
+            loop = _greedy_loop_q_learning(
                 env=env, policy=best_policy, n_episodes=n_sims,
                 weights_file=weights_file, patience=patience,
                 log_stats_every_n_sims=log_stats_every_n_sims, **kw,
             )
         elif loop_type == "cmaes":
-            best_policy, best_reward, greedy_sims, early_stopped, early_stop_sim = _greedy_loop_cmaes(
+            loop = _greedy_loop_cmaes(
                 env=env, policy=best_policy,
                 n_generations=n_sims, weights_file=weights_file, patience=patience,
                 evaluator=evaluator,
                 log_stats_every_n_sims=log_stats_every_n_sims, **kw,
             )
         elif loop_type == "genetic":
-            best_policy, best_reward, greedy_sims, early_stopped, early_stop_sim = _greedy_loop_genetic(
+            loop = _greedy_loop_genetic(
                 env=env, policy=best_policy,  # type: ignore[arg-type]
                 n_generations=n_sims, weights_file=weights_file,
                 patience=patience, adaptive_mutation=adaptive_mutation,
@@ -1743,7 +1821,7 @@ def train_rl(
     if live_monitor is not None:
         live_monitor.close()
 
-    logger.info("=== Training complete — best total reward: %+.1f ===", best_reward)
+    logger.info("=== Training complete — best total reward: %+.1f ===", loop.best_reward)
 
     t_end  = datetime.datetime.now()
     fmt    = "%Y-%m-%d %H:%M:%S"
@@ -1760,15 +1838,15 @@ def train_rl(
         experiment_name    = experiment_name,
         probe_results      = probe_results,
         cold_start_restarts = cold_start_data,
-        greedy_sims        = greedy_sims,
+        greedy_sims        = loop.greedy_sims,
         probe_floor        = probe_best,
         weights_file       = weights_file,
         reward_config_file = reward_config_file,
         training_params    = training_params or {},
         timings            = timings,
         track              = track,
-        early_stopped      = early_stopped,
-        early_stop_sim     = early_stop_sim,
+        early_stopped      = loop.early_stopped,
+        early_stop_sim     = loop.early_stop_sim,
         code_version       = code_version(),
     )
 

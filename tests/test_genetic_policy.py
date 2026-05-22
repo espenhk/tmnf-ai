@@ -8,7 +8,7 @@ import numpy as np
 
 from helpers import make_wlp
 from games.tmnf.policies import GeneticPolicy, WeightedLinearPolicy
-from framework.training import _greedy_loop_genetic
+from framework.training import _greedy_loop_genetic, GreedyLoopResult
 
 
 def _make_genetic(pop=6, elite=2, eval_episodes=1) -> GeneticPolicy:
@@ -294,14 +294,14 @@ class TestGeneticAdaptiveMutation(unittest.TestCase):
         with tempfile.NamedTemporaryFile(suffix=".yaml", delete=False) as f:
             wf = f.name
         try:
-            _, _, sims, _, _ = _greedy_loop_genetic(
+            loop: GreedyLoopResult = _greedy_loop_genetic(
                 env=env, policy=gp, n_generations=3, weights_file=wf,
                 adaptive_mutation=False,
             )
         finally:
             if os.path.exists(wf):
                 os.unlink(wf)
-        for sim in sims:
+        for sim in loop.greedy_sims:
             self.assertIsNotNone(sim.mutation_scale)
 
     def test_adaptive_mutation_reduces_scale_on_no_improvement(self):
