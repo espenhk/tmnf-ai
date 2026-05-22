@@ -47,10 +47,12 @@ class Centerline:
 
     def project_with_forward(
         self, pos: Vec3, hint_idx: int | None = None, window: int = 50
-    ) -> tuple[float, float, float, np.ndarray, int]:
+    ) -> CenterlineProjection:
         """Return all centerline quantities for *pos* in one pass.
 
-        Returns (progress, lateral_offset, vertical_offset, forward_dir, nearest_idx).
+        Returns:
+            CenterlineProjection with progress, lateral_offset, vertical_offset,
+            forward, and nearest_idx.
 
         Prefer this over calling project() and forward_at() separately — they each
         did an independent nearest-point search.

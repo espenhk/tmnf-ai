@@ -1115,6 +1115,9 @@ def _greedy_loop_cmaes(
             offspring    = policy.sample_population()
             info: dict   = {}
             trace        = None
+            ep_last: EpisodeResult | None = None
+            last_info: dict = {}
+            last_trace: RunTrace = RunTrace([], [], [], 0.0)
             # Track the replay for the best individual seen this generation.
             # Each candidate save overwrites _candidate.SC2Replay; we save
             # before the next env.reset() discards the current episode's replay.
@@ -1136,12 +1139,14 @@ def _greedy_loop_cmaes(
                 total_steps = eval_batch.total_steps
                 info        = eval_batch.info
                 trace       = eval_batch.trace
+                last_info   = eval_batch.info
+                if eval_batch.trace is not None:
+                    last_trace = eval_batch.trace
             else:
                 rewards     = []
                 total_steps = 0
                 for individual in offspring:
                     ep_rewards: list[float] = []
-                    ep_last: EpisodeResult | None = None
                     for _ in range(eval_episodes):
                         obs, reset_info = env.reset()
                         ep: EpisodeResult = _run_episode(
@@ -1155,6 +1160,9 @@ def _greedy_loop_cmaes(
                         ep_last = ep
                     ind_avg = sum(ep_rewards) / len(ep_rewards)
                     rewards.append(ind_avg)
+                    if ep_last is not None:
+                        last_info = ep_last.info
+                        last_trace = ep_last.trace
                     # Save replay for this individual if it beats the current best
                     # candidate.  Must happen before the next env.reset().
                     if ind_avg > _gen_candidate_reward:
@@ -1174,8 +1182,8 @@ def _greedy_loop_cmaes(
                 verdict = (f"NEW BEST champion  reward={policy.champion_reward:+.1f}"
                            f"  sigma={policy.sigma:.4f}")
                 logger.info("  >> %s", verdict)
-                _log_new_best_details(ep_last.info if ep_last else {}, best_info_logged)
-                best_info_logged = ep_last.info if ep_last else {}
+                _log_new_best_details(last_info, best_info_logged)
+                best_info_logged = last_info
             else:
                 _discard_candidate_replay(_gen_candidate)
                 verdict = (f"no improvement  gen_best={gen_best:+.1f}"
@@ -1183,28 +1191,26 @@ def _greedy_loop_cmaes(
                            f"  sigma={policy.sigma:.4f}")
                 logger.info("  >> %s", verdict)
                 if log_stats_every_n_sims > 0 and gen % log_stats_every_n_sims == 0:
-                    _log_periodic_stats(ep_last.info if ep_last else {}, gen)
+                    _log_periodic_stats(last_info, gen)
 
-            _last_info = ep_last.info if ep_last else {}
-            _last_trace = ep_last.trace if ep_last else RunTrace([], [], [], 0.0)
             greedy_sims.append(GreedySimResult(
                 sim=gen, reward=gen_best, improved=improved,
-                throttle_counts=[0, 0, 0], total_steps=total_steps, trace=_last_trace,
+                throttle_counts=[0, 0, 0], total_steps=total_steps, trace=last_trace,
                 weights=policy.to_cfg(),
-                final_track_progress=_last_info.get("track_progress", 0.0),
-                laps_completed=_last_info.get("laps_completed", 0),
-                termination_reason=_last_info.get("termination_reason"),
-                finish_time_s=_last_info.get("elapsed_s") if _last_info.get("finished") else None,
-                mean_abs_lateral_offset=_last_info.get("mean_abs_lateral_offset"),
-                reward_components=_last_info.get("episode_reward_components"),
-                action_counts=_last_info.get("episode_action_counts"),
-                obs_averages=_last_info.get("episode_obs_averages"),
-                xy_hist=_last_info.get("episode_xy_hist"),
-                skipped_frames=_episode_skipped_frames(_last_info),
-                supply_capped_fraction=_last_info.get("episode_supply_capped_fraction"),
-                build_order=_last_info.get("episode_build_order"),
-                army_count_series=_last_info.get("episode_army_series"),
-                resource_series=_last_info.get("episode_resource_series"),
+                final_track_progress=last_info.get("track_progress", 0.0),
+                laps_completed=last_info.get("laps_completed", 0),
+                termination_reason=last_info.get("termination_reason"),
+                finish_time_s=last_info.get("elapsed_s") if last_info.get("finished") else None,
+                mean_abs_lateral_offset=last_info.get("mean_abs_lateral_offset"),
+                reward_components=last_info.get("episode_reward_components"),
+                action_counts=last_info.get("episode_action_counts"),
+                obs_averages=last_info.get("episode_obs_averages"),
+                xy_hist=last_info.get("episode_xy_hist"),
+                skipped_frames=_episode_skipped_frames(last_info),
+                supply_capped_fraction=last_info.get("episode_supply_capped_fraction"),
+                build_order=last_info.get("episode_build_order"),
+                army_count_series=last_info.get("episode_army_series"),
+                resource_series=last_info.get("episode_resource_series"),
             ))
             no_improve_streak = 0 if improved else no_improve_streak + 1
             if patience > 0 and no_improve_streak >= patience:
@@ -1382,6 +1388,9 @@ def _greedy_loop_genetic(
                 env.set_episode_time_limit(scaled_t)
             trace        = None
             info: dict   = {}
+            ep_last: EpisodeResult | None = None
+            last_info: dict = {}
+            last_trace: RunTrace = RunTrace([], [], [], 0.0)
             # Track the replay for the best individual seen this generation.
             _gen_candidate: str | None = None
             _gen_candidate_reward: float = policy.champion_reward
@@ -1398,12 +1407,14 @@ def _greedy_loop_genetic(
                 total_steps = eval_batch.total_steps
                 info        = eval_batch.info
                 trace       = eval_batch.trace
+                last_info   = eval_batch.info
+                if eval_batch.trace is not None:
+                    last_trace = eval_batch.trace
             else:
                 rewards     = []
                 total_steps = 0
                 for idx, individual in enumerate(policy.population):
                     ep_rewards: list[float] = []
-                    ep_last: EpisodeResult | None = None
                     for _ in range(eval_episodes):
                         obs, reset_info = env.reset()
                         ep: EpisodeResult = _run_episode(
@@ -1417,6 +1428,9 @@ def _greedy_loop_genetic(
                         ep_last = ep
                     ind_avg = sum(ep_rewards) / len(ep_rewards)
                     rewards.append(ind_avg)
+                    if ep_last is not None:
+                        last_info = ep_last.info
+                        last_trace = ep_last.trace
                     # Save replay for this individual if it beats the current best
                     # candidate.  Must happen before the next env.reset().
                     if ind_avg > _gen_candidate_reward:
@@ -1435,15 +1449,15 @@ def _greedy_loop_genetic(
                 _gen_candidate = None
                 verdict = f"NEW BEST champion  reward={policy.champion_reward:+.1f}"
                 logger.info("  >> %s", verdict)
-                _log_new_best_details(ep_last.info if ep_last else {}, best_info_logged)
-                best_info_logged = ep_last.info if ep_last else {}
+                _log_new_best_details(last_info, best_info_logged)
+                best_info_logged = last_info
             else:
                 _discard_candidate_replay(_gen_candidate)
                 verdict = (f"no improvement  gen_best={gen_best:+.1f}"
                            f"  champion={policy.champion_reward:+.1f}")
                 logger.info("  >> %s", verdict)
                 if log_stats_every_n_sims > 0 and gen % log_stats_every_n_sims == 0:
-                    _log_periodic_stats(ep_last.info if ep_last else {}, gen)
+                    _log_periodic_stats(last_info, gen)
 
             # --- adaptive mutation (1/5 success rule over recent window) ---
             improvement_history.append(improved)
@@ -1465,27 +1479,25 @@ def _greedy_loop_genetic(
                     )
                     policy.mutation_scale = new_scale
 
-            _last_info = ep_last.info if ep_last else {}
-            _last_trace = ep_last.trace if ep_last else RunTrace([], [], [], 0.0)
             greedy_sims.append(GreedySimResult(
                 sim=gen, reward=gen_best, improved=improved,
-                throttle_counts=[0, 0, 0], total_steps=total_steps, trace=_last_trace,
+                throttle_counts=[0, 0, 0], total_steps=total_steps, trace=last_trace,
                 weights=policy.to_cfg(),
                 mutation_scale=policy.mutation_scale,
-                final_track_progress=_last_info.get("track_progress", 0.0),
-                laps_completed=_last_info.get("laps_completed", 0),
-                termination_reason=_last_info.get("termination_reason"),
-                finish_time_s=_last_info.get("elapsed_s") if _last_info.get("finished") else None,
-                mean_abs_lateral_offset=_last_info.get("mean_abs_lateral_offset"),
-                reward_components=_last_info.get("episode_reward_components"),
-                action_counts=_last_info.get("episode_action_counts"),
-                obs_averages=_last_info.get("episode_obs_averages"),
-                xy_hist=_last_info.get("episode_xy_hist"),
-                skipped_frames=_episode_skipped_frames(_last_info),
-                supply_capped_fraction=_last_info.get("episode_supply_capped_fraction"),
-                build_order=_last_info.get("episode_build_order"),
-                army_count_series=_last_info.get("episode_army_series"),
-                resource_series=_last_info.get("episode_resource_series"),
+                final_track_progress=last_info.get("track_progress", 0.0),
+                laps_completed=last_info.get("laps_completed", 0),
+                termination_reason=last_info.get("termination_reason"),
+                finish_time_s=last_info.get("elapsed_s") if last_info.get("finished") else None,
+                mean_abs_lateral_offset=last_info.get("mean_abs_lateral_offset"),
+                reward_components=last_info.get("episode_reward_components"),
+                action_counts=last_info.get("episode_action_counts"),
+                obs_averages=last_info.get("episode_obs_averages"),
+                xy_hist=last_info.get("episode_xy_hist"),
+                skipped_frames=_episode_skipped_frames(last_info),
+                supply_capped_fraction=last_info.get("episode_supply_capped_fraction"),
+                build_order=last_info.get("episode_build_order"),
+                army_count_series=last_info.get("episode_army_series"),
+                resource_series=last_info.get("episode_resource_series"),
             ))
             no_improve_streak = 0 if improved else no_improve_streak + 1
             if patience > 0 and no_improve_streak >= patience:
