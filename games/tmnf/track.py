@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import math
+from dataclasses import dataclass
 
 import numpy as np
 from scipy.spatial import KDTree
@@ -8,6 +11,17 @@ from games.tmnf.state import Vec3
 # Default world up-vector (Y-up). Callers may override this via the
 # constructor for coordinate systems where a different axis is up.
 _DEFAULT_UP: np.ndarray = np.array([0.0, 1.0, 0.0])
+
+
+@dataclass
+class CenterlineProjection:
+    """Result of projecting a position onto the centerline."""
+
+    progress: float          # fraction of total track length completed, in [0, 1]
+    lateral_offset: float    # metres to the right of the centreline (negative = left)
+    vertical_offset: float   # metres above the centreline (negative = below)
+    forward: np.ndarray      # unit forward direction of the track at the nearest point
+    nearest_idx: int         # index of the nearest centerline point (for hint-based search)
 
 
 class Centerline:
@@ -88,7 +102,13 @@ class Centerline:
         lateral_offset  = float(np.dot(offset, right))
         vertical_offset = float(np.dot(offset, self._up))
 
-        return float(progress), lateral_offset, vertical_offset, forward, idx
+        return CenterlineProjection(
+            progress=float(progress),
+            lateral_offset=lateral_offset,
+            vertical_offset=vertical_offset,
+            forward=forward,
+            nearest_idx=idx,
+        )
 
     def project_ahead(self, pos: Vec3, nearest_idx: int, steps: int) -> tuple[float, float]:
         """Return (lateral_offset, heading_change) for the waypoint *steps* ahead.
@@ -135,10 +155,9 @@ class Centerline:
 
     def project(self, pos: Vec3) -> tuple[float, float, float]:
         """Returns (progress, lateral_offset, vertical_offset). See project_with_forward()."""
-        progress, lat, vert, _, _ = self.project_with_forward(pos)
-        return progress, lat, vert
+        proj = self.project_with_forward(pos)
+        return proj.progress, proj.lateral_offset, proj.vertical_offset
 
     def forward_at(self, pos: Vec3) -> np.ndarray:
         """Return the unit forward direction of the track at the closest point to pos."""
-        _, _, _, fwd, _ = self.project_with_forward(pos)
-        return fwd
+        return self.project_with_forward(pos).forward

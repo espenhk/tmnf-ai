@@ -251,9 +251,9 @@ class TestRocketLeagueActions(unittest.TestCase):
     def test_probe_actions_count(self):
         from games.rocket_league.actions import PROBE_ACTIONS
         self.assertEqual(len(PROBE_ACTIONS), 6)
-        for action, label in PROBE_ACTIONS:
-            self.assertEqual(action.shape, (8,))
-            self.assertIsInstance(label, str)
+        for probe in PROBE_ACTIONS:
+            self.assertEqual(probe.action.shape, (8,))
+            self.assertIsInstance(probe.name, str)
 
     def test_warmup_action_shape(self):
         from games.rocket_league.actions import WARMUP_ACTION

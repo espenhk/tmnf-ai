@@ -330,15 +330,15 @@ def _worker_main(
 
             for _ in range(candidate.eval_episodes):
                 obs, reset_info = env.reset()
-                reward, info, _, steps, trace = _run_episode(
+                ep = _run_episode(
                     env, individual, obs,
                     warmup_action=warmup_action, warmup_steps=warmup_steps,
                     reset_info=reset_info,
                 )
-                ep_rewards.append(reward)
-                last_info = info
-                last_trace = trace
-                total_steps += steps
+                ep_rewards.append(ep.reward)
+                last_info = ep.info
+                last_trace = ep.trace
+                total_steps += ep.total_steps
 
             mean_reward = float(sum(ep_rewards) / len(ep_rewards))
             result_queue.put(EpisodeResult(

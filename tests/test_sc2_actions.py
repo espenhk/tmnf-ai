@@ -104,13 +104,13 @@ class TestSC2Actions(unittest.TestCase):
         self.assertEqual(len(PROBE_ACTIONS), 5)
 
     def test_probe_actions_shape(self):
-        for action, name in PROBE_ACTIONS:
-            self.assertEqual(action.shape, (4,))
-            self.assertIsInstance(name, str)
+        for probe in PROBE_ACTIONS:
+            self.assertEqual(probe.action.shape, (4,))
+            self.assertIsInstance(probe.name, str)
 
     def test_probe_actions_include_no_op(self):
         """Probe coverage of no_op (issue #127)."""
-        names = [name for _, name in PROBE_ACTIONS]
+        names = [probe.name for probe in PROBE_ACTIONS]
         self.assertIn("no_op", names)
 
     def test_warmup_action_shape(self):
@@ -125,8 +125,8 @@ class TestSC2Actions(unittest.TestCase):
         used = set()
         for row in DISCRETE_ACTIONS:
             used.add(int(row[0]))
-        for action, _ in PROBE_ACTIONS:
-            used.add(int(action[0]))
+        for probe in PROBE_ACTIONS:
+            used.add(int(probe.action[0]))
         used.add(int(WARMUP_ACTION[0]))
         for fn_idx in used:
             self.assertIn(fn_idx, FUNCTION_IDS, f"missing fn_idx={fn_idx}")
