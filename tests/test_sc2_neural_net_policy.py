@@ -73,6 +73,13 @@ class TestSC2NeuralNetPolicy(unittest.TestCase):
         p.update(obs, np.zeros(4, dtype=np.float32), 0.0, obs, False, info={"available_fn_ids": {2, 4}})
         self.assertEqual(p._available_fn_ids, {2, 4})  # noqa: SLF001 - white-box test
 
+    def test_update_missing_available_fn_ids_clears_stale_mask(self):
+        p = _make_policy([4])
+        p._available_fn_ids = {2, 4}  # noqa: SLF001 - white-box test
+        obs = np.zeros(SC2_MINIGAME_OBS_SPEC.dim, dtype=np.float32)
+        p.update(obs, np.zeros(4, dtype=np.float32), 0.0, obs, False, info={})
+        self.assertIsNone(p._available_fn_ids)  # noqa: SLF001 - white-box test
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

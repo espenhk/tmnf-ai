@@ -655,6 +655,8 @@ class SC2Client:
                     available_fn_ids = set(inferred_fn_ids)
                 else:
                     available_fn_ids &= inferred_fn_ids
+        else:
+            self._available_actions = None
 
         # player_outcome is only meaningful for ladder maps where PySC2 emits
         # a terminal +1 / -1 / 0.  For minigames timestep.reward is a per-step

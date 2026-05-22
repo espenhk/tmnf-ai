@@ -305,8 +305,7 @@ class SC2CNNModel:
     ) -> None:
         info = kwargs.get("info") or {}
         available = info.get("available_fn_ids")
-        if available is not None:
-            self._available_fn_ids = set(available)
+        self._available_fn_ids = set(available) if available is not None else None
 
 
 # ---------------------------------------------------------------------------
