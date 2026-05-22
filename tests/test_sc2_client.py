@@ -901,6 +901,19 @@ class TestSC2ClientProactiveSelection(unittest.TestCase):
         self.client.step(action)
         self.assertEqual(int(self._captured_action[0]), 1)  # select_army
 
+    def test_build_action_falls_back_to_select_army_when_select_point_unavailable(self):
+        """Build_Barracks_screen with empty selection and select_point blocked
+        → select_army fallback."""
+        self.client._selected_count = 0.0
+        self.client._worker_screen_xy = (20, 30)
+        self.client._available_actions = {
+            _FakeFunctions.no_op.id,
+            _FakeFunctions.select_army.id,
+        }
+        action = np.array([8, 0.4, 0.6, 0], dtype=np.float32)
+        self.client.step(action)
+        self.assertEqual(int(self._captured_action[0]), 1)  # select_army
+
 class TestSC2ClientAvailableFnIds(unittest.TestCase):
     """Tests for the info["available_fn_ids"] field added by _timestep_to_obs_info."""
 

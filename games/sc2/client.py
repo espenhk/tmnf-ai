@@ -355,7 +355,16 @@ class SC2Client:
             and fn_name != "no_op"
             and not is_selection
         ):
-            if fn_name.startswith("Build_") and self._worker_screen_xy is not None:
+            select_point_available = (
+                self._available_actions is None
+                or _get_pysc2_id_to_fn_idx().get(_FN_NAME_TO_IDX["select_point"], -1)
+                in self._available_actions
+            )
+            if (
+                fn_name.startswith("Build_")
+                and self._worker_screen_xy is not None
+                and select_point_available
+            ):
                 # Build action: select_point on a visible worker.
                 wx, wy = self._worker_screen_xy
                 x_norm = float(wx) / max(self._screen_size - 1, 1)
