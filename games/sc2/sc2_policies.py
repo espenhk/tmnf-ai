@@ -570,7 +570,7 @@ class SC2NeuralNetPolicy(BasePolicy):
             return 0
         if fn_idx in effective:
             return fn_idx
-        return min(effective, key=lambda i: abs(i - fn_raw))
+        return min(effective, key=lambda i: (abs(i - fn_raw), i))
 
     def __call__(self, obs: np.ndarray) -> np.ndarray:
         x = (obs / self._obs_spec.scales).astype(np.float32)
@@ -741,20 +741,28 @@ class SC2NeuralDQNPolicy(_FrameworkDQN):
             ),
             seed=seed,
         )
+        self._race = race
 
     def to_cfg(self) -> dict:
         cfg = super().to_cfg()
         cfg["policy_type"] = "sc2_neural_dqn"
+        cfg["race"] = self._race
         return cfg
 
     @classmethod
     def from_cfg(cls, cfg: dict, obs_spec: ObsSpec) -> "SC2NeuralDQNPolicy":
-        return super().from_cfg(
+        race = cfg.get("race", "random")
+        policy = super().from_cfg(
             cfg,
             obs_spec=obs_spec,
             discrete_actions=DISCRETE_ACTIONS,
-            available_actions_fn=_sc2_available_actions_mask,
+            available_actions_fn=_sc2_race_available_actions_mask_fn(
+                fn_ids_for_race(race),
+                len(DISCRETE_ACTIONS),
+            ),
         )
+        policy._race = race
+        return policy
 
     def on_episode_start(self, **kwargs) -> None:
         info = kwargs.get("info") or {}
@@ -880,6 +888,7 @@ class SC2REINFORCEPolicy(_FrameworkTwoHeadREINFORCE):
             available_fn_ids_fn  = _sc2_available_fn_ids_fn,
             seed                 = seed,
         )
+        self._race = race
         # Permanent race mask — applied on top of the per-step available_fn_ids.
         self._race_fn_ids: frozenset[int] = fn_ids_for_race(race)
 
@@ -898,6 +907,7 @@ class SC2REINFORCEPolicy(_FrameworkTwoHeadREINFORCE):
     def to_cfg(self) -> dict:
         cfg = super().to_cfg()
         cfg["policy_type"] = "sc2_reinforce"
+        cfg["race"] = self._race
         return cfg
 
     @classmethod

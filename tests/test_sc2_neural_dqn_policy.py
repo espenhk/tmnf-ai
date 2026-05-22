@@ -275,8 +275,7 @@ class TestSC2NeuralDQNPolicyRaceMask(unittest.TestCase):
         self.assertTrue(policy._cached_mask[da_idx])
 
     def test_construct_or_resume_reads_agent_race(self):
-        from games.sc2.actions import fn_ids_for_race, _ZERG_FN_IDS
-        import tempfile, os
+        from games.sc2.actions import _ZERG_FN_IDS
         policy = SC2NeuralDQNPolicy._construct_or_resume(
             obs_spec=SC2_MINIGAME_OBS_SPEC,
             head_names=["fn_idx", "x", "y", "queue"],
@@ -291,6 +290,22 @@ class TestSC2NeuralDQNPolicyRaceMask(unittest.TestCase):
             fn_id = int(DISCRETE_ACTIONS[i, 0])
             if fn_id in _ZERG_FN_IDS:
                 self.assertFalse(policy._cached_mask[i])
+
+    def test_from_cfg_restores_race_mask(self):
+        from games.sc2.actions import _ZERG_FN_IDS
+
+        p = SC2NeuralDQNPolicy(obs_spec=SC2_MINIGAME_OBS_SPEC, hidden_sizes=[8], race="terran")
+        cfg = p.to_cfg()
+        p2 = SC2NeuralDQNPolicy.from_cfg(cfg, SC2_MINIGAME_OBS_SPEC)
+
+        p2.on_episode_start(info={})
+        for i in range(len(DISCRETE_ACTIONS)):
+            fn_id = int(DISCRETE_ACTIONS[i, 0])
+            if fn_id in _ZERG_FN_IDS:
+                self.assertFalse(
+                    p2._cached_mask[i],
+                    f"DISCRETE_ACTIONS[{i}] (fn_id={fn_id}) should stay masked after from_cfg",
+                )
 
 
 if __name__ == "__main__":

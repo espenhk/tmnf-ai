@@ -300,6 +300,7 @@ class TestSC2CMAESPolicyRaceForwarding(unittest.TestCase):
 
     def test_terran_race_blocks_zerg_in_fn_mask(self):
         """With race='terran', _build_fn_mask must return False for Zerg-only fn_ids."""
+        from games.sc2.actions import _ZERG_FN_IDS
         policy = SC2CMAESPolicy._construct_or_resume(
             obs_spec=SC2_MINIGAME_OBS_SPEC,
             head_names=["fn_idx", "x", "y", "queue"],
@@ -309,7 +310,7 @@ class TestSC2CMAESPolicyRaceForwarding(unittest.TestCase):
             re_initialize=True,
         )
         mask = policy._build_fn_mask(None)  # noqa: SLF001
-        for i in range(82, 118):  # Zerg-only fn_ids
+        for i in _ZERG_FN_IDS:
             self.assertFalse(mask[i], f"fn_idx={i} should be masked for terran")
 
 

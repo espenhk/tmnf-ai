@@ -498,10 +498,10 @@ class TestSC2REINFORCERaceMask(unittest.TestCase):
         self.assertTrue(mask.all())
 
     def test_terran_race_blocks_zerg_fn_ids(self):
+        from games.sc2.actions import _ZERG_FN_IDS
         p = SC2REINFORCEPolicy(obs_spec=SC2_MINIGAME_OBS_SPEC, race="terran")
         mask = p._build_fn_mask(None)  # noqa: SLF001
-        # Zerg-only fn_ids 82–117 must be blocked.
-        for i in range(82, 118):
+        for i in _ZERG_FN_IDS:
             self.assertFalse(mask[i], f"fn_idx={i} should be masked for terran")
 
     def test_terran_race_allows_terran_fn_ids(self):
@@ -523,7 +523,6 @@ class TestSC2REINFORCERaceMask(unittest.TestCase):
     def test_from_cfg_restores_race(self):
         p = SC2REINFORCEPolicy(obs_spec=SC2_MINIGAME_OBS_SPEC, race="terran")
         cfg = p.to_cfg()
-        cfg["race"] = "terran"
         p2 = SC2REINFORCEPolicy.from_cfg(cfg, SC2_MINIGAME_OBS_SPEC)
         from games.sc2.actions import fn_ids_for_race
         self.assertEqual(p2._race_fn_ids, fn_ids_for_race("terran"))  # noqa: SLF001
