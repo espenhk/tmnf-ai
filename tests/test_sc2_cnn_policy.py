@@ -149,6 +149,13 @@ class TestSC2CNNModelShape(unittest.TestCase):
         action = model(_dict_obs(n_channels=2))
         self.assertEqual(int(action[0]), 0)
 
+    def test_update_without_available_fn_ids_clears_stale_mask(self):
+        model = _make_model(n_channels=2)
+        model._available_fn_ids = {1}  # noqa: SLF001 - white-box test
+        obs = _dict_obs(n_channels=2)
+        model.update(obs, np.zeros(4, dtype=np.float32), 0.0, obs, False, info={})
+        self.assertIsNone(model._available_fn_ids)  # noqa: SLF001 - white-box test
+
 
 # ---------------------------------------------------------------------------
 # SC2CNNEvolutionPolicy

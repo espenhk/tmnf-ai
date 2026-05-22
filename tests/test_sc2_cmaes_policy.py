@@ -178,6 +178,17 @@ class TestSC2CMAESPolicyMasking(unittest.TestCase):
                  info={"available_fn_ids": [0, 1]})
         self.assertEqual(p._available_fn_ids, {0, 1})
 
+    def test_update_without_available_fn_ids_clears_stale_mask(self):
+        p = SC2CMAESPolicy(
+            obs_spec=SC2_MINIGAME_OBS_SPEC, population_size=4,
+            initial_sigma=0.5, seed=0
+        )
+        _run_one_generation(p)
+        p._available_fn_ids = {0, 1}
+        obs = _rand_obs()
+        p.update(obs, np.zeros(4), 0.0, obs, False, info={})
+        self.assertIsNone(p._available_fn_ids)
+
     def test_no_masking_when_available_fn_ids_is_none(self):
         p = SC2CMAESPolicy(
             obs_spec=SC2_MINIGAME_OBS_SPEC, population_size=4,

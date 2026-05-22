@@ -768,12 +768,14 @@ class TestSC2ClientAvailableFnIds(unittest.TestCase):
     def test_available_fn_ids_absent_when_no_available_actions(self):
         """When the observation has no available_actions key, available_fn_ids is None."""
         client = SC2Client(map_name="MoveToBeacon")
+        client._available_actions = {0, 1}
         ob = self._minigame_ob(available_actions=None)
         client._unit_type_id_to_race = {1: "terran"}
         ob["feature_units"] = np.array([[1, 1]], dtype=np.int32)
         _, info = client._timestep_to_obs_info(_FakeTimeStep(ob))
         self.assertIn("available_fn_ids", info)
         self.assertIsNone(info["available_fn_ids"])
+        self.assertIsNone(client._available_actions)
 
     def test_available_fn_ids_none_when_mapping_unavailable(self):
         """When the PySC2 ID→fn_idx mapping is empty (PySC2 not installed),

@@ -322,10 +322,7 @@ class SC2MultiHeadLinearPolicy:
         """
         info = kwargs.get("info") or {}
         available = info.get("available_fn_ids")
-        if available is not None:
-            self._available_fn_ids = set(available)
-        else:
-            self._available_fn_ids = None
+        self._available_fn_ids = set(available) if available is not None else None
 
     def update(self, obs: np.ndarray, action: np.ndarray, reward: float,
                next_obs: np.ndarray, done: bool, **kwargs) -> None:
@@ -337,8 +334,7 @@ class SC2MultiHeadLinearPolicy:
         """
         info = kwargs.get("info") or {}
         available = info.get("available_fn_ids")
-        if available is not None:
-            self._available_fn_ids = set(available)
+        self._available_fn_ids = set(available) if available is not None else None
 
 
 # ---------------------------------------------------------------------------
@@ -612,10 +608,7 @@ class SC2NeuralNetPolicy(BasePolicy):
     def on_episode_start(self, **kwargs) -> None:
         info = kwargs.get("info") or {}
         available = info.get("available_fn_ids")
-        if available is not None:
-            self._available_fn_ids = set(available)
-        else:
-            self._available_fn_ids = None
+        self._available_fn_ids = set(available) if available is not None else None
 
     def update(
         self,
@@ -628,8 +621,7 @@ class SC2NeuralNetPolicy(BasePolicy):
     ) -> None:
         info = kwargs.get("info") or {}
         available = info.get("available_fn_ids")
-        if available is not None:
-            self._available_fn_ids = set(available)
+        self._available_fn_ids = set(available) if available is not None else None
 
     @classmethod
     def _construct_or_resume(cls, *, obs_spec, head_names, discrete_actions,
@@ -1013,8 +1005,7 @@ class SC2CMAESPolicy(_FrameworkCMAES):
     ) -> None:
         info = kwargs.get("info") or {}
         available = info.get("available_fn_ids")
-        if available is not None:
-            self._available_fn_ids = set(available)
+        self._available_fn_ids = set(available) if available is not None else None
 
     def on_episode_end(self) -> None:
         pass
@@ -1269,8 +1260,7 @@ class SC2LSTMPolicy:
     ) -> None:
         info = kwargs.get("info") or {}
         available = info.get("available_fn_ids")
-        if available is not None:
-            self._available_fn_ids = set(available)
+        self._available_fn_ids = set(available) if available is not None else None
 
     # ------------------------------------------------------------------
     # Serialisation — YAML (to_cfg / from_cfg / save / load)
@@ -1428,4 +1418,3 @@ class SC2LSTMEvolutionPolicy(_FrameworkLSTMEvo):
                         exc,
                     )
         return policy
-

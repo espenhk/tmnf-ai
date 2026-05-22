@@ -630,13 +630,13 @@ class TestSC2MultiHeadLinearPolicyAvailableMask(unittest.TestCase):
         p.update(obs, obs, 0.0, obs, False, info={"available_fn_ids": {1, 2}})
         self.assertEqual(p._available_fn_ids, {1, 2})
 
-    def test_update_no_available_key_leaves_mask_unchanged(self):
-        """update() without available_fn_ids in info does not change the cache."""
+    def test_update_no_available_key_clears_mask(self):
+        """update() without available_fn_ids in info clears stale masks."""
         p = _make_policy()
         p._available_fn_ids = {0, 1}
         obs = np.zeros(SC2_MINIGAME_OBS_SPEC.dim, dtype=np.float32)
         p.update(obs, obs, 0.0, obs, False, info={})
-        self.assertEqual(p._available_fn_ids, {0, 1})
+        self.assertIsNone(p._available_fn_ids)
 
     def test_mask_applied_after_on_episode_start(self):
         """The mask set by on_episode_start is honoured by __call__."""
