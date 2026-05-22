@@ -330,7 +330,29 @@ class SC2Client:
         minigames this is the score increment; for ladder maps it is the
         terminal +1 / -1 / 0.  The reward calculator computes the actual
         training reward in :class:`games.sc2.env.SC2Env`.
+
+        Strategy 2 (proactive selection): if no unit is currently selected
+        and the requested action is not itself a selection command, replace
+        it with ``select_army`` so the agent never idles with an empty
+        selection.
         """
+        fn_idx = int(action[0])
+        fn_name = FUNCTION_IDS.get(fn_idx, "no_op")
+        is_selection = fn_name.startswith("select_")
+        if (
+            self._selected_count < 1.0
+            and fn_name != "no_op"
+            and not is_selection
+        ):
+            from games.sc2.actions import WARMUP_ACTION  # select_army
+            action = WARMUP_ACTION.copy()
+            self._last_fn_idx = 1  # select_army
+            logger.debug(
+                "Proactive selection: %s replaced with select_army "
+                "(no units selected).",
+                fn_name,
+            )
+
         fn_call = self._action_to_call(action)
         timesteps = self._sc2_env.step([fn_call])
         timestep = timesteps[0]

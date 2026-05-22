@@ -323,7 +323,12 @@ Tabular / discrete-output policies (`epsilon_greedy`, `mcts`, `neural_dqn`, `rei
 - Row 1: `select_army` (also the warmup action; auto-issued when a Move_screen is blocked, see below)
 - Rows 2…65: `Move_screen` to each cell centre of an 8×8 grid covering the screen at one-cell-per-8-pixels granularity
 
-When the policy emits any selection-required action (for example move/attack/build/train) while zero units are selected, `SC2Client._action_to_call` substitutes `select_army` instead of silently no-op'ing (issues #121, #124, #286). The next step then has units selected, so the requested command can execute on the following step.
+When the policy emits any selection-required action (for example move/attack/build/train) while zero units are selected, two complementary mechanisms ensure the agent recovers:
+
+1. **Context-aware pre-selection** (`_action_to_call`): blocked build actions (`Build_*`) use `select_idle_worker` (a worker is needed to build); all other blocked actions fall back to `select_army` (issues #121, #124, #286).
+2. **Proactive selection guard** (`step()`): if `_selected_count` is zero and the requested action is neither `no_op` nor a selection command, the action is replaced with `select_army` *before* it reaches `_action_to_call`, so the agent never idles with an empty selection.
+
+Additionally, a 1-step `select_army` warmup is issued at the start of every episode (via `SC2Adapter.build_warmup`).
 
 ---
 
