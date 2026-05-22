@@ -565,9 +565,10 @@ class _FakeFn:
 
 
 class _FakeFunctions:
-    no_op       = _FakeFn(0)
-    select_army = _FakeFn(7)
-    Move_screen = _FakeFn(331)
+    no_op              = _FakeFn(0)
+    select_army        = _FakeFn(7)
+    select_idle_worker = _FakeFn(6)
+    Move_screen        = _FakeFn(331)
     Build_Barracks_screen = _FakeFn(321)
 
 
@@ -614,6 +615,7 @@ class TestSC2ClientActionFallback(unittest.TestCase):
                 0: _FakeFunctions.no_op.id,
                 1: _FakeFunctions.select_army.id,
                 2: _FakeFunctions.Move_screen.id,
+                4: _FakeFunctions.select_idle_worker.id,
                 8: _FakeFunctions.Build_Barracks_screen.id,
             }.get(fn_idx, _FakeFunctions.no_op.id)
             return _FakeFunctionCall(fn_id, [])
@@ -728,13 +730,39 @@ class TestSC2ClientActionFallback(unittest.TestCase):
         self.assertTrue(all(c == _FakeFunctions.no_op.id for c in calls[1:7]))
         self.assertEqual(calls[7], _FakeFunctions.select_army.id)
 
-    def test_build_action_with_no_units_selected_substitutes_select_army(self):
-        """Blocked build action should trigger selection recovery when empty."""
+    def test_build_action_with_no_units_selected_substitutes_select_idle_worker(self):
+        """Blocked build action should prefer select_idle_worker when available."""
+        self.client._available_actions = {
+            _FakeFunctions.no_op.id,
+            _FakeFunctions.select_army.id,
+            _FakeFunctions.select_idle_worker.id,
+        }
+        self.client._selected_count = 0.0
+        action = np.array([8, 0.4, 0.6, 0], dtype=np.float32)
+        call = self.client._action_to_call(action)
+        self.assertEqual(call.function, _FakeFunctions.select_idle_worker.id)
+
+    def test_build_action_falls_back_to_select_army_when_no_idle_worker(self):
+        """Blocked build action falls back to select_army when
+        select_idle_worker is not available."""
         self.client._available_actions = {
             _FakeFunctions.no_op.id, _FakeFunctions.select_army.id,
         }
         self.client._selected_count = 0.0
         action = np.array([8, 0.4, 0.6, 0], dtype=np.float32)
+        call = self.client._action_to_call(action)
+        self.assertEqual(call.function, _FakeFunctions.select_army.id)
+
+    def test_move_action_still_uses_select_army(self):
+        """Non-build blocked actions should still use select_army, not
+        select_idle_worker."""
+        self.client._available_actions = {
+            _FakeFunctions.no_op.id,
+            _FakeFunctions.select_army.id,
+            _FakeFunctions.select_idle_worker.id,
+        }
+        self.client._selected_count = 0.0
+        action = np.array([2, 0.4, 0.6, 0], dtype=np.float32)
         call = self.client._action_to_call(action)
         self.assertEqual(call.function, _FakeFunctions.select_army.id)
 

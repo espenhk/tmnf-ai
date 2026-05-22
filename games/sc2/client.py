@@ -504,10 +504,9 @@ class SC2Client:
 
         Issues #121 / #124 / #286: when the policy emits a blocked
         selection-required action while no units are selected, fall back to
-        ``select_army`` rather than ``no_op``. Otherwise the agent appears to
-        "idle" — the next step has the same observation, the policy emits the
-        same blocked action, and PySC2 keeps no-op'ing it until the policy
-        stochastically elects ``select_army`` itself.
+        a context-aware selection command rather than ``no_op``.  Build
+        actions use ``select_idle_worker`` (a worker is needed to build);
+        everything else falls back to ``select_army``.
         """
         from pysc2.lib import actions as pysc2_actions  # type: ignore[import-untyped]
 
@@ -523,33 +522,52 @@ class SC2Client:
             and int(fn_call.function) not in self._available_actions
         ):
             select_army_id = int(pysc2_actions.FUNCTIONS.select_army.id)
+            select_idle_worker_id = int(
+                pysc2_actions.FUNCTIONS.select_idle_worker.id
+            )
             selection_required = fn_name != "no_op" and not fn_name.startswith("select_")
             no_units_selected = self._selected_count < 1.0
+            # Context-aware selection: build commands need a worker, not the
+            # army.  Use select_idle_worker when available; fall back to
+            # select_army otherwise.
+            is_build_action = fn_name.startswith("Build_")
+            if is_build_action and no_units_selected:
+                preferred_select_id = select_idle_worker_id
+                preferred_fn_idx = 4  # FUNCTION_IDS index for select_idle_worker
+            else:
+                preferred_select_id = select_army_id
+                preferred_fn_idx = 1  # FUNCTION_IDS index for select_army
+            # Fall back to select_army when preferred is not available.
+            if preferred_select_id not in (self._available_actions or set()):
+                preferred_select_id = select_army_id
+                preferred_fn_idx = 1
             if (
                 selection_required
                 and no_units_selected
-                and select_army_id in self._available_actions
+                and preferred_select_id in self._available_actions
             ):
                 self._blocked_unit_targeted_steps += 1
                 if (
                     self._blocked_unit_targeted_steps == 1
                     or self._blocked_unit_targeted_steps % _SELECT_ARMY_RETRY_BLOCKED_STEPS == 0
                 ):
-                    # First blocked step: issue select_army to re-establish army
-                    # selection. If the blocked state persists for many steps
+                    # First blocked step: issue the appropriate selection
+                    # command. If the blocked state persists for many steps
                     # (e.g. post-round transitions), retry periodically so the
                     # agent does not get stuck in perpetual no_op.
                     logger.debug(
-                        "Action %s blocked; auto-selecting army (#124).", fn_name,
+                        "Action %s blocked; auto-selecting (%s).",
+                        fn_name,
+                        FUNCTION_IDS.get(preferred_fn_idx, "select_army"),
                     )
                     # Reflect the executed action, not the requested one, so the
                     # rich preset's last_fn_* one-hot stays consistent.
-                    self._last_fn_idx = 1  # FUNCTION_IDS index for select_army
-                    return pysc2_actions.FunctionCall(select_army_id, [[0]])
+                    self._last_fn_idx = preferred_fn_idx
+                    return pysc2_actions.FunctionCall(preferred_select_id, [[0]])
                 # Between periodic retries, wait with no_op to avoid spamming
-                # select_army every step during short transition windows.
+                # selection commands every step during short transition windows.
                 logger.debug(
-                    "Action %s still blocked after select_army; issuing no_op.", fn_name,
+                    "Action %s still blocked after selection; issuing no_op.", fn_name,
                 )
             else:
                 self._blocked_unit_targeted_steps = 0
