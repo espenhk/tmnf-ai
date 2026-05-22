@@ -1117,7 +1117,7 @@ def _greedy_loop_cmaes(
             trace        = None
             ep_last: EpisodeResult | None = None
             last_info: dict = {}
-            last_trace: RunTrace = RunTrace([], [], [], 0.0)
+            last_trace: RunTrace | None = None
             # Track the replay for the best individual seen this generation.
             # Each candidate save overwrites _candidate.SC2Replay; we save
             # before the next env.reset() discards the current episode's replay.
@@ -1140,8 +1140,7 @@ def _greedy_loop_cmaes(
                 info        = eval_batch.info
                 trace       = eval_batch.trace
                 last_info   = eval_batch.info
-                if eval_batch.trace is not None:
-                    last_trace = eval_batch.trace
+                last_trace = eval_batch.trace
             else:
                 rewards     = []
                 total_steps = 0
@@ -1390,7 +1389,7 @@ def _greedy_loop_genetic(
             info: dict   = {}
             ep_last: EpisodeResult | None = None
             last_info: dict = {}
-            last_trace: RunTrace = RunTrace([], [], [], 0.0)
+            last_trace: RunTrace | None = None
             # Track the replay for the best individual seen this generation.
             _gen_candidate: str | None = None
             _gen_candidate_reward: float = policy.champion_reward
@@ -1408,8 +1407,7 @@ def _greedy_loop_genetic(
                 info        = eval_batch.info
                 trace       = eval_batch.trace
                 last_info   = eval_batch.info
-                if eval_batch.trace is not None:
-                    last_trace = eval_batch.trace
+                last_trace = eval_batch.trace
             else:
                 rewards     = []
                 total_steps = 0
