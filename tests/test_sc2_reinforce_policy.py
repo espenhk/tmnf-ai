@@ -8,6 +8,7 @@ Covers:
   - Serialisation round-trip (to_cfg / from_cfg, save / load, trainer state).
   - available_fn_ids caching via update() kwargs.
 """
+
 from __future__ import annotations
 
 import os
@@ -16,18 +17,17 @@ import unittest
 
 import numpy as np
 
-from games.sc2.obs_spec import SC2_MINIGAME_OBS_SPEC, SC2_LADDER_OBS_SPEC
+from games.sc2.obs_spec import SC2_LADDER_OBS_SPEC, SC2_MINIGAME_OBS_SPEC
 from games.sc2.sc2_policies import (
     N_FUNCTION_IDS,
     N_GRID_CELLS,
     SC2REINFORCEPolicy,
-    _GradEntry,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_policy(
     obs_spec=None,
@@ -59,8 +59,8 @@ def _rand_obs(obs_spec=None, seed: int = 42) -> np.ndarray:
 # Forward pass shape tests
 # ---------------------------------------------------------------------------
 
-class TestSC2REINFORCEForwardShapes(unittest.TestCase):
 
+class TestSC2REINFORCEForwardShapes(unittest.TestCase):
     def setUp(self):
         self.policy = _make_policy(seed=0)
 
@@ -104,7 +104,7 @@ class TestSC2REINFORCEForwardShapes(unittest.TestCase):
         self.assertGreater(max(ys) - min(ys), 0.0, "y coords all identical")
 
     def test_ladder_obs_spec(self):
-        p   = _make_policy(obs_spec=SC2_LADDER_OBS_SPEC)
+        p = _make_policy(obs_spec=SC2_LADDER_OBS_SPEC)
         obs = _rand_obs(obs_spec=SC2_LADDER_OBS_SPEC)
         act = p(obs)
         self.assertEqual(act.shape, (4,))
@@ -139,23 +139,22 @@ class TestSC2REINFORCEForwardShapes(unittest.TestCase):
 # Available-actions masking tests
 # ---------------------------------------------------------------------------
 
-class TestSC2REINFORCEMasking(unittest.TestCase):
 
+class TestSC2REINFORCEMasking(unittest.TestCase):
     def test_masking_never_selects_unavailable_fn(self):
         """When only fn_idx=2 is available, policy must always select it."""
         policy = _make_policy(seed=1)
-        obs    = _rand_obs(seed=5)
+        obs = _rand_obs(seed=5)
         # Manually cache available_fn_ids = {2}
         policy._available_fn_ids = {2}
         for _ in range(50):
             act = policy(obs)
-            self.assertEqual(int(act[0]), 2,
-                             f"Expected fn_idx=2 but got {int(act[0])}")
+            self.assertEqual(int(act[0]), 2, f"Expected fn_idx=2 but got {int(act[0])}")
 
     def test_masking_with_subset_of_fns(self):
         """With only {0, 1} available, fn_idx must be in {0, 1}."""
         policy = _make_policy(seed=2)
-        obs    = _rand_obs(seed=9)
+        obs = _rand_obs(seed=9)
         policy._available_fn_ids = {0, 1}
         for _ in range(50):
             act = policy(obs)
@@ -164,7 +163,7 @@ class TestSC2REINFORCEMasking(unittest.TestCase):
     def test_no_masking_when_available_fn_ids_none(self):
         """With no masking, all fn_idx values are possible over many samples."""
         policy = _make_policy(seed=3)
-        obs    = _rand_obs(seed=11)
+        obs = _rand_obs(seed=11)
         policy._available_fn_ids = None
         seen = set()
         for _ in range(300):
@@ -176,7 +175,7 @@ class TestSC2REINFORCEMasking(unittest.TestCase):
     def test_fallback_to_no_op_when_all_masked(self):
         """If the available set is empty, policy falls back to fn_idx=0 (no_op)."""
         policy = _make_policy(seed=4)
-        obs    = _rand_obs(seed=7)
+        obs = _rand_obs(seed=7)
         policy._available_fn_ids = set()  # empty → _build_fn_mask forces mask[0]=True
         for _ in range(20):
             act = policy(obs)
@@ -185,10 +184,9 @@ class TestSC2REINFORCEMasking(unittest.TestCase):
     def test_update_caches_available_fn_ids(self):
         """update() with info dict should cache available_fn_ids for next call."""
         policy = _make_policy()
-        obs    = _rand_obs()
+        obs = _rand_obs()
         policy(obs)
-        policy.update(obs, np.zeros(4), 1.0, obs, False,
-                      info={"available_fn_ids": {1, 3}})
+        policy.update(obs, np.zeros(4), 1.0, obs, False, info={"available_fn_ids": {1, 3}})
         self.assertEqual(policy._available_fn_ids, {1, 3})
 
     def test_update_without_info_leaves_cache_unchanged(self):
@@ -206,8 +204,7 @@ class TestSC2REINFORCEMasking(unittest.TestCase):
         policy._available_fn_ids = {1}
         obs = _rand_obs()
         policy(obs)
-        policy.update(obs, np.zeros(4), 1.0, obs, False,
-                      info={"available_fn_ids": None})
+        policy.update(obs, np.zeros(4), 1.0, obs, False, info={"available_fn_ids": None})
         # available is None in info → condition `if available is not None` fails
         self.assertEqual(policy._available_fn_ids, {1})
 
@@ -216,24 +213,24 @@ class TestSC2REINFORCEMasking(unittest.TestCase):
 # Episode buffer tests
 # ---------------------------------------------------------------------------
 
-class TestSC2REINFORCEBuffers(unittest.TestCase):
 
+class TestSC2REINFORCEBuffers(unittest.TestCase):
     def test_episode_buffers_fill_on_call(self):
         policy = _make_policy()
-        obs    = _rand_obs()
+        obs = _rand_obs()
         for _ in range(5):
             policy(obs)
             policy.update(obs, np.zeros(4), 1.0, obs, False)
-        self.assertEqual(len(policy._ep_grads),   5)
+        self.assertEqual(len(policy._ep_grads), 5)
         self.assertEqual(len(policy._ep_rewards), 5)
 
     def test_episode_buffers_clear_after_on_episode_end(self):
         policy = _make_policy()
-        obs    = _rand_obs()
+        obs = _rand_obs()
         policy(obs)
         policy.update(obs, np.zeros(4), 1.0, obs, True)
         policy.on_episode_end()
-        self.assertEqual(len(policy._ep_grads),   0)
+        self.assertEqual(len(policy._ep_grads), 0)
         self.assertEqual(len(policy._ep_rewards), 0)
 
     def test_on_episode_end_empty_buffer_is_noop(self):
@@ -242,11 +239,11 @@ class TestSC2REINFORCEBuffers(unittest.TestCase):
 
     def test_on_episode_start_clears_buffers(self):
         policy = _make_policy()
-        obs    = _rand_obs()
+        obs = _rand_obs()
         policy(obs)
         policy.update(obs, np.zeros(4), 0.5, obs, False)
         policy.on_episode_start()
-        self.assertEqual(len(policy._ep_grads),   0)
+        self.assertEqual(len(policy._ep_grads), 0)
         self.assertEqual(len(policy._ep_rewards), 0)
 
     def test_on_episode_start_primes_available_fn_ids_from_reset_info(self):
@@ -258,8 +255,8 @@ class TestSC2REINFORCEBuffers(unittest.TestCase):
     def test_on_episode_start_clears_stale_mask_when_no_reset_info(self):
         """on_episode_start() without info resets the mask to None (no masking)."""
         policy = _make_policy()
-        policy._available_fn_ids = {1, 3}   # simulate stale terminal-state mask
-        policy.on_episode_start()            # no info kwarg
+        policy._available_fn_ids = {1, 3}  # simulate stale terminal-state mask
+        policy.on_episode_start()  # no info kwarg
         self.assertIsNone(policy._available_fn_ids)
 
     def test_on_episode_start_clears_stale_mask_when_info_has_none_fn_ids(self):
@@ -274,8 +271,8 @@ class TestSC2REINFORCEBuffers(unittest.TestCase):
 # Gradient / weight update tests
 # ---------------------------------------------------------------------------
 
-class TestSC2REINFORCEGradients(unittest.TestCase):
 
+class TestSC2REINFORCEGradients(unittest.TestCase):
     def _run_episode(self, policy, obs, reward=1.0) -> SC2REINFORCEPolicy:
         policy(obs)
         policy.update(obs, np.zeros(4), reward, obs, True)
@@ -283,31 +280,26 @@ class TestSC2REINFORCEGradients(unittest.TestCase):
         return policy
 
     def test_trunk_weights_change_after_update(self):
-        policy   = _make_policy(learning_rate=1.0, entropy_coeff=0.0, seed=10)
-        obs      = _rand_obs(seed=20)
+        policy = _make_policy(learning_rate=1.0, entropy_coeff=0.0, seed=10)
+        obs = _rand_obs(seed=20)
         w_before = [w.copy() for w in policy._trunk_w]
         self._run_episode(policy, obs, reward=10.0)
-        changed = any(
-            not np.allclose(wb, wa)
-            for wb, wa in zip(w_before, policy._trunk_w)
-        )
+        changed = any(not np.allclose(wb, wa) for wb, wa in zip(w_before, policy._trunk_w))
         self.assertTrue(changed, "Trunk weights unchanged after gradient step")
 
     def test_fn_head_weights_change_after_update(self):
-        policy   = _make_policy(learning_rate=1.0, entropy_coeff=0.0, seed=11)
-        obs      = _rand_obs(seed=21)
+        policy = _make_policy(learning_rate=1.0, entropy_coeff=0.0, seed=11)
+        obs = _rand_obs(seed=21)
         fn_before = policy._fn_w.copy()
         self._run_episode(policy, obs, reward=10.0)
-        self.assertFalse(np.allclose(fn_before, policy._fn_w),
-                         "fn_head weights unchanged after gradient step")
+        self.assertFalse(np.allclose(fn_before, policy._fn_w), "fn_head weights unchanged after gradient step")
 
     def test_spatial_head_weights_change_after_update(self):
-        policy   = _make_policy(learning_rate=1.0, entropy_coeff=0.0, seed=12)
-        obs      = _rand_obs(seed=22)
+        policy = _make_policy(learning_rate=1.0, entropy_coeff=0.0, seed=12)
+        obs = _rand_obs(seed=22)
         sp_before = policy._sp_w.copy()
         self._run_episode(policy, obs, reward=10.0)
-        self.assertFalse(np.allclose(sp_before, policy._sp_w),
-                         "spatial_head weights unchanged after gradient step")
+        self.assertFalse(np.allclose(sp_before, policy._sp_w), "spatial_head weights unchanged after gradient step")
 
     def test_entropy_coeff_changes_gradient(self):
         """Entropy term should produce different weight updates than entropy=0."""
@@ -318,27 +310,25 @@ class TestSC2REINFORCEGradients(unittest.TestCase):
             p(obs)
             p.update(obs, np.zeros(4), 1.0, obs, True)
             p.on_episode_end()
-            return np.concatenate([
-                w.ravel() for w in p._trunk_w
-            ] + [p._fn_w.ravel(), p._sp_w.ravel()])
+            return np.concatenate([w.ravel() for w in p._trunk_w] + [p._fn_w.ravel(), p._sp_w.ravel()])
 
-        w_no_ent   = _weights_after(0.0)
+        w_no_ent = _weights_after(0.0)
         w_with_ent = _weights_after(1.0)
-        self.assertFalse(np.allclose(w_no_ent, w_with_ent),
-                         "Entropy coeff should change gradient direction")
+        self.assertFalse(np.allclose(w_no_ent, w_with_ent), "Entropy coeff should change gradient direction")
 
     def test_masking_excludes_unavailable_from_gradient(self):
         """With only fn_idx=0 available, fn_head gradient for idx≥1 must be 0."""
         policy = _make_policy(learning_rate=1.0, entropy_coeff=0.0, seed=7)
         policy._available_fn_ids = {0}
-        obs      = _rand_obs(seed=8)
+        obs = _rand_obs(seed=8)
         fn_before = policy._fn_w.copy()
         policy(obs)
         policy.update(obs, np.zeros(4), 5.0, obs, True)
         policy.on_episode_end()
         # Rows 1–5 should not have changed (zero gradient for unavailable).
         np.testing.assert_array_equal(
-            fn_before[1:], policy._fn_w[1:],
+            fn_before[1:],
+            policy._fn_w[1:],
             err_msg="Unavailable fn rows changed after masked gradient step",
         )
 
@@ -346,8 +336,12 @@ class TestSC2REINFORCEGradients(unittest.TestCase):
         """After training with reward, the selected fn_idx prob should increase."""
         np.random.seed(99)
         policy = _make_policy(
-            hidden_sizes=[32], learning_rate=0.5, gamma=1.0,
-            entropy_coeff=0.0, baseline="none", seed=0,
+            hidden_sizes=[32],
+            learning_rate=0.5,
+            gamma=1.0,
+            entropy_coeff=0.0,
+            baseline="none",
+            seed=0,
         )
         obs = _rand_obs(seed=5)
 
@@ -372,25 +366,31 @@ class TestSC2REINFORCEGradients(unittest.TestCase):
             policy.on_episode_end()
 
         prob_after = _prob_fn1()
-        self.assertGreater(prob_after, prob_before,
-                           "REINFORCE did not increase prob of rewarded fn_idx")
+        self.assertGreater(prob_after, prob_before, "REINFORCE did not increase prob of rewarded fn_idx")
 
 
 # ---------------------------------------------------------------------------
 # Serialisation tests
 # ---------------------------------------------------------------------------
 
-class TestSC2REINFORCESerialization(unittest.TestCase):
 
+class TestSC2REINFORCESerialization(unittest.TestCase):
     def test_to_cfg_contains_required_keys(self):
         policy = _make_policy()
-        cfg    = policy.to_cfg()
+        cfg = policy.to_cfg()
         for key in (
-            "policy_type", "hidden_sizes", "learning_rate",
-            "gamma", "entropy_coeff", "baseline",
-            "trunk_weights", "trunk_biases",
-            "fn_weights", "fn_biases",
-            "sp_weights", "sp_biases",
+            "policy_type",
+            "hidden_sizes",
+            "learning_rate",
+            "gamma",
+            "entropy_coeff",
+            "baseline",
+            "trunk_weights",
+            "trunk_biases",
+            "fn_weights",
+            "fn_biases",
+            "sp_weights",
+            "sp_biases",
         ):
             self.assertIn(key, cfg)
 
@@ -399,35 +399,38 @@ class TestSC2REINFORCESerialization(unittest.TestCase):
         self.assertEqual(policy.to_cfg()["policy_type"], "sc2_reinforce")
 
     def test_from_cfg_restores_trunk_weights(self):
-        p1  = _make_policy(seed=1)
+        p1 = _make_policy(seed=1)
         cfg = p1.to_cfg()
-        p2  = SC2REINFORCEPolicy.from_cfg(cfg, SC2_MINIGAME_OBS_SPEC)
+        p2 = SC2REINFORCEPolicy.from_cfg(cfg, SC2_MINIGAME_OBS_SPEC)
         for w1, w2 in zip(p1._trunk_w, p2._trunk_w):
             np.testing.assert_array_equal(w1, w2)
         for b1, b2 in zip(p1._trunk_b, p2._trunk_b):
             np.testing.assert_array_equal(b1, b2)
 
     def test_from_cfg_restores_fn_head(self):
-        p1  = _make_policy(seed=2)
+        p1 = _make_policy(seed=2)
         cfg = p1.to_cfg()
-        p2  = SC2REINFORCEPolicy.from_cfg(cfg, SC2_MINIGAME_OBS_SPEC)
+        p2 = SC2REINFORCEPolicy.from_cfg(cfg, SC2_MINIGAME_OBS_SPEC)
         np.testing.assert_array_equal(p1._fn_w, p2._fn_w)
         np.testing.assert_array_equal(p1._fn_b, p2._fn_b)
 
     def test_from_cfg_restores_spatial_head(self):
-        p1  = _make_policy(seed=3)
+        p1 = _make_policy(seed=3)
         cfg = p1.to_cfg()
-        p2  = SC2REINFORCEPolicy.from_cfg(cfg, SC2_MINIGAME_OBS_SPEC)
+        p2 = SC2REINFORCEPolicy.from_cfg(cfg, SC2_MINIGAME_OBS_SPEC)
         np.testing.assert_array_equal(p1._sp_w, p2._sp_w)
         np.testing.assert_array_equal(p1._sp_b, p2._sp_b)
 
     def test_from_cfg_restores_hyperparams(self):
-        p1  = _make_policy(
-            hidden_sizes=[32], learning_rate=0.0005,
-            gamma=0.98, entropy_coeff=0.1, baseline="none",
+        p1 = _make_policy(
+            hidden_sizes=[32],
+            learning_rate=0.0005,
+            gamma=0.98,
+            entropy_coeff=0.1,
+            baseline="none",
         )
         cfg = p1.to_cfg()
-        p2  = SC2REINFORCEPolicy.from_cfg(cfg, SC2_MINIGAME_OBS_SPEC)
+        p2 = SC2REINFORCEPolicy.from_cfg(cfg, SC2_MINIGAME_OBS_SPEC)
         self.assertEqual(p2._hidden, [32])
         self.assertAlmostEqual(p2._lr, 0.0005)
         self.assertAlmostEqual(p2._gamma, 0.98)
@@ -441,6 +444,7 @@ class TestSC2REINFORCESerialization(unittest.TestCase):
         try:
             p1.save(path)
             import yaml
+
             with open(path) as f:
                 cfg = yaml.safe_load(f)
             p2 = SC2REINFORCEPolicy.from_cfg(cfg, SC2_MINIGAME_OBS_SPEC)
@@ -453,14 +457,13 @@ class TestSC2REINFORCESerialization(unittest.TestCase):
 
     def test_trainer_state_round_trip(self):
         policy = _make_policy()
-        obs    = _rand_obs()
+        obs = _rand_obs()
         # Run a few episodes to shift the baseline.
         for _ in range(3):
             policy(obs)
             policy.update(obs, np.zeros(4), 5.0, obs, True)
             policy.on_episode_end()
-        self.assertNotEqual(policy._baseline_val, 0.0,
-                            "Expected baseline_val to change after training")
+        self.assertNotEqual(policy._baseline_val, 0.0, "Expected baseline_val to change after training")
         with tempfile.NamedTemporaryFile(suffix=".npz", delete=False) as f:
             path = f.name
         try:
@@ -488,6 +491,7 @@ class TestSC2REINFORCESerialization(unittest.TestCase):
 # Race mask tests
 # ---------------------------------------------------------------------------
 
+
 class TestSC2REINFORCERaceMask(unittest.TestCase):
     """Permanent race filter via overridden _build_fn_mask."""
 
@@ -499,6 +503,7 @@ class TestSC2REINFORCERaceMask(unittest.TestCase):
 
     def test_terran_race_blocks_zerg_fn_ids(self):
         from games.sc2.actions import _ZERG_FN_IDS
+
         p = SC2REINFORCEPolicy(obs_spec=SC2_MINIGAME_OBS_SPEC, race="terran")
         mask = p._build_fn_mask(None)  # noqa: SLF001
         for i in _ZERG_FN_IDS:
@@ -506,6 +511,7 @@ class TestSC2REINFORCERaceMask(unittest.TestCase):
 
     def test_terran_race_allows_terran_fn_ids(self):
         from games.sc2.actions import _TERRAN_FN_IDS
+
         p = SC2REINFORCEPolicy(obs_spec=SC2_MINIGAME_OBS_SPEC, race="terran")
         mask = p._build_fn_mask(None)  # noqa: SLF001
         for i in _TERRAN_FN_IDS:
@@ -525,6 +531,7 @@ class TestSC2REINFORCERaceMask(unittest.TestCase):
         cfg = p.to_cfg()
         p2 = SC2REINFORCEPolicy.from_cfg(cfg, SC2_MINIGAME_OBS_SPEC)
         from games.sc2.actions import fn_ids_for_race
+
         self.assertEqual(p2._race_fn_ids, fn_ids_for_race("terran"))  # noqa: SLF001
 
     def test_construct_or_resume_reads_agent_race(self):
@@ -537,6 +544,7 @@ class TestSC2REINFORCERaceMask(unittest.TestCase):
             re_initialize=True,
         )
         from games.sc2.actions import fn_ids_for_race
+
         self.assertEqual(p._race_fn_ids, fn_ids_for_race("terran"))  # noqa: SLF001
 
 

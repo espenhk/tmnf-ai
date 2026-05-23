@@ -4,6 +4,7 @@ Verifies end-to-end integration of SC2Env, the reward calculator, and all
 supported policy types against the 21-dim ladder observation space.  PySC2 is
 not required — the SC2Client is mocked throughout.
 """
+
 import os
 import tempfile
 import unittest
@@ -11,30 +12,30 @@ from unittest.mock import patch
 
 import numpy as np
 
-from games.sc2.env import SC2Env
-from games.sc2.obs_spec import LADDER_OBS_DIM, SC2_LADDER_OBS_SPEC
-from games.sc2.reward import SC2RewardConfig
-from games.sc2.policies import (
-    SC2LinearPolicy,
-    SC2GeneticPolicy,
-)
-from games.sc2.sc2_policies import (
-    SC2NeuralDQNPolicy,
-    SC2CMAESPolicy,
-    SC2REINFORCEPolicy,
-    SC2LSTMPolicy,
-    SC2LSTMEvolutionPolicy,
-)
 from framework.policies import (
     EpsilonGreedyPolicy,
     MCTSPolicy,
 )
 from framework.training import (
-    _greedy_loop_genetic,
     _greedy_loop_cmaes,
+    _greedy_loop_genetic,
     _greedy_loop_q_learning,
 )
-from games.sc2.actions import DISCRETE_ACTIONS, FUNCTION_IDS
+from games.sc2.actions import DISCRETE_ACTIONS
+from games.sc2.env import SC2Env
+from games.sc2.obs_spec import LADDER_OBS_DIM, SC2_LADDER_OBS_SPEC
+from games.sc2.policies import (
+    SC2GeneticPolicy,
+    SC2LinearPolicy,
+)
+from games.sc2.reward import SC2RewardConfig
+from games.sc2.sc2_policies import (
+    SC2CMAESPolicy,
+    SC2LSTMEvolutionPolicy,
+    SC2LSTMPolicy,
+    SC2NeuralDQNPolicy,
+    SC2REINFORCEPolicy,
+)
 
 _OBS_SPEC = SC2_LADDER_OBS_SPEC
 _HEAD_NAMES = ["fn_idx", "x", "y", "queue"]
@@ -71,9 +72,9 @@ def _make_mock_env(done_after: int = 5) -> SC2Env:
         _reset.step_count = 0
         return (
             _ladder_obs(),
-            {"score": 0.0, "minerals": 50.0, "vespene": 0.0,
-             "food_used": 6.0, "food_cap": 15.0, "army_count": 0.0},
+            {"score": 0.0, "minerals": 50.0, "vespene": 0.0, "food_used": 6.0, "food_cap": 15.0, "army_count": 0.0},
         )
+
     _reset.step_count = 0
 
     def _step(action):
@@ -92,7 +93,7 @@ def _make_mock_env(done_after: int = 5) -> SC2Env:
         return _ladder_obs(), 1.0 if is_done else 0.0, is_done, info
 
     mock_client.reset.side_effect = _reset
-    mock_client.step.side_effect  = _step
+    mock_client.step.side_effect = _step
     mock_client.close.return_value = None
     env._client = mock_client
     return env
@@ -101,6 +102,7 @@ def _make_mock_env(done_after: int = 5) -> SC2Env:
 # ---------------------------------------------------------------------------
 # SC2Env ladder smoke tests
 # ---------------------------------------------------------------------------
+
 
 class TestSC2Simple64EnvIntegration(unittest.TestCase):
     """Verify SC2Env step/reset works end-to-end on Simple64."""
@@ -129,22 +131,28 @@ class TestSC2Simple64EnvIntegration(unittest.TestCase):
 
     def test_win_terminates_with_win_bonus(self):
         """Episode terminates with win bonus on player_outcome=1."""
-        cfg = SC2RewardConfig(score_weight=0.0, win_bonus=200.0,
-                              loss_penalty=-200.0, step_penalty=0.0)
+        cfg = SC2RewardConfig(score_weight=0.0, win_bonus=200.0, loss_penalty=-200.0, step_penalty=0.0)
         with patch("games.sc2.env.SC2Client") as mock_cls:
             env = SC2Env(map_name="Simple64", reward_config=cfg)
         mock_client = mock_cls.return_value
         mock_client.reset.return_value = (
             np.zeros(_OBS_DIM, dtype=np.float32),
-            {"score": 0.0, "minerals": 50.0, "vespene": 0.0,
-             "food_used": 0.0, "food_cap": 0.0, "army_count": 0.0},
+            {"score": 0.0, "minerals": 50.0, "vespene": 0.0, "food_used": 0.0, "food_cap": 0.0, "army_count": 0.0},
         )
         mock_client.step.return_value = (
             np.zeros(_OBS_DIM, dtype=np.float32),
-            1.0, True,
-            {"score": 0.0, "minerals": 50.0, "vespene": 0.0,
-             "food_used": 0.0, "food_cap": 0.0, "army_count": 0.0,
-             "player_outcome": 1.0, "is_last": True},
+            1.0,
+            True,
+            {
+                "score": 0.0,
+                "minerals": 50.0,
+                "vespene": 0.0,
+                "food_used": 0.0,
+                "food_cap": 0.0,
+                "army_count": 0.0,
+                "player_outcome": 1.0,
+                "is_last": True,
+            },
         )
         env._client = mock_client
         env.reset()
@@ -156,22 +164,28 @@ class TestSC2Simple64EnvIntegration(unittest.TestCase):
 
     def test_loss_terminates_with_penalty(self):
         """Episode terminates with loss penalty on player_outcome=-1."""
-        cfg = SC2RewardConfig(score_weight=0.0, win_bonus=200.0,
-                              loss_penalty=-200.0, step_penalty=0.0)
+        cfg = SC2RewardConfig(score_weight=0.0, win_bonus=200.0, loss_penalty=-200.0, step_penalty=0.0)
         with patch("games.sc2.env.SC2Client") as mock_cls:
             env = SC2Env(map_name="Simple64", reward_config=cfg)
         mock_client = mock_cls.return_value
         mock_client.reset.return_value = (
             np.zeros(_OBS_DIM, dtype=np.float32),
-            {"score": 0.0, "minerals": 50.0, "vespene": 0.0,
-             "food_used": 0.0, "food_cap": 0.0, "army_count": 0.0},
+            {"score": 0.0, "minerals": 50.0, "vespene": 0.0, "food_used": 0.0, "food_cap": 0.0, "army_count": 0.0},
         )
         mock_client.step.return_value = (
             np.zeros(_OBS_DIM, dtype=np.float32),
-            -1.0, True,
-            {"score": 0.0, "minerals": 50.0, "vespene": 0.0,
-             "food_used": 0.0, "food_cap": 0.0, "army_count": 0.0,
-             "player_outcome": -1.0, "is_last": True},
+            -1.0,
+            True,
+            {
+                "score": 0.0,
+                "minerals": 50.0,
+                "vespene": 0.0,
+                "food_used": 0.0,
+                "food_cap": 0.0,
+                "army_count": 0.0,
+                "player_outcome": -1.0,
+                "is_last": True,
+            },
         )
         env._client = mock_client
         env.reset()
@@ -183,23 +197,29 @@ class TestSC2Simple64EnvIntegration(unittest.TestCase):
 
     def test_economy_reward_flows_through(self):
         """Economy weight produces non-zero reward on mineral delta."""
-        cfg = SC2RewardConfig(score_weight=0.0, win_bonus=0.0, loss_penalty=0.0,
-                              step_penalty=0.0, economy_weight=1.0)
+        cfg = SC2RewardConfig(score_weight=0.0, win_bonus=0.0, loss_penalty=0.0, step_penalty=0.0, economy_weight=1.0)
         with patch("games.sc2.env.SC2Client") as mock_cls:
             env = SC2Env(map_name="Simple64", reward_config=cfg)
         mock_client = mock_cls.return_value
         mock_client.reset.return_value = (
             np.zeros(_OBS_DIM, dtype=np.float32),
-            {"score": 0.0, "minerals": 50.0, "vespene": 0.0,
-             "food_used": 0.0, "food_cap": 0.0, "army_count": 0.0},
+            {"score": 0.0, "minerals": 50.0, "vespene": 0.0, "food_used": 0.0, "food_cap": 0.0, "army_count": 0.0},
         )
         # +25 minerals → economy reward = 1.0 * 25 = 25
         mock_client.step.return_value = (
             np.zeros(_OBS_DIM, dtype=np.float32),
-            0.0, False,
-            {"score": 0.0, "minerals": 75.0, "vespene": 0.0,
-             "food_used": 0.0, "food_cap": 0.0, "army_count": 0.0,
-             "player_outcome": None, "is_last": False},
+            0.0,
+            False,
+            {
+                "score": 0.0,
+                "minerals": 75.0,
+                "vespene": 0.0,
+                "food_used": 0.0,
+                "food_cap": 0.0,
+                "army_count": 0.0,
+                "player_outcome": None,
+                "is_last": False,
+            },
         )
         env._client = mock_client
         env.reset()
@@ -212,6 +232,7 @@ class TestSC2Simple64EnvIntegration(unittest.TestCase):
 # SC2LinearPolicy action encoding verification
 # ---------------------------------------------------------------------------
 
+
 class TestSC2LinearPolicyActionEncoding(unittest.TestCase):
     """Verify SC2LinearPolicy uses sigmoid-based output, not clip/binary."""
 
@@ -221,6 +242,7 @@ class TestSC2LinearPolicyActionEncoding(unittest.TestCase):
     def test_fn_idx_in_valid_range(self):
         """fn_idx must be in [0, N_FUNCTION_IDS-1], not clipped to [-1,1]."""
         from games.sc2.sc2_policies import N_FUNCTION_IDS
+
         rng = np.random.default_rng(0)
         for _ in range(20):
             policy = SC2LinearPolicy(_OBS_SPEC, _HEAD_NAMES)
@@ -243,8 +265,7 @@ class TestSC2LinearPolicyActionEncoding(unittest.TestCase):
             # x and y should not be stuck at exactly 0.0 or 1.0
             if 0.01 < float(action[1]) < 0.99 and 0.01 < float(action[2]) < 0.99:
                 n_interior += 1
-        self.assertGreater(n_interior, 10,
-                           "SC2LinearPolicy x/y should produce interior values, not just 0 or 1")
+        self.assertGreater(n_interior, 10, "SC2LinearPolicy x/y should produce interior values, not just 0 or 1")
 
     def test_queue_is_binary(self):
         """queue must be 0.0 or 1.0 (binary)."""
@@ -263,8 +284,10 @@ class TestSC2LinearPolicyActionEncoding(unittest.TestCase):
     def test_sc2_genetic_population_uses_sc2_linear(self):
         """SC2GeneticPolicy population members must be SC2LinearPolicy instances."""
         policy = SC2GeneticPolicy(
-            obs_spec=_OBS_SPEC, head_names=_HEAD_NAMES,
-            population_size=4, elite_k=2,
+            obs_spec=_OBS_SPEC,
+            head_names=_HEAD_NAMES,
+            population_size=4,
+            elite_k=2,
         )
         policy.initialize_random()
         for member in policy.population:
@@ -273,6 +296,7 @@ class TestSC2LinearPolicyActionEncoding(unittest.TestCase):
     def test_cmaes_offspring_emit_valid_sc2_actions(self):
         """SC2CMAESPolicy offspring must emit valid SC2 action vectors."""
         from games.sc2.sc2_policies import N_FUNCTION_IDS
+
         policy = SC2CMAESPolicy(obs_spec=_OBS_SPEC, population_size=4)
         offspring = policy.sample_population()
         for ind in offspring:
@@ -284,6 +308,7 @@ class TestSC2LinearPolicyActionEncoding(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # SC2-specific advanced policy compatibility on 21-dim ladder obs
 # ---------------------------------------------------------------------------
+
 
 class TestSC2PoliciesOnLadderObs(unittest.TestCase):
     """Verify SC2-specific advanced policies work with the 21-dim ladder obs."""
@@ -298,8 +323,10 @@ class TestSC2PoliciesOnLadderObs(unittest.TestCase):
 
     def test_sc2_genetic_policy_action_shape(self):
         policy = SC2GeneticPolicy(
-            obs_spec=_OBS_SPEC, head_names=_HEAD_NAMES,
-            population_size=4, elite_k=2,
+            obs_spec=_OBS_SPEC,
+            head_names=_HEAD_NAMES,
+            population_size=4,
+            elite_k=2,
         )
         policy.initialize_random()
         action = policy(self._obs())
@@ -331,8 +358,10 @@ class TestSC2PoliciesOnLadderObs(unittest.TestCase):
 
     def test_neural_dqn_policy_update_does_not_crash(self):
         policy = SC2NeuralDQNPolicy(
-            obs_spec=_OBS_SPEC, hidden_sizes=[16],
-            min_replay_size=2, batch_size=2,
+            obs_spec=_OBS_SPEC,
+            hidden_sizes=[16],
+            min_replay_size=2,
+            batch_size=2,
         )
         obs = self._obs()
         action = policy(obs)
@@ -367,7 +396,8 @@ class TestSC2PoliciesOnLadderObs(unittest.TestCase):
 
     def test_reinforce_policy_episode(self):
         policy = SC2REINFORCEPolicy(
-            obs_spec=_OBS_SPEC, hidden_sizes=[8],
+            obs_spec=_OBS_SPEC,
+            hidden_sizes=[8],
             learning_rate=0.01,
         )
         obs = self._obs()
@@ -401,6 +431,7 @@ class TestSC2PoliciesOnLadderObs(unittest.TestCase):
 # Training loop integration: 2 generations with mocked env
 # ---------------------------------------------------------------------------
 
+
 class TestSimple64TrainingLoopSmoke(unittest.TestCase):
     """Run 2 generations of each supported policy type against a mocked Simple64 env."""
 
@@ -428,7 +459,10 @@ class TestSimple64TrainingLoopSmoke(unittest.TestCase):
         wf = self._tmpfile()
         try:
             best_policy, best_reward, sims, _, _ = _greedy_loop_genetic(
-                env=env, policy=policy, n_generations=2, weights_file=wf,
+                env=env,
+                policy=policy,
+                n_generations=2,
+                weights_file=wf,
             )
             self.assertIsNotNone(best_policy)
             self.assertIsInstance(best_reward, float)
@@ -449,7 +483,10 @@ class TestSimple64TrainingLoopSmoke(unittest.TestCase):
         wf = self._tmpfile()
         try:
             best_policy, best_reward, sims, _, _ = _greedy_loop_cmaes(
-                env=env, policy=policy, n_generations=2, weights_file=wf,
+                env=env,
+                policy=policy,
+                n_generations=2,
+                weights_file=wf,
             )
             self.assertIsNotNone(best_policy)
             self.assertIsInstance(best_reward, float)
@@ -470,7 +507,10 @@ class TestSimple64TrainingLoopSmoke(unittest.TestCase):
         wf = self._tmpfile()
         try:
             best_policy, best_reward, sims, _, _ = _greedy_loop_q_learning(
-                env=env, policy=policy, n_episodes=2, weights_file=wf,
+                env=env,
+                policy=policy,
+                n_episodes=2,
+                weights_file=wf,
             )
             self.assertIsNotNone(best_policy)
             self.assertIsInstance(best_reward, float)
@@ -489,7 +529,10 @@ class TestSimple64TrainingLoopSmoke(unittest.TestCase):
         wf = self._tmpfile()
         try:
             best_policy, best_reward, sims, _, _ = _greedy_loop_q_learning(
-                env=env, policy=policy, n_episodes=2, weights_file=wf,
+                env=env,
+                policy=policy,
+                n_episodes=2,
+                weights_file=wf,
             )
             self.assertIsNotNone(best_policy)
             self.assertIsInstance(best_reward, float)
@@ -508,7 +551,10 @@ class TestSimple64TrainingLoopSmoke(unittest.TestCase):
         wf = self._tmpfile()
         try:
             best_policy, best_reward, sims, _, _ = _greedy_loop_cmaes(
-                env=env, policy=policy, n_generations=2, weights_file=wf,
+                env=env,
+                policy=policy,
+                n_generations=2,
+                weights_file=wf,
             )
             self.assertIsNotNone(best_policy)
             self.assertIsInstance(best_reward, float)
@@ -522,6 +568,7 @@ class TestSimple64TrainingLoopSmoke(unittest.TestCase):
 # SC2-specific policy serialisation round-trips
 # ---------------------------------------------------------------------------
 
+
 class TestSC2PolicySaveLoad(unittest.TestCase):
     """Verify that save_trainer_state / load_trainer_state round-trips correctly."""
 
@@ -533,7 +580,7 @@ class TestSC2PolicySaveLoad(unittest.TestCase):
         policy.sample_population()
         policy.update_distribution([5.0, 3.0, 4.0, 2.0])
         original_sigma = policy.sigma
-        original_gen   = policy._gen
+        original_gen = policy._gen
 
         with tempfile.NamedTemporaryFile(suffix=".npz", delete=False) as f:
             path = f.name
@@ -541,7 +588,7 @@ class TestSC2PolicySaveLoad(unittest.TestCase):
             policy.save_trainer_state(path)
             policy2 = SC2CMAESPolicy(
                 obs_spec=_OBS_SPEC,
-                    population_size=4,
+                population_size=4,
             )
             policy2.load_trainer_state(path)
             self.assertAlmostEqual(policy2.sigma, original_sigma, places=6)

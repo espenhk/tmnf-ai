@@ -1000,4 +1000,3 @@ Ranked by best track progress, then by best reward.
 ![Outcome breakdown comparison](comparison_outcomes.png)
 
 ![Aggregate spatial heatmap](comparison_spatial_heatmap.png)
-

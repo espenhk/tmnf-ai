@@ -6,10 +6,10 @@ spawn-based workers can rebuild them in fresh interpreters.
 PYTHONPATH is set in this module so spawn children inherit the search paths
 they need to ``import tests._parallel_eval_helpers``.
 """
+
 from __future__ import annotations
 
 import os
-import sys
 
 # Make spawn children able to find the helpers module + framework package.
 _REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -30,7 +30,6 @@ from tests._parallel_eval_helpers import (
     make_crashing_env_factory,
     make_dummy_env,
 )
-
 
 # Keep workers cheap — these are in-process dummies, no SC2 binary involved.
 _FAST_KW = dict(
@@ -97,9 +96,7 @@ class TestParallelEvaluator:
         """Parallel and serial evaluation produce the same rewards per individual."""
         template = DummyPolicy()
         candidates = [
-            Candidate(individual_idx=i, flat_weights=np.array([float(i) * 0.5]),
-                      eval_episodes=1)
-            for i in range(6)
+            Candidate(individual_idx=i, flat_weights=np.array([float(i) * 0.5]), eval_episodes=1) for i in range(6)
         ]
         serial = _serial_eval(candidates, make_dummy_env, template)
 
@@ -244,9 +241,7 @@ class TestParallelEvaluator:
         )
         try:
             candidates = [
-                Candidate(individual_idx=i, flat_weights=np.array([float(i)]),
-                          eval_episodes=1)
-                for i in range(8)
+                Candidate(individual_idx=i, flat_weights=np.array([float(i)]), eval_episodes=1) for i in range(8)
             ]
             results = evaluator.evaluate(candidates)
         finally:
@@ -261,14 +256,15 @@ class TestParallelEvaluator:
         """Two evaluators with the same seed produce identical results for identical inputs."""
         template = DummyPolicy()
         candidates = [
-            Candidate(individual_idx=i, flat_weights=np.array([float(i) * 0.25]),
-                      eval_episodes=1)
-            for i in range(4)
+            Candidate(individual_idx=i, flat_weights=np.array([float(i) * 0.25]), eval_episodes=1) for i in range(4)
         ]
 
         ev1 = ParallelEvaluator(
-            n_workers=2, make_env_fn=make_dummy_env, template_policy=template,
-            base_seed=42, **_FAST_KW,
+            n_workers=2,
+            make_env_fn=make_dummy_env,
+            template_policy=template,
+            base_seed=42,
+            **_FAST_KW,
         )
         try:
             r1 = ev1.evaluate(candidates)
@@ -276,8 +272,11 @@ class TestParallelEvaluator:
             ev1.close()
 
         ev2 = ParallelEvaluator(
-            n_workers=2, make_env_fn=make_dummy_env, template_policy=template,
-            base_seed=42, **_FAST_KW,
+            n_workers=2,
+            make_env_fn=make_dummy_env,
+            template_policy=template,
+            base_seed=42,
+            **_FAST_KW,
         )
         try:
             r2 = ev2.evaluate(candidates)
@@ -303,15 +302,13 @@ class TestParallelEvaluator:
         """
         template = DummyPolicy()
         evaluator = ParallelEvaluator(
-            n_workers=3, make_env_fn=make_dummy_env, template_policy=template,
+            n_workers=3,
+            make_env_fn=make_dummy_env,
+            template_policy=template,
             **_FAST_KW,
         )
         try:
-            candidates = [
-                Candidate(individual_idx=i, flat_weights=np.array([1.0]),
-                          eval_episodes=1)
-                for i in range(6)
-            ]
+            candidates = [Candidate(individual_idx=i, flat_weights=np.array([1.0]), eval_episodes=1) for i in range(6)]
             results = evaluator.evaluate(candidates, episode_time_limit_s=42.0)
         finally:
             evaluator.close()
@@ -330,34 +327,55 @@ class TestMaybeBuildEvaluator:
 
     def test_returns_none_when_n_workers_is_one(self):
         from framework.training import _maybe_build_evaluator
+
         result = _maybe_build_evaluator(
-            n_workers=1, policy_type="sc2_genetic", loop_kind="genetic",
-            policy=object(), make_env_fn=make_dummy_env,
-            training_params={}, in_game_episode_s=10.0,
+            n_workers=1,
+            policy_type="sc2_genetic",
+            loop_kind="genetic",
+            policy=object(),
+            make_env_fn=make_dummy_env,
+            training_params={},
+            in_game_episode_s=10.0,
         )
         assert result is None
 
     def test_rejects_non_population_policy(self):
         from framework.training import _maybe_build_evaluator
+
         with pytest.raises(ValueError, match="population-based"):
             _maybe_build_evaluator(
-                n_workers=4, policy_type="hill_climbing", loop_kind=None,
-                policy=object(), make_env_fn=make_dummy_env,
-                training_params={}, in_game_episode_s=10.0,
+                n_workers=4,
+                policy_type="hill_climbing",
+                loop_kind=None,
+                policy=object(),
+                make_env_fn=make_dummy_env,
+                training_params={},
+                in_game_episode_s=10.0,
             )
 
     def test_rejects_q_learning_loop(self):
         from framework.training import _maybe_build_evaluator
+
         with pytest.raises(ValueError, match="population-based"):
             _maybe_build_evaluator(
-                n_workers=2, policy_type="epsilon_greedy", loop_kind="q_learning",
-                policy=object(), make_env_fn=make_dummy_env,
-                training_params={}, in_game_episode_s=10.0,
+                n_workers=2,
+                policy_type="epsilon_greedy",
+                loop_kind="q_learning",
+                policy=object(),
+                make_env_fn=make_dummy_env,
+                training_params={},
+                in_game_episode_s=10.0,
             )
 
-    @pytest.mark.parametrize("policy_type", [
-        "sc2_genetic", "sc2_cmaes", "sc2_lstm", "sc2_cnn",
-    ])
+    @pytest.mark.parametrize(
+        "policy_type",
+        [
+            "sc2_genetic",
+            "sc2_cmaes",
+            "sc2_lstm",
+            "sc2_cnn",
+        ],
+    )
     def test_accepts_all_advertised_sc2_policy_types(self, policy_type):
         """All four SC2 population policies advertised in CLAUDE.md / CHANGELOG
         successfully construct a ParallelEvaluator.
@@ -369,31 +387,31 @@ class TestMaybeBuildEvaluator:
         (sc2_cmaes / sc2_lstm / sc2_cnn) or "genetic" (sc2_genetic),
         both of which ``_PARALLEL_EVAL_LOOPS`` accepts.
         """
-        from framework.training import _maybe_build_evaluator
-        from framework.policies import POLICY_REGISTRY
+        import games.sc2.cnn_policy  # noqa: F401
 
         # Import SC2 policies so they register themselves.
         import games.sc2.sc2_policies  # noqa: F401
-        import games.sc2.cnn_policy  # noqa: F401
+        from framework.policies import POLICY_REGISTRY
+        from framework.training import _maybe_build_evaluator
 
         # Look up the LOOP_TYPE from the registry — this is the source of truth
         # now that build_extras is removed (Phase D of #224).
         cls = POLICY_REGISTRY.get(policy_type)
         assert cls is not None, f"{policy_type!r} not in POLICY_REGISTRY"
         loop_kind = cls.LOOP_TYPE
-        assert loop_kind is not None, (
-            f"LOOP_TYPE is None for {policy_type!r}"
-        )
+        assert loop_kind is not None, f"LOOP_TYPE is None for {policy_type!r}"
 
         class _FakePop:
             population_size = 4
             _template = DummyPolicy()
 
         evaluator = _maybe_build_evaluator(
-            n_workers=2, policy_type=policy_type, loop_kind=loop_kind,
-            policy=_FakePop(), make_env_fn=make_dummy_env,
-            training_params={"worker_start_stagger_s": 0.0,
-                             "worker_warmup_timeout_s": 5.0},
+            n_workers=2,
+            policy_type=policy_type,
+            loop_kind=loop_kind,
+            policy=_FakePop(),
+            make_env_fn=make_dummy_env,
+            training_params={"worker_start_stagger_s": 0.0, "worker_warmup_timeout_s": 5.0},
             in_game_episode_s=2.0,
         )
         try:
@@ -413,10 +431,12 @@ class TestMaybeBuildEvaluator:
 
         with caplog.at_level("WARNING"):
             evaluator = _maybe_build_evaluator(
-                n_workers=8, policy_type="sc2_cmaes", loop_kind="cmaes",
-                policy=_FakePop(), make_env_fn=make_dummy_env,
-                training_params={"worker_start_stagger_s": 0.0,
-                                 "worker_warmup_timeout_s": 5.0},
+                n_workers=8,
+                policy_type="sc2_cmaes",
+                loop_kind="cmaes",
+                policy=_FakePop(),
+                make_env_fn=make_dummy_env,
+                training_params={"worker_start_stagger_s": 0.0, "worker_warmup_timeout_s": 5.0},
                 in_game_episode_s=2.0,
             )
         try:
@@ -440,8 +460,7 @@ class TestMaybeBuildEvaluator:
             loop_kind="cmaes",
             policy=_FakePop(),
             make_env_fn=make_dummy_env,
-            training_params={"worker_start_stagger_s": 0.0,
-                             "worker_warmup_timeout_s": 5.0},
+            training_params={"worker_start_stagger_s": 0.0, "worker_warmup_timeout_s": 5.0},
             in_game_episode_s=2.0,
         )
         try:

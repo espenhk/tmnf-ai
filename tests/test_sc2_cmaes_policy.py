@@ -8,6 +8,7 @@ Covers:
   - Trainer-state npz round-trip restores mean and sigma exactly.
   - initialize_from_champion seeds the mean correctly.
 """
+
 from __future__ import annotations
 
 import os
@@ -16,7 +17,7 @@ import unittest
 
 import numpy as np
 
-from games.sc2.obs_spec import SC2_MINIGAME_OBS_SPEC, SC2_LADDER_OBS_SPEC
+from games.sc2.obs_spec import SC2_LADDER_OBS_SPEC, SC2_MINIGAME_OBS_SPEC
 from games.sc2.sc2_policies import (
     N_FUNCTION_IDS,
     N_SPATIAL_ROWS,
@@ -24,10 +25,10 @@ from games.sc2.sc2_policies import (
     SC2MultiHeadLinearPolicy,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_policy(obs_spec=None, pop=4, sigma=0.5, eval_episodes=1) -> SC2CMAESPolicy:
     spec = obs_spec or SC2_MINIGAME_OBS_SPEC
@@ -46,7 +47,6 @@ def _rand_obs(obs_spec=None, seed: int = 42) -> np.ndarray:
 
 
 def _run_one_generation(policy: SC2CMAESPolicy, obs_spec=None) -> None:
-    obs = _rand_obs(obs_spec)
     individuals = policy.sample_population()
     rewards = [float(i) for i in range(len(individuals))]
     policy.update_distribution(rewards)
@@ -56,8 +56,8 @@ def _run_one_generation(policy: SC2CMAESPolicy, obs_spec=None) -> None:
 # Dimension tests
 # ---------------------------------------------------------------------------
 
-class TestSC2CMAESPolicyDimension(unittest.TestCase):
 
+class TestSC2CMAESPolicyDimension(unittest.TestCase):
     def test_theta_dim_minigame(self):
         p = _make_policy()
         expected = (N_FUNCTION_IDS + N_SPATIAL_ROWS) * SC2_MINIGAME_OBS_SPEC.dim
@@ -83,8 +83,8 @@ class TestSC2CMAESPolicyDimension(unittest.TestCase):
 # CMA-ES mechanics
 # ---------------------------------------------------------------------------
 
-class TestSC2CMAESPolicyMechanics(unittest.TestCase):
 
+class TestSC2CMAESPolicyMechanics(unittest.TestCase):
     def test_update_distribution_requires_sample_first(self):
         p = _make_policy()
         with self.assertRaises(RuntimeError):
@@ -120,7 +120,7 @@ class TestSC2CMAESPolicyMechanics(unittest.TestCase):
     def test_call_returns_valid_action_after_generation(self):
         p = _make_policy()
         _run_one_generation(p)
-        obs    = _rand_obs()
+        obs = _rand_obs()
         action = p(obs)
         self.assertEqual(action.shape, (4,))
         self.assertIn(int(action[0]), range(N_FUNCTION_IDS))
@@ -138,12 +138,14 @@ class TestSC2CMAESPolicyMechanics(unittest.TestCase):
 # Available-actions masking
 # ---------------------------------------------------------------------------
 
-class TestSC2CMAESPolicyMasking(unittest.TestCase):
 
+class TestSC2CMAESPolicyMasking(unittest.TestCase):
     def test_masking_never_selects_unavailable_fn(self):
         p = SC2CMAESPolicy(
-            obs_spec=SC2_MINIGAME_OBS_SPEC, population_size=4,
-            initial_sigma=0.5, seed=0,
+            obs_spec=SC2_MINIGAME_OBS_SPEC,
+            population_size=4,
+            initial_sigma=0.5,
+            seed=0,
         )
         _run_one_generation(p)
         rng = np.random.default_rng(1)
@@ -156,10 +158,7 @@ class TestSC2CMAESPolicyMasking(unittest.TestCase):
             self.assertEqual(int(action[0]), 0)
 
     def test_masking_fallback_when_all_unavailable(self):
-        p = SC2CMAESPolicy(
-            obs_spec=SC2_MINIGAME_OBS_SPEC, population_size=4,
-            initial_sigma=0.5, seed=0
-        )
+        p = SC2CMAESPolicy(obs_spec=SC2_MINIGAME_OBS_SPEC, population_size=4, initial_sigma=0.5, seed=0)
         _run_one_generation(p)
         obs = _rand_obs()
         # Empty available set — should fall back to no_op (index 0).
@@ -168,21 +167,14 @@ class TestSC2CMAESPolicyMasking(unittest.TestCase):
         self.assertEqual(int(action[0]), 0)
 
     def test_masking_updated_via_update_kwargs(self):
-        p = SC2CMAESPolicy(
-            obs_spec=SC2_MINIGAME_OBS_SPEC, population_size=4,
-            initial_sigma=0.5, seed=0
-        )
+        p = SC2CMAESPolicy(obs_spec=SC2_MINIGAME_OBS_SPEC, population_size=4, initial_sigma=0.5, seed=0)
         _run_one_generation(p)
         obs = _rand_obs()
-        p.update(obs, np.zeros(4), 0.0, obs, False,
-                 info={"available_fn_ids": [0, 1]})
+        p.update(obs, np.zeros(4), 0.0, obs, False, info={"available_fn_ids": [0, 1]})
         self.assertEqual(p._available_fn_ids, {0, 1})
 
     def test_update_without_available_fn_ids_clears_stale_mask(self):
-        p = SC2CMAESPolicy(
-            obs_spec=SC2_MINIGAME_OBS_SPEC, population_size=4,
-            initial_sigma=0.5, seed=0
-        )
+        p = SC2CMAESPolicy(obs_spec=SC2_MINIGAME_OBS_SPEC, population_size=4, initial_sigma=0.5, seed=0)
         _run_one_generation(p)
         p._available_fn_ids = {0, 1}
         obs = _rand_obs()
@@ -190,10 +182,7 @@ class TestSC2CMAESPolicyMasking(unittest.TestCase):
         self.assertIsNone(p._available_fn_ids)
 
     def test_no_masking_when_available_fn_ids_is_none(self):
-        p = SC2CMAESPolicy(
-            obs_spec=SC2_MINIGAME_OBS_SPEC, population_size=4,
-            initial_sigma=0.5, seed=0
-        )
+        p = SC2CMAESPolicy(obs_spec=SC2_MINIGAME_OBS_SPEC, population_size=4, initial_sigma=0.5, seed=0)
         _run_one_generation(p)
         p._available_fn_ids = None
         obs = _rand_obs()
@@ -206,8 +195,8 @@ class TestSC2CMAESPolicyMasking(unittest.TestCase):
 # Serialisation
 # ---------------------------------------------------------------------------
 
-class TestSC2CMAESPolicySerialisation(unittest.TestCase):
 
+class TestSC2CMAESPolicySerialisation(unittest.TestCase):
     def test_champion_yaml_round_trip(self):
         p = _make_policy(pop=4)
         _run_one_generation(p)
@@ -226,7 +215,7 @@ class TestSC2CMAESPolicySerialisation(unittest.TestCase):
         p = _make_policy(pop=4, sigma=0.5)
         _run_one_generation(p)
         sigma_after = p.sigma
-        mean_after  = p._mean.copy()
+        mean_after = p._mean.copy()
 
         with tempfile.NamedTemporaryFile(suffix=".npz", delete=False) as f:
             path = f.name
@@ -254,8 +243,8 @@ class TestSC2CMAESPolicySerialisation(unittest.TestCase):
 
     def test_initialize_from_champion_sets_mean(self):
         champ = SC2MultiHeadLinearPolicy(SC2_MINIGAME_OBS_SPEC)
-        flat  = champ.to_flat()
-        p     = _make_policy(pop=4)
+        flat = champ.to_flat()
+        p = _make_policy(pop=4)
         p.initialize_from_champion(champ)
         np.testing.assert_array_almost_equal(p._mean, flat.astype(np.float64), decimal=6)
 
@@ -269,11 +258,13 @@ class TestSC2CMAESPolicySerialisation(unittest.TestCase):
 # SC2CMAESPolicy — race forwarding via _construct_or_resume
 # ---------------------------------------------------------------------------
 
+
 class TestSC2CMAESPolicyRaceForwarding(unittest.TestCase):
     """_construct_or_resume must read _agent_race from policy_params."""
 
     def test_construct_or_resume_reads_terran_race(self):
         from games.sc2.actions import fn_ids_for_race
+
         policy = SC2CMAESPolicy._construct_or_resume(
             obs_spec=SC2_MINIGAME_OBS_SPEC,
             head_names=["fn_idx", "x", "y", "queue"],
@@ -287,6 +278,7 @@ class TestSC2CMAESPolicyRaceForwarding(unittest.TestCase):
 
     def test_construct_or_resume_defaults_to_random(self):
         from games.sc2.actions import fn_ids_for_race
+
         policy = SC2CMAESPolicy._construct_or_resume(
             obs_spec=SC2_MINIGAME_OBS_SPEC,
             head_names=["fn_idx", "x", "y", "queue"],
@@ -301,6 +293,7 @@ class TestSC2CMAESPolicyRaceForwarding(unittest.TestCase):
     def test_terran_race_blocks_zerg_in_fn_mask(self):
         """With race='terran', _build_fn_mask must return False for Zerg-only fn_ids."""
         from games.sc2.actions import _ZERG_FN_IDS
+
         policy = SC2CMAESPolicy._construct_or_resume(
             obs_spec=SC2_MINIGAME_OBS_SPEC,
             head_names=["fn_idx", "x", "y", "queue"],

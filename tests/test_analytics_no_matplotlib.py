@@ -3,6 +3,7 @@
 These tests verify that neither framework.analytics nor games.tmnf.analytics
 raises ImportError when matplotlib is absent from sys.modules.
 """
+
 from __future__ import annotations
 
 import importlib
@@ -30,8 +31,7 @@ def _import_without_matplotlib(module_name: str) -> None:
     pre_existing = set(sys.modules.keys())
 
     # Stash real matplotlib modules
-    stashed = {k: v for k, v in sys.modules.items()
-               if k == "matplotlib" or k.startswith("matplotlib.")}
+    stashed = {k: v for k, v in sys.modules.items() if k == "matplotlib" or k.startswith("matplotlib.")}
 
     # Block matplotlib by inserting a dummy that raises on attribute access
     blocker = types.ModuleType("matplotlib")
@@ -48,8 +48,14 @@ def _import_without_matplotlib(module_name: str) -> None:
             del sys.modules[k]
     sys.modules["matplotlib"] = blocker
     # Also block submodules that analytics files import directly
-    for sub in ("matplotlib.pyplot", "matplotlib.cm", "matplotlib.patches",
-                "matplotlib.axes", "matplotlib.figure", "matplotlib.colors"):
+    for sub in (
+        "matplotlib.pyplot",
+        "matplotlib.cm",
+        "matplotlib.patches",
+        "matplotlib.axes",
+        "matplotlib.figure",
+        "matplotlib.colors",
+    ):
         sys.modules[sub] = blocker  # type: ignore[assignment]
 
     # Remove target module so it re-executes
@@ -66,9 +72,7 @@ def _import_without_matplotlib(module_name: str) -> None:
         # like framework.analytics — imported with _HAS_MPL=False as a side
         # effect — from contaminating subsequent tests.
         for k in list(sys.modules):
-            if (k not in pre_existing
-                    and k != "matplotlib"
-                    and not k.startswith("matplotlib.")):
+            if k not in pre_existing and k != "matplotlib" and not k.startswith("matplotlib."):
                 del sys.modules[k]
         # Also explicitly remove the target module and any submodules (handles
         # the case where the target was already in pre_existing and was removed

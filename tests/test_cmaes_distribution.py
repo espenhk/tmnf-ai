@@ -1,4 +1,5 @@
 """Pure-math tests for CMAESDistribution in framework/cmaes.py."""
+
 import unittest
 
 import numpy as np
@@ -11,7 +12,6 @@ def _make(n=5, lam=10, sigma=0.3, seed=0) -> CMAESDistribution:
 
 
 class TestCMAESDistributionInit(unittest.TestCase):
-
     def test_n_stored(self):
         d = _make(n=7)
         self.assertEqual(d._n, 7)
@@ -57,7 +57,6 @@ class TestCMAESDistributionInit(unittest.TestCase):
 
 
 class TestCMAESDistributionInitializeRandom(unittest.TestCase):
-
     def test_mean_is_zero_after_initialize(self):
         d = _make(n=5)
         d.initialize_random()
@@ -65,20 +64,19 @@ class TestCMAESDistributionInitializeRandom(unittest.TestCase):
 
 
 class TestCMAESDistributionSample(unittest.TestCase):
-
     def test_sample_returns_lambda_vectors(self):
-        d   = _make(n=4, lam=8)
+        d = _make(n=4, lam=8)
         pop = d.sample()
         self.assertEqual(len(pop), 8)
 
     def test_sample_vector_shape(self):
-        d   = _make(n=6, lam=5)
+        d = _make(n=6, lam=5)
         pop = d.sample()
         for x in pop:
             self.assertEqual(x.shape, (6,))
 
     def test_sample_vectors_are_distinct(self):
-        d   = _make(n=4, lam=6, seed=1)
+        d = _make(n=4, lam=6, seed=1)
         pop = d.sample()
         for i in range(len(pop)):
             for j in range(i + 1, len(pop)):
@@ -100,7 +98,6 @@ class TestCMAESDistributionSample(unittest.TestCase):
 
 
 class TestCMAESDistributionUpdate(unittest.TestCase):
-
     def _sample_and_update(self, d, rewards=None):
         d.sample()
         if rewards is None:
@@ -114,7 +111,7 @@ class TestCMAESDistributionUpdate(unittest.TestCase):
         self.assertEqual(len(result), 2)
 
     def test_update_returns_best_reward(self):
-        d   = _make(n=3, lam=6)
+        d = _make(n=3, lam=6)
         d.sample()
         rewards = [1.0, 5.0, 2.0, 3.0, 0.5, 4.0]
         best_r, _ = d.update(rewards)
@@ -133,7 +130,7 @@ class TestCMAESDistributionUpdate(unittest.TestCase):
         self.assertEqual(d._gen, 1)
 
     def test_mean_changes_after_update(self):
-        d        = _make(n=5, lam=8, seed=0)
+        d = _make(n=5, lam=8, seed=0)
         old_mean = d._mean.copy()
         self._sample_and_update(d)
         self.assertFalse(np.allclose(d._mean, old_mean))
@@ -178,12 +175,11 @@ class TestCMAESDistributionUpdate(unittest.TestCase):
 
 
 class TestCMAESDistributionConvergence(unittest.TestCase):
-
     def test_converges_toward_quadratic_minimum(self):
         """After 30 generations the mean should be closer to zero than at start."""
-        n      = 5
-        lam    = 20
-        d      = CMAESDistribution(n, population_size=lam, initial_sigma=1.0, seed=0)
+        n = 5
+        lam = 20
+        d = CMAESDistribution(n, population_size=lam, initial_sigma=1.0, seed=0)
         # Force a known non-zero starting mean
         d._mean = np.array([3.0, -2.0, 1.5, -1.0, 2.5])
         target = np.zeros(n)
@@ -192,19 +188,20 @@ class TestCMAESDistributionConvergence(unittest.TestCase):
 
         for _ in range(30):
             xs = d.sample()
-            rewards = [-float(np.sum(x ** 2)) for x in xs]
+            rewards = [-float(np.sum(x**2)) for x in xs]
             d.update(rewards)
 
         final_dist = float(np.linalg.norm(d._mean - target))
-        self.assertLess(final_dist, initial_dist,
-                        f"CMA-ES failed to converge: initial={initial_dist:.3f}, "
-                        f"final={final_dist:.3f}")
+        self.assertLess(
+            final_dist, initial_dist, f"CMA-ES failed to converge: initial={initial_dist:.3f}, final={final_dist:.3f}"
+        )
 
 
 class TestCMAESDistributionSaveLoad(unittest.TestCase):
-
     def test_save_load_preserves_mean(self):
-        import tempfile, os
+        import os
+        import tempfile
+
         d = _make(n=4, lam=8, seed=5)
         for _ in range(3):
             d.sample()
@@ -221,7 +218,9 @@ class TestCMAESDistributionSaveLoad(unittest.TestCase):
             os.unlink(path)
 
     def test_save_load_preserves_sigma(self):
-        import tempfile, os
+        import os
+        import tempfile
+
         d = _make(n=4, lam=8, seed=3)
         d.sample()
         d.update([float(i) for i in range(8)])
@@ -237,7 +236,9 @@ class TestCMAESDistributionSaveLoad(unittest.TestCase):
             os.unlink(path)
 
     def test_save_load_preserves_covariance(self):
-        import tempfile, os
+        import os
+        import tempfile
+
         d = _make(n=4, lam=8, seed=2)
         for _ in range(5):
             d.sample()
@@ -254,7 +255,9 @@ class TestCMAESDistributionSaveLoad(unittest.TestCase):
             os.unlink(path)
 
     def test_save_load_preserves_generation(self):
-        import tempfile, os
+        import os
+        import tempfile
+
         d = _make(n=4, lam=8)
         for _ in range(7):
             d.sample()
@@ -271,7 +274,9 @@ class TestCMAESDistributionSaveLoad(unittest.TestCase):
             os.unlink(path)
 
     def test_load_wrong_dimension_raises(self):
-        import tempfile, os
+        import os
+        import tempfile
+
         d = _make(n=4, lam=8)
         with tempfile.NamedTemporaryFile(suffix=".npz", delete=False) as f:
             path = f.name
@@ -285,7 +290,9 @@ class TestCMAESDistributionSaveLoad(unittest.TestCase):
 
     def test_evolution_continues_after_load(self):
         """After loading state, evolution should continue from the loaded mean."""
-        import tempfile, os
+        import os
+        import tempfile
+
         d = _make(n=4, lam=8, seed=9)
         for _ in range(5):
             d.sample()
@@ -306,8 +313,9 @@ class TestCMAESDistributionSaveLoad(unittest.TestCase):
             prev_mean = d2._mean.copy()
             d2.sample()
             d2.update([float(i) for i in range(8)])
-            self.assertFalse(np.allclose(d2._mean, prev_mean),
-                             "Mean did not change after continuing evolution from loaded state")
+            self.assertFalse(
+                np.allclose(d2._mean, prev_mean), "Mean did not change after continuing evolution from loaded state"
+            )
         finally:
             os.unlink(path)
 

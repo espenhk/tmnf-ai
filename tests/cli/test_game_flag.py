@@ -13,7 +13,6 @@ from __future__ import annotations
 import argparse
 import sys
 import unittest
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 
@@ -27,15 +26,13 @@ class TestGameFlagChoices(unittest.TestCase):
         parser.add_argument(
             "--game",
             default="tmnf",
-            choices=["tmnf", "beamng", "assetto", "car_racing", "torcs", "sc2",
-                     "rocket_league", "iracing"],
+            choices=["tmnf", "beamng", "assetto", "car_racing", "torcs", "sc2", "rocket_league", "iracing"],
         )
         parser.add_argument("--track", default=None)
         parser.add_argument("--no-interrupt", action="store_true")
         parser.add_argument("--re-initialize", action="store_true")
         parser.add_argument("--live-gui", action="store_true")
-        parser.add_argument("--log-level", default="INFO",
-                            choices=["DEBUG", "INFO", "WARNING", "ERROR"])
+        parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"])
         return parser
 
     def test_default_game_is_tmnf(self):
@@ -45,8 +42,7 @@ class TestGameFlagChoices(unittest.TestCase):
 
     def test_all_valid_choices_accepted(self):
         parser = self._build_parser()
-        for game in ("tmnf", "beamng", "assetto", "car_racing", "torcs", "sc2",
-                     "rocket_league", "iracing"):
+        for game in ("tmnf", "beamng", "assetto", "car_racing", "torcs", "sc2", "rocket_league", "iracing"):
             with self.subTest(game=game):
                 args = parser.parse_args(["my_exp", "--game", game])
                 self.assertEqual(args.game, game)
@@ -59,6 +55,7 @@ class TestGameFlagChoices(unittest.TestCase):
     def test_help_text_contains_game_flag(self):
         """--help output should mention all new games."""
         import io
+
         parser = self._build_parser()
         buf = io.StringIO()
         try:
@@ -86,10 +83,10 @@ class TestMainGameFlagChoices(unittest.TestCase):
     def test_main_parser_has_all_choices(self):
         """Import main and verify --game choices include all required values."""
         import main  # noqa: PLC0415
+
         original_argv = sys.argv[:]
         try:
-            for game in ("tmnf", "beamng", "assetto", "car_racing", "torcs", "sc2",
-                         "rocket_league", "iracing"):
+            for game in ("tmnf", "beamng", "assetto", "car_racing", "torcs", "sc2", "rocket_league", "iracing"):
                 sys.argv = ["main.py", "test_exp", "--game", game]
                 # Patch the runners so we don't actually run training.
                 with patch.object(main, "_run_one", MagicMock()):
@@ -103,6 +100,7 @@ class TestMainGameFlagChoices(unittest.TestCase):
 
     def test_main_parser_accepts_live_gui_flag(self):
         import main  # noqa: PLC0415
+
         original_argv = sys.argv[:]
         try:
             sys.argv = ["main.py", "test_exp", "--live-gui"]
@@ -171,6 +169,7 @@ class TestImportErrorConversion(unittest.TestCase):
     def test_assetto_missing_dep_raises_value_error(self):
         """_run_assetto should raise ValueError when assetto_corsa entry is not importable."""
         import main  # noqa: PLC0415
+
         args = argparse.Namespace(
             experiment="test",
             game="assetto",

@@ -1,4 +1,5 @@
 """Tests for redo_analytics.py — re-generate analytics from experiment_data.json."""
+
 from __future__ import annotations
 
 import os
@@ -12,10 +13,10 @@ from framework.analytics import (
     save_experiment_data_json,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_data(
     name: str = "test_exp",
@@ -32,11 +33,16 @@ def _make_data(
         cold_start_restarts=[],
         greedy_sims=[
             GreedySimResult(
-                sim=1, reward=reward, improved=True,
-                throttle_counts=[5, 10, 85], total_steps=100,
+                sim=1,
+                reward=reward,
+                improved=True,
+                throttle_counts=[5, 10, 85],
+                total_steps=100,
                 trace=RunTrace(
-                    pos_x=[0.0, 1.0], pos_z=[0.0, 2.0],
-                    throttle_state=[(0.0, 1.0)], total_reward=reward,
+                    pos_x=[0.0, 1.0],
+                    pos_z=[0.0, 2.0],
+                    throttle_state=[(0.0, 1.0)],
+                    total_reward=reward,
                 ),
             ),
         ],
@@ -44,8 +50,7 @@ def _make_data(
         weights_file=weights_file or f"experiments/{track}/{name}/policy_weights.yaml",
         reward_config_file=reward_config_file or f"experiments/{track}/{name}/reward_config.yaml",
         training_params=params,
-        timings={"start": "2026-01-01 00:00:00", "end": "2026-01-01 01:00:00",
-                 "total_s": 3600.0, "greedy_s": 3600.0},
+        timings={"start": "2026-01-01 00:00:00", "end": "2026-01-01 01:00:00", "total_s": 3600.0, "greedy_s": 3600.0},
         track=track,
     )
 
@@ -84,29 +89,36 @@ def _write_experiment(
 # Game detection
 # ---------------------------------------------------------------------------
 
+
 class TestDetectGame(unittest.TestCase):
     def test_game_key_used_when_present(self):
         from redo_analytics import _detect_game
+
         self.assertEqual(_detect_game({"game": "torcs", "n_sims": 50}), "torcs")
 
     def test_assetto_alias_is_normalized(self):
         from redo_analytics import _detect_game
+
         self.assertEqual(_detect_game({"game": "assetto_corsa"}), "assetto")
 
     def test_sc2_detected_by_map_name(self):
         from redo_analytics import _detect_game
+
         self.assertEqual(_detect_game({"map_name": "MoveToBeacon", "n_sims": 50}), "sc2")
 
     def test_sc2_detected_by_agent_race(self):
         from redo_analytics import _detect_game
+
         self.assertEqual(_detect_game({"agent_race": "terran", "n_sims": 50}), "sc2")
 
     def test_tmnf_default_for_racing_params(self):
         from redo_analytics import _detect_game
+
         self.assertEqual(_detect_game({"speed": 10.0, "n_sims": 100, "mutation_scale": 0.05}), "tmnf")
 
     def test_empty_params_defaults_to_tmnf(self):
         from redo_analytics import _detect_game
+
         self.assertEqual(_detect_game({}), "tmnf")
 
 
@@ -114,21 +126,25 @@ class TestDetectGame(unittest.TestCase):
 # Analytics loader
 # ---------------------------------------------------------------------------
 
+
 class TestLoadAnalyticsFns(unittest.TestCase):
     def test_tmnf_returns_callables(self):
         from redo_analytics import _load_analytics_fns
+
         save_exp, save_grid = _load_analytics_fns("tmnf")
         self.assertTrue(callable(save_exp))
         self.assertTrue(callable(save_grid))
 
     def test_unknown_game_falls_back_gracefully(self):
         from redo_analytics import _load_analytics_fns
+
         save_exp, save_grid = _load_analytics_fns("nonexistent_game")
         self.assertTrue(callable(save_exp))
         self.assertTrue(callable(save_grid))
 
     def test_assetto_alias_loads_assetto_module(self):
         from redo_analytics import _load_analytics_fns
+
         save_exp, _ = _load_analytics_fns("assetto")
         self.assertTrue(callable(save_exp))
         self.assertEqual(save_exp.__name__, "save_experiment_results")
@@ -138,6 +154,7 @@ class TestLoadAnalyticsFns(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # redo_analytics: single experiment
 # ---------------------------------------------------------------------------
+
 
 class TestRedoAnalyticsSingle(unittest.TestCase):
     def test_regenerates_results_md(self):
@@ -173,8 +190,7 @@ class TestRedoAnalyticsSingle(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             d = _write_experiment(tmpdir, "exp1")
             summary_dir = os.path.join(tmpdir, "my_summary")
-            redo_analytics([d], game="tmnf", summary_name="my_summary",
-                           summary_dir=summary_dir)
+            redo_analytics([d], game="tmnf", summary_name="my_summary", summary_dir=summary_dir)
             self.assertTrue(os.path.exists(os.path.join(summary_dir, "summary.md")))
 
     def test_missing_experiment_dir_is_skipped(self):
@@ -199,16 +215,16 @@ class TestRedoAnalyticsSingle(unittest.TestCase):
 # redo_analytics: multiple experiments
 # ---------------------------------------------------------------------------
 
+
 class TestRedoAnalyticsMultiple(unittest.TestCase):
     def test_summary_md_written(self):
         from redo_analytics import redo_analytics
 
         with tempfile.TemporaryDirectory() as tmpdir:
             d1 = _write_experiment(tmpdir, "exp__ms0.05", training_params={"mutation_scale": 0.05, "n_sims": 5})
-            d2 = _write_experiment(tmpdir, "exp__ms0.1",  training_params={"mutation_scale": 0.10, "n_sims": 5})
+            d2 = _write_experiment(tmpdir, "exp__ms0.1", training_params={"mutation_scale": 0.10, "n_sims": 5})
             summary_dir = os.path.join(tmpdir, "summary")
-            redo_analytics([d1, d2], game="tmnf", summary_name="test_summary",
-                           summary_dir=summary_dir)
+            redo_analytics([d1, d2], game="tmnf", summary_name="test_summary", summary_dir=summary_dir)
             self.assertTrue(os.path.exists(os.path.join(summary_dir, "summary.md")))
 
     def test_summary_contains_experiment_names(self):
@@ -216,10 +232,9 @@ class TestRedoAnalyticsMultiple(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             d1 = _write_experiment(tmpdir, "alpha", training_params={"mutation_scale": 0.05, "n_sims": 5})
-            d2 = _write_experiment(tmpdir, "beta",  training_params={"mutation_scale": 0.10, "n_sims": 5})
+            d2 = _write_experiment(tmpdir, "beta", training_params={"mutation_scale": 0.10, "n_sims": 5})
             summary_dir = os.path.join(tmpdir, "summary")
-            redo_analytics([d1, d2], game="tmnf", summary_name="gs",
-                           summary_dir=summary_dir)
+            redo_analytics([d1, d2], game="tmnf", summary_name="gs", summary_dir=summary_dir)
             with open(os.path.join(summary_dir, "summary.md")) as f:
                 content = f.read()
             self.assertIn("alpha", content)
@@ -247,8 +262,7 @@ class TestRedoAnalyticsMultiple(unittest.TestCase):
                 rmd = os.path.join(d, "results", "results.md")
                 if os.path.exists(rmd):
                     os.remove(rmd)
-            redo_analytics([d1, d2], game="tmnf", summary_name="s",
-                           summary_dir=summary_dir, no_individual=True)
+            redo_analytics([d1, d2], game="tmnf", summary_name="s", summary_dir=summary_dir, no_individual=True)
             self.assertFalse(os.path.exists(os.path.join(d1, "results", "results.md")))
             self.assertFalse(os.path.exists(os.path.join(d2, "results", "results.md")))
             self.assertTrue(os.path.exists(os.path.join(summary_dir, "summary.md")))
@@ -281,8 +295,7 @@ class TestRedoAnalyticsMultiple(unittest.TestCase):
             bad = os.path.join(tmpdir, "bad")
             os.makedirs(bad)  # no results/ inside
             summary_dir = os.path.join(tmpdir, "summary")
-            redo_analytics([d1, bad], game="tmnf", summary_name="s",
-                           summary_dir=summary_dir)
+            redo_analytics([d1, bad], game="tmnf", summary_name="s", summary_dir=summary_dir)
             with open(os.path.join(summary_dir, "summary.md")) as f:
                 content = f.read()
             self.assertIn("1 experiments", content)
@@ -290,8 +303,7 @@ class TestRedoAnalyticsMultiple(unittest.TestCase):
     def test_auto_detect_sc2_game(self):
         from redo_analytics import redo_analytics
 
-        sc2_params = {"map_name": "MoveToBeacon", "agent_race": "terran",
-                      "n_sims": 5, "step_mul": 8}
+        sc2_params = {"map_name": "MoveToBeacon", "agent_race": "terran", "n_sims": 5, "step_mul": 8}
         with tempfile.TemporaryDirectory() as tmpdir:
             d = _write_experiment(tmpdir, "sc2_exp", training_params=sc2_params)
             # Should not raise; SC2 analytics will be used.

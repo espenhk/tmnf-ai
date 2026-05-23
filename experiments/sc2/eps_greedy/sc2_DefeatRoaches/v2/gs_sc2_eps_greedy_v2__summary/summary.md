@@ -3689,4 +3689,3 @@ Ranked by best track progress, then by best reward.
 ![Reward trajectory](../gs_sc2_eps_greedy_v2__enable_beliefTrue__ed0.995__alpha0.05__bins4__idle_bonus0.5/results/reward_trajectory.png)
 
 ![Task metrics](../gs_sc2_eps_greedy_v2__enable_beliefTrue__ed0.995__alpha0.05__bins4__idle_bonus0.5/results/task_metrics.png)
-

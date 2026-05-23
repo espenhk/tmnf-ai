@@ -1,0 +1,19 @@
+speed: 8.0
+n_sims: 1000
+in_game_episode_s: 180.0
+n_lidar_rays: 8
+policy_type: neural_dqn
+learning_rate: 0.0005
+batch_size: 64
+target_update_freq: 100
+epsilon_decay_steps: 2000
+gamma: 0.99
+policy_params:
+  hidden_sizes:
+  - 64
+  - 64
+  replay_buffer_size: 10000
+  min_replay_size: 500
+  epsilon_start: 1.0
+  epsilon_end: 0.05
+live_gui: true

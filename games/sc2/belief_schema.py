@@ -21,13 +21,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import yaml
 
 from framework.belief import EWMABelief
 from framework.info_gain import RegionStalenessTracker
 from framework.obs_spec import ObsDim, ObsSpec
-
 
 # ---------------------------------------------------------------------------
 # Default config values
@@ -57,6 +55,7 @@ def load_belief_config(path: str | Path) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Factory helpers
 # ---------------------------------------------------------------------------
+
 
 def make_belief(cfg: dict[str, Any] | None = None) -> EWMABelief:
     """Create a belief module from a config dict."""

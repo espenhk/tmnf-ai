@@ -10,7 +10,9 @@ class IRacingAdapter:
     config_dir = "games/iracing/config"
 
     def experiment_dir(
-        self, experiment_name: str, training_params: dict,
+        self,
+        experiment_name: str,
+        training_params: dict,
         track_override: str | None,
     ) -> str:
         policy = training_params.get("policy_type", "hill_climbing")
@@ -18,34 +20,45 @@ class IRacingAdapter:
         return f"experiments/iracing/{policy}/{track}/{experiment_name}"
 
     def experiment_dir_root(
-        self, training_params: dict, track_override: str | None,
+        self,
+        training_params: dict,
+        track_override: str | None,
     ) -> str:
         policy = training_params.get("policy_type", "hill_climbing")
         track = self.track_label(training_params, track_override)
         return f"experiments/iracing/{policy}/{track}"
 
     def track_label(
-        self, training_params: dict, track_override: str | None,
+        self,
+        training_params: dict,
+        track_override: str | None,
     ) -> str:
         return track_override or training_params.get("track", "laguna_seca")
 
     def decorate_reward_cfg(
-        self, reward_cfg: dict, training_params: dict,
+        self,
+        reward_cfg: dict,
+        training_params: dict,
         track_override: str | None,
     ) -> None:
         pass
 
     def build_game_spec(
-        self, experiment_name: str, experiment_dir: str,
-        weights_file: str, reward_cfg_file: str,
-        training_params: dict, track_override: str | None,
+        self,
+        experiment_name: str,
+        experiment_dir: str,
+        weights_file: str,
+        reward_cfg_file: str,
+        training_params: dict,
+        track_override: str | None,
     ) -> GameSpec:
-        from games.iracing.obs_spec import IRACING_OBS_SPEC
         from games.iracing.actions import DISCRETE_ACTIONS
         from games.iracing.analytics import save_experiment_results
+        from games.iracing.obs_spec import IRACING_OBS_SPEC
 
         def _make_env():
             from games.iracing.env import make_env
+
             return make_env(
                 experiment_dir=experiment_dir,
                 max_episode_time_s=training_params["in_game_episode_s"],

@@ -1,29 +1,28 @@
 """Tests for the TORCS analytics module."""
+
 import os
 import tempfile
 import unittest
 
-import numpy as np
-
 from framework.analytics import (
-    ExperimentData,
-    RunTrace,
-    ProbeResult,
-    ColdStartSimResult,
     ColdStartRestartResult,
+    ColdStartSimResult,
+    ExperimentData,
     GreedySimResult,
+    ProbeResult,
+    RunTrace,
 )
 from games.torcs.analytics import (
-    save_experiment_results,
-    save_torcs_plots,
-    save_grid_summary,
+    plot_cold_start_action_dist,
     plot_greedy_action_dist,
     plot_greedy_progress,
-    plot_termination_reasons,
-    plot_weight_heatmap,
-    plot_weight_evolution,
-    plot_cold_start_action_dist,
     plot_gs_comparison_progress,
+    plot_termination_reasons,
+    plot_weight_evolution,
+    plot_weight_heatmap,
+    save_experiment_results,
+    save_grid_summary,
+    save_torcs_plots,
 )
 
 
@@ -69,12 +68,14 @@ def _make_experiment(
             )
             for s in range(3)
         ]
-        restarts.append(ColdStartRestartResult(
-            restart=r + 1,
-            sims=sims,
-            best_reward=max(s.reward for s in sims),
-            beat_probe_floor=r > 0,
-        ))
+        restarts.append(
+            ColdStartRestartResult(
+                restart=r + 1,
+                sims=sims,
+                best_reward=max(s.reward for s in sims),
+                beat_probe_floor=r > 0,
+            )
+        )
 
     greedy = [
         GreedySimResult(

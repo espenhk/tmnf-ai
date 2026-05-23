@@ -896,4 +896,3 @@ Ranked by best track progress, then by best reward.
 ![Supply-capped comparison](comparison_supply_capped.png)
 
 ![Aggregate spatial heatmap](comparison_spatial_heatmap.png)
-

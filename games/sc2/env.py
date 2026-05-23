@@ -156,9 +156,12 @@ class SC2Env(BaseGameEnv):
         self._prev_game_loop: float = 0.0
         if enable_belief:
             from games.sc2.belief_schema import (
-                load_belief_config, make_belief, make_info_gain,
                 extend_obs_spec,
+                load_belief_config,
+                make_belief,
+                make_info_gain,
             )
+
             _belief_cfg_path = Path(__file__).parent / "config" / "belief_config.yaml"
             self._belief_cfg = load_belief_config(_belief_cfg_path)
             self._belief = make_belief(self._belief_cfg)
@@ -172,14 +175,17 @@ class SC2Env(BaseGameEnv):
         )
         if self._use_spatial:
             n_channels = len(self._screen_layers) + len(self._minimap_layers)
-            self.observation_space = spaces.Dict({
-                "flat": flat_space,
-                "spatial": spaces.Box(
-                    low=0.0, high=1.0,
-                    shape=(n_channels, screen_size, screen_size),
-                    dtype=np.float32,
-                ),
-            })
+            self.observation_space = spaces.Dict(
+                {
+                    "flat": flat_space,
+                    "spatial": spaces.Box(
+                        low=0.0,
+                        high=1.0,
+                        shape=(n_channels, screen_size, screen_size),
+                        dtype=np.float32,
+                    ),
+                }
+            )
             self._spatial_shape = (n_channels, screen_size, screen_size)
         else:
             self.observation_space = flat_space
@@ -208,9 +214,7 @@ class SC2Env(BaseGameEnv):
         )
 
         # APM limiter — None when no limit is requested.
-        self._apm_limiter: ApmLimiter | None = (
-            ApmLimiter(max_apm, burst_s=apm_burst_s) if max_apm is not None else None
-        )
+        self._apm_limiter: ApmLimiter | None = ApmLimiter(max_apm, burst_s=apm_burst_s) if max_apm is not None else None
 
         # Episode tracking
         self._prev_obs: np.ndarray | None = None
@@ -235,9 +239,9 @@ class SC2Env(BaseGameEnv):
         self._ep_skipped_frames: int = 0
         # Per-episode SC2 end-screen analytics (supply cap, time-series, build order).
         self._ep_supply_capped_steps: int = 0
-        self._ep_army_series: list = []       # [[game_time_s, army_count], ...]
-        self._ep_resource_series: list = []   # [[game_time_s, minerals+vespene], ...]
-        self._ep_build_order: list = []       # [[game_time_s, unit_name], ...]
+        self._ep_army_series: list = []  # [[game_time_s, army_count], ...]
+        self._ep_resource_series: list = []  # [[game_time_s, minerals+vespene], ...]
+        self._ep_build_order: list = []  # [[game_time_s, unit_name], ...]
         self._ep_prev_unit_counts: dict[str, float] = {}
 
     # ------------------------------------------------------------------
@@ -293,8 +297,7 @@ class SC2Env(BaseGameEnv):
             _benc = self._belief.encode()
             _senc = self._info_gain.staleness().astype(np.float32)
             if self._use_spatial:
-                obs = {"flat": np.concatenate([obs["flat"], _benc, _senc]),
-                       "spatial": obs["spatial"]}
+                obs = {"flat": np.concatenate([obs["flat"], _benc, _senc]), "spatial": obs["spatial"]}
             else:
                 obs = np.concatenate([obs, _benc, _senc])
 
@@ -360,9 +363,7 @@ class SC2Env(BaseGameEnv):
         _curr_game_loop = self._safe_float_or_none(info.get("game_loop"))
         if _curr_game_loop is not None and self._prev_step_game_loop is not None:
             _delta = max(0.0, _curr_game_loop - self._prev_step_game_loop)
-            _skipped_frames_this_step = int(
-                max(0.0, np.floor(_delta - float(self._step_mul) + 1e-6))
-            )
+            _skipped_frames_this_step = int(max(0.0, np.floor(_delta - float(self._step_mul) + 1e-6)))
             self._ep_skipped_frames += _skipped_frames_this_step
             self._apm_game_time_s += _delta / _SC2_TICKS_PER_S
         else:
@@ -387,24 +388,27 @@ class SC2Env(BaseGameEnv):
         # can attribute reward to score / economy / penalties separately
         # (issue #128/2b).
         for k, v in step_components.items():
-            self._ep_reward_components[k] = (
-                self._ep_reward_components.get(k, 0.0) + float(v)
-            )
+            self._ep_reward_components[k] = self._ep_reward_components.get(k, 0.0) + float(v)
         info["episode_reward_components"] = dict(self._ep_reward_components)
 
         # Track per-episode action counts (analytics 2a) using the executed
         # action for consistency with reward shaping and debug metadata.
-        self._ep_action_counts[_executed_fn_idx] = (
-            self._ep_action_counts.get(_executed_fn_idx, 0) + 1
-        )
+        self._ep_action_counts[_executed_fn_idx] = self._ep_action_counts.get(_executed_fn_idx, 0) + 1
         # Track 8×8 spatial-target histogram (analytics 2d).
         if len(action) >= 3:
             _xi = min(7, int(float(np.clip(action[1], 0.0, 1.0)) * 8))
             _yi = min(7, int(float(np.clip(action[2], 0.0, 1.0)) * 8))
             self._ep_xy_hist[_yi, _xi] += 1
         # Track key game-state feature averages (analytics 2c).
-        for _feat in ("army_count", "food_used", "food_cap", "minerals", "vespene",
-                      "screen_self_count", "screen_enemy_count"):
+        for _feat in (
+            "army_count",
+            "food_used",
+            "food_cap",
+            "minerals",
+            "vespene",
+            "screen_self_count",
+            "screen_enemy_count",
+        ):
             _v = info.get(_feat)
             if _v is not None:
                 self._ep_obs_sums[_feat] = self._ep_obs_sums.get(_feat, 0.0) + float(_v)
@@ -412,19 +416,16 @@ class SC2Env(BaseGameEnv):
         info["episode_action_counts"] = dict(self._ep_action_counts)
         info["episode_xy_hist"] = self._ep_xy_hist.tolist()
         if self._ep_obs_step_count > 0:
-            info["episode_obs_averages"] = {
-                k: v / self._ep_obs_step_count
-                for k, v in self._ep_obs_sums.items()
-            }
+            info["episode_obs_averages"] = {k: v / self._ep_obs_step_count for k, v in self._ep_obs_sums.items()}
 
         # Track SC2 end-screen analytics: supply cap, time-series, build order.
         _game_time_s = float(info.get("game_loop", 0.0)) / _SC2_TICKS_PER_S
         _food_used = info.get("food_used", 0.0)
-        _food_cap  = info.get("food_cap",  0.0)
+        _food_cap = info.get("food_cap", 0.0)
         if _food_cap > 0 and _food_used >= _food_cap:
             self._ep_supply_capped_steps += 1
         _army_count = info.get("army_count", 0.0)
-        _resources  = info.get("minerals", 0.0) + info.get("vespene", 0.0)
+        _resources = info.get("minerals", 0.0) + info.get("vespene", 0.0)
         self._ep_army_series.append([_game_time_s, _army_count])
         self._ep_resource_series.append([_game_time_s, _resources])
         # Build-order: detect unit-count increases from client's unit_counts dict.
@@ -442,15 +443,13 @@ class SC2Env(BaseGameEnv):
         # mid-episode policy.update() calls are not burdened with copying/
         # serialising O(n) lists on every step.
         if terminated or truncated:
-            info["episode_supply_capped_fraction"] = (
-                self._ep_supply_capped_steps / self._ep_obs_step_count
-            )
-            info["episode_army_series"]     = self._ep_army_series
+            info["episode_supply_capped_fraction"] = self._ep_supply_capped_steps / self._ep_obs_step_count
+            info["episode_army_series"] = self._ep_army_series
             info["episode_resource_series"] = self._ep_resource_series
-            info["episode_build_order"]     = self._ep_build_order
+            info["episode_build_order"] = self._ep_build_order
             # Kill stats: score_cumulative counters are cumulative and reset
             # each episode, so the final value equals the episode total.
-            info["episode_killed_value_units"]      = info.get("killed_value_units", 0.0)
+            info["episode_killed_value_units"] = info.get("killed_value_units", 0.0)
             info["episode_killed_value_structures"] = info.get("killed_value_structures", 0.0)
 
         if finished:
@@ -495,11 +494,10 @@ class SC2Env(BaseGameEnv):
                     if h >= n_rows and w >= n_cols:
                         rs = h // n_rows
                         cs = w // n_cols
-                        trimmed = vis[:n_rows * rs, :n_cols * cs]
+                        trimmed = vis[: n_rows * rs, : n_cols * cs]
                         pooled = trimmed.reshape(n_rows, rs, n_cols, cs).max(axis=(1, 3))
-                        visible_slots = (pooled.flatten() >= 2.0)
-                        belief_obs = np.where(visible_slots,
-                                              pooled.flatten() / 2.0, np.nan)
+                        visible_slots = pooled.flatten() >= 2.0
+                        belief_obs = np.where(visible_slots, pooled.flatten() / 2.0, np.nan)
 
             self._belief.project(max(dt_s, 0.0))
             self._belief.update(belief_obs, {})
@@ -512,15 +510,12 @@ class SC2Env(BaseGameEnv):
             _benc = self._belief.encode().astype(np.float32)
             _senc = self._info_gain.staleness().astype(np.float32)
             if self._use_spatial:
-                obs = {"flat": np.concatenate([obs["flat"], _benc, _senc]),
-                       "spatial": obs["spatial"]}
+                obs = {"flat": np.concatenate([obs["flat"], _benc, _senc]), "spatial": obs["spatial"]}
             else:
                 obs = np.concatenate([obs, _benc, _senc])
 
             reward += scout_reward
-            self._ep_reward_components["scout"] = (
-                self._ep_reward_components.get("scout", 0.0) + float(scout_reward)
-            )
+            self._ep_reward_components["scout"] = self._ep_reward_components.get("scout", 0.0) + float(scout_reward)
             # Refresh the snapshot so episode_reward_components includes scout.
             info["episode_reward_components"] = dict(self._ep_reward_components)
 
@@ -564,9 +559,7 @@ class SC2Env(BaseGameEnv):
     def _build_obs(self, step: Any) -> np.ndarray:
         """Not used directly — obs comes from the client's reset/step."""
         if self._use_spatial:
-            return np.zeros(
-                self.observation_space["flat"].shape, dtype=np.float32
-            )
+            return np.zeros(self.observation_space["flat"].shape, dtype=np.float32)
         return np.zeros(self.observation_space.shape, dtype=np.float32)
 
     def _get_game_info(self) -> dict:

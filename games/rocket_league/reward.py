@@ -57,10 +57,7 @@ class RocketLeagueRewardConfig:
             d = yaml.safe_load(f) or {}
         unknown = [k for k in d if k not in cls.__dataclass_fields__]
         if unknown:
-            raise ValueError(
-                f"Unknown reward config key(s): {unknown}. "
-                f"Valid keys: {list(cls.__dataclass_fields__)}"
-            )
+            raise ValueError(f"Unknown reward config key(s): {unknown}. Valid keys: {list(cls.__dataclass_fields__)}")
         return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
 
 

@@ -3,6 +3,7 @@
 Optional dependency: beamng_gym — only required when actually connecting to
 the BeamNG.drive simulator.  This module itself has no external dependencies.
 """
+
 from __future__ import annotations
 
 import dataclasses

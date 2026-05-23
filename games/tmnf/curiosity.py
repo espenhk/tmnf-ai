@@ -29,10 +29,10 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _he_init(rng: np.random.Generator, fan_in: int, fan_out: int) -> np.ndarray:
     std = np.sqrt(2.0 / max(fan_in, 1))
@@ -56,12 +56,8 @@ class _MLP:
         if len(dims) < 2:
             raise ValueError("MLP needs at least an input and output layer.")
         rng = np.random.default_rng(seed)
-        self.weights: list[np.ndarray] = [
-            _he_init(rng, dims[i], dims[i + 1]) for i in range(len(dims) - 1)
-        ]
-        self.biases: list[np.ndarray] = [
-            np.zeros(dims[i + 1], dtype=np.float32) for i in range(len(dims) - 1)
-        ]
+        self.weights: list[np.ndarray] = [_he_init(rng, dims[i], dims[i + 1]) for i in range(len(dims) - 1)]
+        self.biases: list[np.ndarray] = [np.zeros(dims[i + 1], dtype=np.float32) for i in range(len(dims) - 1)]
         self.lr = float(lr)
 
     def forward(self, x: np.ndarray, cache: dict | None = None) -> np.ndarray:
@@ -77,9 +73,7 @@ class _MLP:
                 cache["acts"].append(a)
         return a
 
-    def backward(
-        self, dout: np.ndarray, cache: dict
-    ) -> tuple[np.ndarray, list[np.ndarray], list[np.ndarray]]:
+    def backward(self, dout: np.ndarray, cache: dict) -> tuple[np.ndarray, list[np.ndarray], list[np.ndarray]]:
         """Backprop *dout* (gradient w.r.t. output) through the cached pass.
 
         Returns ``(dx, grads_W, grads_b)`` where ``dx`` is the gradient w.r.t.
@@ -104,12 +98,13 @@ class _MLP:
             return
         for i in range(len(self.weights)):
             self.weights[i] = self.weights[i] - self.lr * grads_W[i]
-            self.biases[i]  = self.biases[i]  - self.lr * grads_b[i]
+            self.biases[i] = self.biases[i] - self.lr * grads_b[i]
 
 
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
 
 class CuriosityModule(ABC):
     """Abstract interface for online-trained intrinsic reward modules."""
@@ -160,17 +155,14 @@ class ICM(CuriosityModule):
             raise ValueError(f"beta must lie in [0, 1], got {beta}")
         if obs_dim <= 0 or action_dim <= 0 or feature_dim <= 0:
             raise ValueError("obs_dim, action_dim and feature_dim must be positive")
-        self.obs_dim     = int(obs_dim)
-        self.action_dim  = int(action_dim)
+        self.obs_dim = int(obs_dim)
+        self.action_dim = int(action_dim)
         self.feature_dim = int(feature_dim)
-        self.beta        = float(beta)
-        self.eta         = float(eta)
-        self.encoder      = _MLP([obs_dim, hidden_size, feature_dim],
-                                 lr=lr, seed=seed)
-        self.forward_net  = _MLP([feature_dim + action_dim, hidden_size, feature_dim],
-                                 lr=lr, seed=seed + 1)
-        self.inverse_net  = _MLP([feature_dim * 2, hidden_size, action_dim],
-                                 lr=lr, seed=seed + 2)
+        self.beta = float(beta)
+        self.eta = float(eta)
+        self.encoder = _MLP([obs_dim, hidden_size, feature_dim], lr=lr, seed=seed)
+        self.forward_net = _MLP([feature_dim + action_dim, hidden_size, feature_dim], lr=lr, seed=seed + 1)
+        self.inverse_net = _MLP([feature_dim * 2, hidden_size, action_dim], lr=lr, seed=seed + 2)
 
     # ---------------- inference -----------------------------------------
 
@@ -185,10 +177,9 @@ class ICM(CuriosityModule):
     ) -> float:
         f_prev = self._encode(prev_obs)
         f_curr = self._encode(curr_obs)
-        a      = _as_row(action)
+        a = _as_row(action)
         if a.shape[1] != self.action_dim:
-            raise ValueError(
-                f"action dim mismatch: got {a.shape[1]}, expected {self.action_dim}")
+            raise ValueError(f"action dim mismatch: got {a.shape[1]}, expected {self.action_dim}")
         f_pred = self.forward_net.forward(np.concatenate([f_prev, a], axis=1))
         diff = f_curr - f_pred
         return float(self.eta * 0.5 * np.sum(diff * diff))
@@ -203,8 +194,7 @@ class ICM(CuriosityModule):
     ) -> None:
         a = _as_row(action)
         if a.shape[1] != self.action_dim:
-            raise ValueError(
-                f"action dim mismatch: got {a.shape[1]}, expected {self.action_dim}")
+            raise ValueError(f"action dim mismatch: got {a.shape[1]}, expected {self.action_dim}")
 
         # --- forward passes with caches so we can backprop -------------------
         enc_prev_cache: dict = {}
@@ -214,12 +204,14 @@ class ICM(CuriosityModule):
 
         fwd_cache: dict = {}
         f_pred = self.forward_net.forward(
-            np.concatenate([f_prev, a], axis=1), cache=fwd_cache,
+            np.concatenate([f_prev, a], axis=1),
+            cache=fwd_cache,
         )
 
         inv_cache: dict = {}
         a_pred = self.inverse_net.forward(
-            np.concatenate([f_prev, f_curr], axis=1), cache=inv_cache,
+            np.concatenate([f_prev, f_curr], axis=1),
+            cache=inv_cache,
         )
 
         # --- loss gradients --------------------------------------------------
@@ -241,10 +233,12 @@ class ICM(CuriosityModule):
 
         # --- encoder backward (two caches with shared weights, sum grads) ----
         _, gW_prev, gb_prev = self.encoder.backward(
-            d_f_prev_from_fwd + d_f_prev_from_inv, enc_prev_cache,
+            d_f_prev_from_fwd + d_f_prev_from_inv,
+            enc_prev_cache,
         )
         _, gW_curr, gb_curr = self.encoder.backward(
-            d_f_curr_from_fwd + d_f_curr_from_inv, enc_curr_cache,
+            d_f_curr_from_fwd + d_f_curr_from_inv,
+            enc_curr_cache,
         )
         gW_enc = [p + c for p, c in zip(gW_prev, gW_curr)]
         gb_enc = [p + c for p, c in zip(gb_prev, gb_curr)]
@@ -274,12 +268,12 @@ class RND(CuriosityModule):
     ) -> None:
         if obs_dim <= 0 or feature_dim <= 0:
             raise ValueError("obs_dim and feature_dim must be positive")
-        self.obs_dim     = int(obs_dim)
+        self.obs_dim = int(obs_dim)
         self.feature_dim = int(feature_dim)
-        self.eta         = float(eta)
+        self.eta = float(eta)
         # lr=0 on the target net freezes it (apply() short-circuits).
-        self.target    = _MLP([obs_dim, hidden_size, feature_dim], lr=0.0, seed=seed)
-        self.predictor = _MLP([obs_dim, hidden_size, feature_dim], lr=lr,  seed=seed + 1)
+        self.target = _MLP([obs_dim, hidden_size, feature_dim], lr=0.0, seed=seed)
+        self.predictor = _MLP([obs_dim, hidden_size, feature_dim], lr=lr, seed=seed + 1)
 
     def reward(
         self,
@@ -312,6 +306,7 @@ class RND(CuriosityModule):
 # Factory
 # ---------------------------------------------------------------------------
 
+
 def make_curiosity(
     kind: str,
     *,
@@ -333,11 +328,16 @@ def make_curiosity(
     if k == "none":
         return None
     if k == "icm":
-        return ICM(obs_dim=obs_dim, action_dim=action_dim, feature_dim=feature_dim,
-                   hidden_size=hidden_size, lr=lr, beta=beta, eta=eta, seed=seed)
+        return ICM(
+            obs_dim=obs_dim,
+            action_dim=action_dim,
+            feature_dim=feature_dim,
+            hidden_size=hidden_size,
+            lr=lr,
+            beta=beta,
+            eta=eta,
+            seed=seed,
+        )
     if k == "rnd":
-        return RND(obs_dim=obs_dim, feature_dim=feature_dim, hidden_size=hidden_size,
-                   lr=lr, eta=eta, seed=seed)
-    raise ValueError(
-        f"unknown curiosity_type: {kind!r} (expected 'none', 'icm', or 'rnd')"
-    )
+        return RND(obs_dim=obs_dim, feature_dim=feature_dim, hidden_size=hidden_size, lr=lr, eta=eta, seed=seed)
+    raise ValueError(f"unknown curiosity_type: {kind!r} (expected 'none', 'icm', or 'rnd')")

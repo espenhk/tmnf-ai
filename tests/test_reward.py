@@ -1,12 +1,13 @@
 """Tests for RewardCalculator and RewardConfig in tmnf/rl/reward.py."""
-import tempfile
+
 import os
+import tempfile
 import unittest
 
 import numpy as np
-
 from helpers import make_state_data
-from games.tmnf.curiosity import ICM, RND, make_curiosity
+
+from games.tmnf.curiosity import ICM, make_curiosity
 from rl.reward import RewardCalculator, RewardConfig
 
 
@@ -19,7 +20,6 @@ def _write_yaml(content: str) -> str:
 
 
 class TestRewardConfig(unittest.TestCase):
-
     def test_defaults(self):
         cfg = RewardConfig()
         self.assertEqual(cfg.finish_bonus, 100.0)
@@ -60,16 +60,12 @@ class TestRewardConfig(unittest.TestCase):
 
 
 class TestRewardCalculator(unittest.TestCase):
-
     def setUp(self):
-        self.cfg  = RewardConfig()
+        self.cfg = RewardConfig()
         self.calc = RewardCalculator(self.cfg)
 
-    def _r(self, prev, curr, finished=False, elapsed_s=0.0, accelerating=False,
-           n_ticks=1):
-        return self.calc.compute(prev, curr, finished, elapsed_s,
-                                 info={"accelerating": accelerating},
-                                 n_ticks=n_ticks)
+    def _r(self, prev, curr, finished=False, elapsed_s=0.0, accelerating=False, n_ticks=1):
+        return self.calc.compute(prev, curr, finished, elapsed_s, info={"accelerating": accelerating}, n_ticks=n_ticks)
 
     # --- Progress ---
 
@@ -110,7 +106,7 @@ class TestRewardCalculator(unittest.TestCase):
     def test_finish_time_penalty_over_par(self):
         prev = make_state_data(track_progress=1.0)
         curr = make_state_data(track_progress=1.0, speed=(0.0, 0.0, 0.0))
-        on_par   = self._r(prev, curr, finished=True, elapsed_s=60.0)
+        on_par = self._r(prev, curr, finished=True, elapsed_s=60.0)
         over_par = self._r(prev, curr, finished=True, elapsed_s=70.0)
         # 10 s over par → extra -0.1 * 10 = -1.0
         self.assertAlmostEqual(on_par - over_par, 1.0, places=4)
@@ -127,7 +123,7 @@ class TestRewardCalculator(unittest.TestCase):
         prev = make_state_data(track_progress=0.5, speed=(5.0, 0.0, 0.0))
         curr = make_state_data(track_progress=0.5, speed=(6.0, 0.0, 0.0))
         r_accel = self._r(prev, curr, accelerating=True)
-        r_coast  = self._r(prev, curr, accelerating=False)
+        r_coast = self._r(prev, curr, accelerating=False)
         # Speed component is the same in both calls; only accel_bonus differs.
         self.assertAlmostEqual(r_accel - r_coast, self.cfg.accel_bonus, places=4)
 
@@ -135,7 +131,7 @@ class TestRewardCalculator(unittest.TestCase):
         # No accel bonus when the car is stuck (speed unchanged or decreasing).
         state = make_state_data(track_progress=0.5, speed=(0.0, 0.0, 0.0))
         r_accel = self._r(state, state, accelerating=True)
-        r_coast  = self._r(state, state, accelerating=False)
+        r_coast = self._r(state, state, accelerating=False)
         self.assertAlmostEqual(r_accel - r_coast, 0.0, places=4)
 
     # --- Step penalty ---
@@ -149,25 +145,24 @@ class TestRewardCalculator(unittest.TestCase):
 
     def test_airborne_penalty_when_off_ground(self):
         # ≤1 wheel contact AND vertical_offset ≤ 0 → penalty applied
-        prev = make_state_data(track_progress=0.5, vertical_offset=-1.0,
-                               wheel_contacts=(True, False, False, False))
-        curr = make_state_data(track_progress=0.5, vertical_offset=-1.0,
-                               speed=(0.0, 0.0, 0.0),
-                               wheel_contacts=(True, False, False, False))
-        reward_air  = self._r(prev, curr)
+        prev = make_state_data(track_progress=0.5, vertical_offset=-1.0, wheel_contacts=(True, False, False, False))
+        curr = make_state_data(
+            track_progress=0.5, vertical_offset=-1.0, speed=(0.0, 0.0, 0.0), wheel_contacts=(True, False, False, False)
+        )
+        reward_air = self._r(prev, curr)
         reward_land = self._r(
             prev,
-            make_state_data(track_progress=0.5, vertical_offset=-1.0,
-                            speed=(0.0, 0.0, 0.0),
-                            wheel_contacts=(True, True, True, True)),
+            make_state_data(
+                track_progress=0.5, vertical_offset=-1.0, speed=(0.0, 0.0, 0.0), wheel_contacts=(True, True, True, True)
+            ),
         )
         self.assertLess(reward_air, reward_land)
 
     def test_airborne_penalty_not_applied_above_centreline(self):
         # vertical_offset > 0 → legitimate jump → no airborne penalty
-        state = make_state_data(track_progress=0.5, vertical_offset=1.0,
-                                speed=(0.0, 0.0, 0.0),
-                                wheel_contacts=(False, False, False, False))
+        state = make_state_data(
+            track_progress=0.5, vertical_offset=1.0, speed=(0.0, 0.0, 0.0), wheel_contacts=(False, False, False, False)
+        )
         reward = self._r(state, state)
         # Should NOT have airborne penalty — only step penalty (≈ -0.01)
         self.assertGreater(reward, self.cfg.airborne_penalty)
@@ -177,14 +172,11 @@ class TestNTicksScaling(unittest.TestCase):
     """Per-tick reward components must scale linearly with n_ticks."""
 
     def setUp(self):
-        self.cfg  = RewardConfig()
+        self.cfg = RewardConfig()
         self.calc = RewardCalculator(self.cfg)
 
-    def _r(self, prev, curr, n_ticks=1, finished=False, elapsed_s=0.0,
-           accelerating=False):
-        return self.calc.compute(prev, curr, finished, elapsed_s,
-                                 info={"accelerating": accelerating},
-                                 n_ticks=n_ticks)
+    def _r(self, prev, curr, n_ticks=1, finished=False, elapsed_s=0.0, accelerating=False):
+        return self.calc.compute(prev, curr, finished, elapsed_s, info={"accelerating": accelerating}, n_ticks=n_ticks)
 
     def test_centerline_scales_with_n_ticks(self):
         # lateral_offset=2, progress=0, speed=0 → only centerline + step_penalty vary
@@ -194,8 +186,7 @@ class TestNTicksScaling(unittest.TestCase):
         r3 = self._r(prev, curr, n_ticks=3)
         # centerline contribution: cfg.centerline_weight * 2^2 = -2.0 per tick
         # step_penalty also scales, so r3 - r1 == 2 * (centerline + step_penalty)
-        expected_diff = 2.0 * (self.cfg.centerline_weight * 2.0 ** self.cfg.centerline_exp
-                               + self.cfg.step_penalty)
+        expected_diff = 2.0 * (self.cfg.centerline_weight * 2.0**self.cfg.centerline_exp + self.cfg.step_penalty)
         self.assertAlmostEqual(r3 - r1, expected_diff, places=5)
 
     def test_speed_scales_with_n_ticks(self):
@@ -208,12 +199,12 @@ class TestNTicksScaling(unittest.TestCase):
         self.assertAlmostEqual(r3 - r1, expected_diff, places=5)
 
     def test_airborne_penalty_scales_with_n_ticks(self):
-        prev = make_state_data(track_progress=0.5, vertical_offset=-1.0,
-                               speed=(0.0, 0.0, 0.0),
-                               wheel_contacts=(True, False, False, False))
-        curr = make_state_data(track_progress=0.5, vertical_offset=-1.0,
-                               speed=(0.0, 0.0, 0.0),
-                               wheel_contacts=(True, False, False, False))
+        prev = make_state_data(
+            track_progress=0.5, vertical_offset=-1.0, speed=(0.0, 0.0, 0.0), wheel_contacts=(True, False, False, False)
+        )
+        curr = make_state_data(
+            track_progress=0.5, vertical_offset=-1.0, speed=(0.0, 0.0, 0.0), wheel_contacts=(True, False, False, False)
+        )
         r1 = self._r(prev, curr, n_ticks=1)
         r3 = self._r(prev, curr, n_ticks=3)
         # airborne + step_penalty scale; diff = 2 * (airborne_penalty + step_penalty)
@@ -227,9 +218,7 @@ class TestNTicksScaling(unittest.TestCase):
         r1 = self._r(prev, curr, n_ticks=1, accelerating=True)
         r3 = self._r(prev, curr, n_ticks=3, accelerating=True)
         # accel_bonus, speed_weight * curr_speed, and step_penalty all scale linearly.
-        expected_diff = 2.0 * (self.cfg.accel_bonus
-                               + self.cfg.speed_weight * 6.0
-                               + self.cfg.step_penalty)
+        expected_diff = 2.0 * (self.cfg.accel_bonus + self.cfg.speed_weight * 6.0 + self.cfg.step_penalty)
         self.assertAlmostEqual(r3 - r1, expected_diff, places=5)
 
     def test_finish_bonus_does_not_scale_with_n_ticks(self):
@@ -272,12 +261,10 @@ class TestRewardConfigMultiTrack(unittest.TestCase):
         self.assertEqual(cfg.centerline_path, "tracks/b05_centerline.npy")
 
     def test_from_yaml_reads_track_fields(self):
-        import tempfile, os
-        yaml_content = (
-            "progress_weight: 10.0\n"
-            "track_name: b05\n"
-            "centerline_path: tracks/b05_centerline.npy\n"
-        )
+        import os
+        import tempfile
+
+        yaml_content = "progress_weight: 10.0\ntrack_name: b05\ncenterline_path: tracks/b05_centerline.npy\n"
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write(yaml_content)
             tmp = f.name
@@ -290,7 +277,9 @@ class TestRewardConfigMultiTrack(unittest.TestCase):
 
     def test_from_yaml_backward_compat_missing_fields(self):
         """Old YAML files without track_name/centerline_path fall back to defaults."""
-        import tempfile, os
+        import os
+        import tempfile
+
         yaml_content = "progress_weight: 10.0\nfinish_bonus: 100.0\n"
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write(yaml_content)
@@ -307,10 +296,8 @@ class TestRewardCuriosityIntegration(unittest.TestCase):
     """RewardCalculator + curiosity: defaults stay backward compatible."""
 
     def _states(self):
-        prev = make_state_data(track_progress=0.5, lateral_offset=0.0,
-                               speed=(0.0, 0.0, 0.0))
-        curr = make_state_data(track_progress=0.5, lateral_offset=0.0,
-                               speed=(0.0, 0.0, 0.0))
+        prev = make_state_data(track_progress=0.5, lateral_offset=0.0, speed=(0.0, 0.0, 0.0))
+        curr = make_state_data(track_progress=0.5, lateral_offset=0.0, speed=(0.0, 0.0, 0.0))
         return prev, curr
 
     def test_default_config_is_backward_compatible(self):
@@ -320,38 +307,44 @@ class TestRewardCuriosityIntegration(unittest.TestCase):
         # No curiosity attached -> bit-for-bit unchanged behaviour.
         calc_plain = RewardCalculator(cfg)
         prev, curr = self._states()
-        r_plain = calc_plain.compute(prev, curr, finished=False, elapsed_s=0.0,
-                                     info={"accelerating": True})
+        r_plain = calc_plain.compute(prev, curr, finished=False, elapsed_s=0.0, info={"accelerating": True})
         # Even if a module is somehow attached, weight=0 still skips it.
         icm = ICM(obs_dim=4, action_dim=3, seed=0)
         calc_off = RewardCalculator(cfg, curiosity=icm)
-        r_off = calc_off.compute(prev, curr, finished=False, elapsed_s=0.0,
-                                 info={"accelerating": True,
-                                       "prev_obs": np.zeros(4, dtype=np.float32),
-                                       "curr_obs": np.ones(4, dtype=np.float32),
-                                       "action":   np.array([0.5, 1.0, 0.0],
-                                                            dtype=np.float32)})
+        r_off = calc_off.compute(
+            prev,
+            curr,
+            finished=False,
+            elapsed_s=0.0,
+            info={
+                "accelerating": True,
+                "prev_obs": np.zeros(4, dtype=np.float32),
+                "curr_obs": np.ones(4, dtype=np.float32),
+                "action": np.array([0.5, 1.0, 0.0], dtype=np.float32),
+            },
+        )
         self.assertAlmostEqual(r_plain, r_off, places=6)
 
     def test_icm_adds_positive_intrinsic_reward(self):
         cfg = RewardConfig(curiosity_type="icm", curiosity_weight=10.0)
-        icm = make_curiosity("icm", obs_dim=4, action_dim=3,
-                             feature_dim=4, hidden_size=8, seed=1)
+        icm = make_curiosity("icm", obs_dim=4, action_dim=3, feature_dim=4, hidden_size=8, seed=1)
         calc = RewardCalculator(cfg, curiosity=icm)
         prev, curr = self._states()
 
         rng = np.random.default_rng(9)
         prev_obs = rng.standard_normal(4).astype(np.float32)
         curr_obs = rng.standard_normal(4).astype(np.float32)
-        action   = rng.standard_normal(3).astype(np.float32)
-        info = {"accelerating": False,
-                "prev_obs": prev_obs, "curr_obs": curr_obs, "action": action}
+        action = rng.standard_normal(3).astype(np.float32)
+        info = {"accelerating": False, "prev_obs": prev_obs, "curr_obs": curr_obs, "action": action}
 
         r_with = calc.compute(prev, curr, finished=False, elapsed_s=0.0, info=info)
 
         cfg_off = RewardConfig()
         r_without = RewardCalculator(cfg_off).compute(
-            prev, curr, finished=False, elapsed_s=0.0,
+            prev,
+            curr,
+            finished=False,
+            elapsed_s=0.0,
             info={"accelerating": False},
         )
         self.assertGreater(r_with, r_without)
@@ -360,31 +353,22 @@ class TestRewardCuriosityIntegration(unittest.TestCase):
         # Intrinsic bonus should scale linearly with n_ticks, like the other
         # per-tick reward components, so the intrinsic-vs-extrinsic ratio is
         # invariant to skip-event frequency.
-        cfg = RewardConfig(curiosity_type="rnd", curiosity_weight=10.0,
-                           accel_bonus=0.0, step_penalty=0.0)
-        rnd = make_curiosity("rnd", obs_dim=4, action_dim=3,
-                             feature_dim=4, hidden_size=8, seed=11)
-        calc = RewardCalculator(cfg, curiosity=rnd)
+        cfg = RewardConfig(curiosity_type="rnd", curiosity_weight=10.0, accel_bonus=0.0, step_penalty=0.0)
         prev, curr = self._states()
         rng = np.random.default_rng(13)
         prev_obs = rng.standard_normal(4).astype(np.float32)
         curr_obs = rng.standard_normal(4).astype(np.float32)
-        action   = rng.standard_normal(3).astype(np.float32)
+        action = rng.standard_normal(3).astype(np.float32)
         # Two separate calculators with identical seeds so the underlying
         # intrinsic value matches; only n_ticks differs.
-        rnd1 = make_curiosity("rnd", obs_dim=4, action_dim=3,
-                              feature_dim=4, hidden_size=8, seed=11)
+        rnd1 = make_curiosity("rnd", obs_dim=4, action_dim=3, feature_dim=4, hidden_size=8, seed=11)
         calc1 = RewardCalculator(cfg, curiosity=rnd1)
-        info = {"accelerating": False,
-                "prev_obs": prev_obs, "curr_obs": curr_obs, "action": action}
-        r1 = calc1.compute(prev, curr, finished=False, elapsed_s=0.0,
-                           info=info, n_ticks=1)
+        info = {"accelerating": False, "prev_obs": prev_obs, "curr_obs": curr_obs, "action": action}
+        r1 = calc1.compute(prev, curr, finished=False, elapsed_s=0.0, info=info, n_ticks=1)
 
-        rnd3 = make_curiosity("rnd", obs_dim=4, action_dim=3,
-                              feature_dim=4, hidden_size=8, seed=11)
+        rnd3 = make_curiosity("rnd", obs_dim=4, action_dim=3, feature_dim=4, hidden_size=8, seed=11)
         calc3 = RewardCalculator(cfg, curiosity=rnd3)
-        r3 = calc3.compute(prev, curr, finished=False, elapsed_s=0.0,
-                           info=info, n_ticks=3)
+        r3 = calc3.compute(prev, curr, finished=False, elapsed_s=0.0, info=info, n_ticks=3)
         self.assertAlmostEqual(r3, 3.0 * r1, places=4)
 
     def test_curiosity_skipped_when_obs_missing(self):
@@ -394,8 +378,7 @@ class TestRewardCuriosityIntegration(unittest.TestCase):
         icm = make_curiosity("icm", obs_dim=4, action_dim=3, seed=2)
         calc = RewardCalculator(cfg, curiosity=icm)
         prev, curr = self._states()
-        r = calc.compute(prev, curr, finished=False, elapsed_s=0.0,
-                         info={"accelerating": False})
+        r = calc.compute(prev, curr, finished=False, elapsed_s=0.0, info={"accelerating": False})
         # With zero progress / speed and no curiosity inputs, only step penalty.
         self.assertAlmostEqual(r, cfg.step_penalty, places=4)
 
@@ -445,13 +428,15 @@ class TestComputeWithComponents(unittest.TestCase):
     """RewardCalculator.compute_with_components() — per-component breakdown."""
 
     def setUp(self):
-        self.cfg  = RewardConfig()
+        self.cfg = RewardConfig()
         self.calc = RewardCalculator(self.cfg)
 
-    def _rwc(self, prev, curr, finished=False, elapsed_s=0.0, accelerating=False,
-             n_ticks=1):
+    def _rwc(self, prev, curr, finished=False, elapsed_s=0.0, accelerating=False, n_ticks=1):
         return self.calc.compute_with_components(
-            prev, curr, finished, elapsed_s,
+            prev,
+            curr,
+            finished,
+            elapsed_s,
             info={"accelerating": accelerating},
             n_ticks=n_ticks,
         )
@@ -461,24 +446,29 @@ class TestComputeWithComponents(unittest.TestCase):
         prev = make_state_data(track_progress=0.0)
         curr = make_state_data(track_progress=0.1, speed=(0.0, 0.0, 0.0))
         scalar, _ = self._rwc(prev, curr)
-        expected  = self.calc.compute(prev, curr, finished=False, elapsed_s=0.0,
-                                      info={"accelerating": False})
+        expected = self.calc.compute(prev, curr, finished=False, elapsed_s=0.0, info={"accelerating": False})
         self.assertAlmostEqual(scalar, expected, places=6)
 
     def test_components_sum_to_total(self):
         """Sum of all component values must equal the returned scalar."""
         prev = make_state_data(track_progress=0.0, lateral_offset=1.5)
-        curr = make_state_data(track_progress=0.05, lateral_offset=1.0,
-                               speed=(10.0, 0.0, 0.0))
+        curr = make_state_data(track_progress=0.05, lateral_offset=1.0, speed=(10.0, 0.0, 0.0))
         scalar, components = self._rwc(prev, curr, accelerating=True)
         self.assertAlmostEqual(sum(components.values()), scalar, places=6)
 
     def test_component_keys_present(self):
         """All expected component names must be present."""
         expected_keys = {
-            "progress", "centerline", "speed", "accel_bonus",
-            "step_penalty", "finish_bonus", "finish_time",
-            "airborne", "lidar_wall", "curiosity",
+            "progress",
+            "centerline",
+            "speed",
+            "accel_bonus",
+            "step_penalty",
+            "finish_bonus",
+            "finish_time",
+            "airborne",
+            "lidar_wall",
+            "curiosity",
         }
         state = make_state_data(track_progress=0.5, speed=(0.0, 0.0, 0.0))
         _, components = self._rwc(state, state)
@@ -488,32 +478,27 @@ class TestComputeWithComponents(unittest.TestCase):
         prev = make_state_data(track_progress=0.0)
         curr = make_state_data(track_progress=0.1, speed=(0.0, 0.0, 0.0))
         _, components = self._rwc(prev, curr)
-        self.assertAlmostEqual(components["progress"],
-                               0.1 * self.cfg.progress_weight, places=6)
+        self.assertAlmostEqual(components["progress"], 0.1 * self.cfg.progress_weight, places=6)
 
     def test_centerline_component(self):
         prev = make_state_data(track_progress=0.5, lateral_offset=0.0)
-        curr = make_state_data(track_progress=0.5, lateral_offset=2.0,
-                               speed=(0.0, 0.0, 0.0))
+        curr = make_state_data(track_progress=0.5, lateral_offset=2.0, speed=(0.0, 0.0, 0.0))
         _, components = self._rwc(prev, curr)
-        expected = self.cfg.centerline_weight * 2.0 ** self.cfg.centerline_exp
+        expected = self.cfg.centerline_weight * 2.0**self.cfg.centerline_exp
         self.assertAlmostEqual(components["centerline"], expected, places=6)
 
     def test_finish_bonus_component(self):
         prev = make_state_data(track_progress=0.9)
         curr = make_state_data(track_progress=1.0, speed=(0.0, 0.0, 0.0))
-        _, components = self._rwc(prev, curr, finished=True,
-                                  elapsed_s=self.cfg.par_time_s)
+        _, components = self._rwc(prev, curr, finished=True, elapsed_s=self.cfg.par_time_s)
         self.assertAlmostEqual(components["finish_bonus"], self.cfg.finish_bonus, places=6)
         self.assertAlmostEqual(components["finish_time"], 0.0, places=6)
 
     def test_finish_time_component_over_par(self):
         prev = make_state_data(track_progress=1.0)
         curr = make_state_data(track_progress=1.0, speed=(0.0, 0.0, 0.0))
-        _, components = self._rwc(prev, curr, finished=True,
-                                  elapsed_s=self.cfg.par_time_s + 10.0)
-        self.assertAlmostEqual(components["finish_time"],
-                               self.cfg.finish_time_weight * 10.0, places=6)
+        _, components = self._rwc(prev, curr, finished=True, elapsed_s=self.cfg.par_time_s + 10.0)
+        self.assertAlmostEqual(components["finish_time"], self.cfg.finish_time_weight * 10.0, places=6)
 
     def test_no_finish_when_not_finished(self):
         state = make_state_data(track_progress=0.5, speed=(0.0, 0.0, 0.0))
@@ -524,8 +509,7 @@ class TestComputeWithComponents(unittest.TestCase):
     def test_step_penalty_component(self):
         state = make_state_data(track_progress=0.5, speed=(0.0, 0.0, 0.0))
         _, components = self._rwc(state, state, n_ticks=2)
-        self.assertAlmostEqual(components["step_penalty"],
-                               self.cfg.step_penalty * 2, places=6)
+        self.assertAlmostEqual(components["step_penalty"], self.cfg.step_penalty * 2, places=6)
 
     def test_accel_bonus_component_present_when_accelerating(self):
         # Bonus is non-zero only when throttle is pressed AND speed increased.
@@ -533,8 +517,7 @@ class TestComputeWithComponents(unittest.TestCase):
         curr = make_state_data(track_progress=0.5, speed=(6.0, 0.0, 0.0))
         _, comps_accel = self._rwc(prev, curr, accelerating=True)
         _, comps_coast = self._rwc(prev, curr, accelerating=False)
-        self.assertAlmostEqual(comps_accel["accel_bonus"],
-                               self.cfg.accel_bonus, places=6)
+        self.assertAlmostEqual(comps_accel["accel_bonus"], self.cfg.accel_bonus, places=6)
         self.assertEqual(comps_coast["accel_bonus"], 0.0)
 
     def test_curiosity_zero_without_module(self):

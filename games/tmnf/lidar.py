@@ -39,8 +39,7 @@ def _find_game_hwnd() -> int:
     win32gui.EnumWindows(_cb, None)
     if not found:
         raise RuntimeError(
-            f"Could not find a window whose title starts with {_WINDOW_TITLE_PREFIX!r}. "
-            "Is the game running?"
+            f"Could not find a window whose title starts with {_WINDOW_TITLE_PREFIX!r}. Is the game running?"
         )
     return found[0]
 
@@ -109,7 +108,7 @@ class LidarSensor:
         img = cv2.resize(img, (128, 128))
         h = img.shape[0]
         # Crop to the middle horizontal strip — represents the horizon
-        return img[h // 2: h // 2 + 32, :]  # shape: (32, 128)
+        return img[h // 2 : h // 2 + 32, :]  # shape: (32, 128)
 
     # ------------------------------------------------------------------
     # Internal: raycasting

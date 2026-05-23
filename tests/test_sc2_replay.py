@@ -10,6 +10,7 @@ Covers:
   - _finalize_candidate_replay  — rename candidate to sequential best-N name
   - _discard_candidate_replay   — deletes temp candidate file; no-op when missing
 """
+
 import os
 import sys
 import time
@@ -20,22 +21,21 @@ _root = os.path.normpath(os.path.join(os.path.dirname(__file__), ".."))
 if _root not in sys.path:
     sys.path.insert(0, _root)
 
+from framework.training import (
+    _discard_candidate_replay,
+    _finalize_candidate_replay,
+    _save_candidate_replay,
+    _try_save_replay,
+)
 from games.sc2.client import SC2Client
 from games.sc2.env import SC2Env
-from framework.training import (
-    _try_save_replay,
-    _save_candidate_replay,
-    _finalize_candidate_replay,
-    _discard_candidate_replay,
-)
-
 
 # ---------------------------------------------------------------------------
 # SC2Client.save_replay
 # ---------------------------------------------------------------------------
 
-class TestSC2ClientSaveReplay(unittest.TestCase):
 
+class TestSC2ClientSaveReplay(unittest.TestCase):
     def _make_client(self):
         return SC2Client(map_name="MoveToBeacon")
 
@@ -107,8 +107,8 @@ class TestSC2ClientSaveReplay(unittest.TestCase):
 # SC2Env.save_replay
 # ---------------------------------------------------------------------------
 
-class TestSC2EnvSaveReplay(unittest.TestCase):
 
+class TestSC2EnvSaveReplay(unittest.TestCase):
     def test_delegates_to_client(self):
         with patch("games.sc2.env.SC2Client"):
             env = SC2Env(map_name="MoveToBeacon")
@@ -126,14 +126,15 @@ class TestSC2EnvSaveReplay(unittest.TestCase):
 # _try_save_replay  (single-episode-per-sim loops)
 # ---------------------------------------------------------------------------
 
-class TestTrySaveReplay(unittest.TestCase):
 
+class TestTrySaveReplay(unittest.TestCase):
     def test_noop_for_non_sc2_env(self):
         plain_env = object()
         _try_save_replay(plain_env, "/some/exp/policy_weights.yaml")
 
     def test_first_replay_numbered_01(self):
         import tempfile
+
         with tempfile.TemporaryDirectory() as experiment_dir:
             weights_file = os.path.join(experiment_dir, "policy_weights.yaml")
             experiment_name = os.path.basename(experiment_dir)
@@ -148,6 +149,7 @@ class TestTrySaveReplay(unittest.TestCase):
 
     def test_second_replay_numbered_02(self):
         import tempfile
+
         with tempfile.TemporaryDirectory() as experiment_dir:
             weights_file = os.path.join(experiment_dir, "policy_weights.yaml")
             experiment_name = os.path.basename(experiment_dir)
@@ -166,6 +168,7 @@ class TestTrySaveReplay(unittest.TestCase):
     def test_candidate_files_excluded_from_count(self):
         """_candidate.SC2Replay must not be counted as a confirmed best."""
         import tempfile
+
         with tempfile.TemporaryDirectory() as experiment_dir:
             weights_file = os.path.join(experiment_dir, "policy_weights.yaml")
             experiment_name = os.path.basename(experiment_dir)
@@ -186,6 +189,7 @@ class TestTrySaveReplay(unittest.TestCase):
 
     def test_exception_from_save_replay_is_swallowed(self):
         import tempfile
+
         with tempfile.TemporaryDirectory() as experiment_dir:
             weights_file = os.path.join(experiment_dir, "policy_weights.yaml")
             env = MagicMock()
@@ -194,6 +198,7 @@ class TestTrySaveReplay(unittest.TestCase):
 
     def test_replay_dir_is_inside_experiment_dir(self):
         import tempfile
+
         with tempfile.TemporaryDirectory() as experiment_dir:
             weights_file = os.path.join(experiment_dir, "policy_weights.yaml")
             env = MagicMock()
@@ -206,6 +211,7 @@ class TestTrySaveReplay(unittest.TestCase):
 
     def test_only_sc2replay_files_counted_for_numbering(self):
         import tempfile
+
         with tempfile.TemporaryDirectory() as experiment_dir:
             weights_file = os.path.join(experiment_dir, "policy_weights.yaml")
             experiment_name = os.path.basename(experiment_dir)
@@ -227,14 +233,15 @@ class TestTrySaveReplay(unittest.TestCase):
 # _save_candidate_replay
 # ---------------------------------------------------------------------------
 
-class TestSaveCandidateReplay(unittest.TestCase):
 
+class TestSaveCandidateReplay(unittest.TestCase):
     def test_noop_for_non_sc2_env(self):
         result = _save_candidate_replay(object(), "/exp/weights.yaml")
         self.assertIsNone(result)
 
     def test_calls_save_replay_with_candidate_prefix(self):
         import tempfile
+
         with tempfile.TemporaryDirectory() as experiment_dir:
             weights_file = os.path.join(experiment_dir, "policy_weights.yaml")
             replay_dir = os.path.join(experiment_dir, "replays")
@@ -250,6 +257,7 @@ class TestSaveCandidateReplay(unittest.TestCase):
 
     def test_swallows_exception_returns_none(self):
         import tempfile
+
         with tempfile.TemporaryDirectory() as experiment_dir:
             weights_file = os.path.join(experiment_dir, "policy_weights.yaml")
             env = MagicMock()
@@ -262,8 +270,8 @@ class TestSaveCandidateReplay(unittest.TestCase):
 # _finalize_candidate_replay
 # ---------------------------------------------------------------------------
 
-class TestFinalizeCandidateReplay(unittest.TestCase):
 
+class TestFinalizeCandidateReplay(unittest.TestCase):
     def test_noop_when_candidate_path_is_none(self):
         _finalize_candidate_replay(None, "/exp/weights.yaml")
 
@@ -272,6 +280,7 @@ class TestFinalizeCandidateReplay(unittest.TestCase):
 
     def test_renames_to_best_01_when_no_confirmed_replays(self):
         import tempfile
+
         with tempfile.TemporaryDirectory() as experiment_dir:
             weights_file = os.path.join(experiment_dir, "policy_weights.yaml")
             experiment_name = os.path.basename(experiment_dir)
@@ -289,6 +298,7 @@ class TestFinalizeCandidateReplay(unittest.TestCase):
 
     def test_renames_to_best_02_when_one_confirmed_exists(self):
         import tempfile
+
         with tempfile.TemporaryDirectory() as experiment_dir:
             weights_file = os.path.join(experiment_dir, "policy_weights.yaml")
             experiment_name = os.path.basename(experiment_dir)
@@ -308,6 +318,7 @@ class TestFinalizeCandidateReplay(unittest.TestCase):
     def test_candidate_not_counted_in_numbering(self):
         """A leftover _candidate.SC2Replay must not inflate the count."""
         import tempfile
+
         with tempfile.TemporaryDirectory() as experiment_dir:
             weights_file = os.path.join(experiment_dir, "policy_weights.yaml")
             experiment_name = os.path.basename(experiment_dir)
@@ -331,8 +342,8 @@ class TestFinalizeCandidateReplay(unittest.TestCase):
 # _discard_candidate_replay
 # ---------------------------------------------------------------------------
 
-class TestDiscardCandidateReplay(unittest.TestCase):
 
+class TestDiscardCandidateReplay(unittest.TestCase):
     def test_noop_when_none(self):
         _discard_candidate_replay(None)
 
@@ -341,6 +352,7 @@ class TestDiscardCandidateReplay(unittest.TestCase):
 
     def test_deletes_existing_file(self):
         import tempfile
+
         with tempfile.TemporaryDirectory() as tmpdir:
             path = os.path.join(tmpdir, "_candidate.SC2Replay")
             open(path, "w").close()

@@ -23,10 +23,10 @@ from games.assetto_corsa.env import AssettoCorsaEnv
 from games.assetto_corsa.obs_spec import AC_OBS_SPEC, BASE_OBS_DIM, with_vision
 from games.assetto_corsa.reward import RewardCalculator, RewardConfig
 
-
 # ---------------------------------------------------------------------------
 # Stub gym env
 # ---------------------------------------------------------------------------
+
 
 class _StubACEnv:
     """Minimal gym-compatible env that emits deterministic AC-shaped telemetry."""
@@ -53,19 +53,19 @@ class _StubACEnv:
 
     def _obs(self, progress: float) -> dict:
         return {
-            "speed_ms":        20.0 + progress * 30.0,
-            "lateral_offset":  0.5,
-            "yaw_error":       0.0,
-            "pitch":           0.0,
-            "roll":            0.0,
-            "track_progress":  progress,
-            "steering_angle":  0.0,
-            "engine_rpm":      4000.0,
-            "gear":            3.0,
-            "wheel_slip":      (0.1, 0.1, 0.1, 0.1),
-            "angular_velocity":(0.0, 0.0, 0.0),
-            "pos_x":           progress * 100.0,
-            "pos_z":           0.0,
+            "speed_ms": 20.0 + progress * 30.0,
+            "lateral_offset": 0.5,
+            "yaw_error": 0.0,
+            "pitch": 0.0,
+            "roll": 0.0,
+            "track_progress": progress,
+            "steering_angle": 0.0,
+            "engine_rpm": 4000.0,
+            "gear": 3.0,
+            "wheel_slip": (0.1, 0.1, 0.1, 0.1),
+            "angular_velocity": (0.0, 0.0, 0.0),
+            "pos_x": progress * 100.0,
+            "pos_z": 0.0,
         }
 
 
@@ -76,6 +76,7 @@ def _factory(_env_id, **_kwargs):
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
+
 
 def test_obs_spec_dimensions_match_base_obs_dim():
     assert AC_OBS_SPEC.dim == BASE_OBS_DIM
@@ -104,8 +105,7 @@ def test_env_step_returns_5_tuple_with_finite_reward():
         assert math.isfinite(reward)
         assert isinstance(terminated, bool)
         assert isinstance(truncated, bool)
-        for key in ("pos_x", "pos_z", "track_progress", "lateral_offset",
-                    "finished", "termination_reason"):
+        for key in ("pos_x", "pos_z", "track_progress", "lateral_offset", "finished", "termination_reason"):
             assert key in info, f"missing info key: {key}"
     finally:
         env.close()
@@ -165,8 +165,7 @@ def test_reward_calculator_computes_finite_value():
     calc = RewardCalculator(cfg)
     prev = {"track_progress": 0.0, "lateral_offset": 0.0, "speed_ms": 0.0}
     curr = {"track_progress": 0.1, "lateral_offset": 0.5, "speed_ms": 20.0}
-    r = calc.compute(prev, curr, finished=False, elapsed_s=1.0,
-                     info={"accelerating": True}, n_ticks=1)
+    r = calc.compute(prev, curr, finished=False, elapsed_s=1.0, info={"accelerating": True}, n_ticks=1)
     assert math.isfinite(r)
     # Progress delta dominates (0.1 * progress_weight).
     assert r > 0

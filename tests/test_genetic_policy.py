@@ -1,23 +1,22 @@
 """Tests for GeneticPolicy in tmnf/policies.py."""
+
 import os
 import tempfile
 import unittest
 from unittest.mock import patch
 
 import numpy as np
-
 from helpers import make_wlp
-from games.tmnf.policies import GeneticPolicy, WeightedLinearPolicy
+
 from framework.training import _greedy_loop_genetic
+from games.tmnf.policies import GeneticPolicy, WeightedLinearPolicy
 
 
 def _make_genetic(pop=6, elite=2, eval_episodes=1) -> GeneticPolicy:
-    return GeneticPolicy(population_size=pop, elite_k=elite, mutation_scale=0.1,
-                         eval_episodes=eval_episodes)
+    return GeneticPolicy(population_size=pop, elite_k=elite, mutation_scale=0.1, eval_episodes=eval_episodes)
 
 
 class TestGeneticPolicy(unittest.TestCase):
-
     def test_initialize_random_population_size(self):
         gp = _make_genetic(pop=6)
         gp.initialize_random()
@@ -76,25 +75,27 @@ class TestGeneticPolicy(unittest.TestCase):
     def test_evaluate_and_evolve_returns_false_when_no_improvement(self):
         gp = _make_genetic(pop=4)
         gp.initialize_random()
-        gp.evaluate_and_evolve([100.0, 90.0, 80.0, 70.0])   # sets champion_reward = 100
+        gp.evaluate_and_evolve([100.0, 90.0, 80.0, 70.0])  # sets champion_reward = 100
         improved = gp.evaluate_and_evolve([50.0, 40.0, 30.0, 20.0])
         self.assertFalse(improved)
 
     def test_crossover_draws_from_both_parents(self):
         names = WeightedLinearPolicy.OBS_NAMES
         cfg1 = {
-            "steer_threshold": 0.5, "throttle_threshold": 0.5,
-            "steer_weights":    {n:  1.0 for n in names},
-            "throttle_weights": {n:  0.0 for n in names},
+            "steer_threshold": 0.5,
+            "throttle_threshold": 0.5,
+            "steer_weights": {n: 1.0 for n in names},
+            "throttle_weights": {n: 0.0 for n in names},
         }
         cfg2 = {
-            "steer_threshold": 0.5, "throttle_threshold": 0.5,
-            "steer_weights":    {n: -1.0 for n in names},
-            "throttle_weights": {n:  0.0 for n in names},
+            "steer_threshold": 0.5,
+            "throttle_threshold": 0.5,
+            "steer_weights": {n: -1.0 for n in names},
+            "throttle_weights": {n: 0.0 for n in names},
         }
         child_cfg = GeneticPolicy._crossover(cfg1, cfg2)
         sw = list(child_cfg["steer_weights"].values())
-        self.assertIn( 1.0, sw)
+        self.assertIn(1.0, sw)
         self.assertIn(-1.0, sw)
 
     def test_population_replaced_after_evolution(self):
@@ -134,6 +135,7 @@ class TestGeneticPolicy(unittest.TestCase):
 # Minimal stub env for training loop tests
 # ---------------------------------------------------------------------------
 
+
 class _SequentialRewardEnv:
     """Env that returns rewards from a preset list on successive episodes."""
 
@@ -143,10 +145,12 @@ class _SequentialRewardEnv:
 
     def reset(self):
         from games.tmnf.obs_spec import BASE_OBS_DIM
+
         return np.zeros(BASE_OBS_DIM, dtype=np.float32), {}
 
     def step(self, action):
         from games.tmnf.obs_spec import BASE_OBS_DIM
+
         info = {"track_progress": 0.5, "laps_completed": 0, "pos_x": 0.0, "pos_z": 0.0}
         reward = self._rewards[self._idx % len(self._rewards)]
         self._idx += 1
@@ -182,8 +186,7 @@ class TestGeneticEvalEpisodes(unittest.TestCase):
             wf = f.name
         try:
             with patch.object(gp, "evaluate_and_evolve", side_effect=_capture):
-                _greedy_loop_genetic(env=env, policy=gp, n_generations=1,
-                                     weights_file=wf)
+                _greedy_loop_genetic(env=env, policy=gp, n_generations=1, weights_file=wf)
         finally:
             if os.path.exists(wf):
                 os.unlink(wf)
@@ -194,7 +197,8 @@ class TestGeneticEvalEpisodes(unittest.TestCase):
         """eval_episodes=1 passes single episode rewards unchanged."""
         # 4 individuals, 1 episode each → rewards = [10, 20, 30, 40]
         captured = self._run_one_gen(
-            pop_size=4, eval_episodes=1,
+            pop_size=4,
+            eval_episodes=1,
             rewards_per_episode=[10.0, 20.0, 30.0, 40.0],
         )
         self.assertEqual(len(captured), 1)
@@ -208,7 +212,8 @@ class TestGeneticEvalEpisodes(unittest.TestCase):
         #                   ind1ep0=40, ind1ep1=50, ind1ep2=60
         # Mean ind0 = 20.0, mean ind1 = 50.0
         captured = self._run_one_gen(
-            pop_size=2, eval_episodes=3,
+            pop_size=2,
+            eval_episodes=3,
             rewards_per_episode=[10.0, 20.0, 30.0, 40.0, 50.0, 60.0],
         )
         self.assertEqual(len(captured), 1)
@@ -218,6 +223,7 @@ class TestGeneticEvalEpisodes(unittest.TestCase):
     def test_eval_episodes_2_correct_env_reset_calls(self):
         """eval_episodes=2 resets env pop_size * 2 times per generation."""
         from games.tmnf.obs_spec import BASE_OBS_DIM
+
         pop_size = 3
         eval_episodes = 2
         gp = _make_genetic(pop=pop_size, elite=1, eval_episodes=eval_episodes)
@@ -232,8 +238,7 @@ class TestGeneticEvalEpisodes(unittest.TestCase):
                 return np.zeros(BASE_OBS_DIM, dtype=np.float32), {}
 
             def step(self, action):
-                info = {"track_progress": 0.5, "laps_completed": 0,
-                        "pos_x": 0.0, "pos_z": 0.0}
+                info = {"track_progress": 0.5, "laps_completed": 0, "pos_x": 0.0, "pos_z": 0.0}
                 return np.zeros(BASE_OBS_DIM, dtype=np.float32), next(rewards_iter), True, False, info
 
             def get_episode_time_limit(self):
@@ -245,8 +250,7 @@ class TestGeneticEvalEpisodes(unittest.TestCase):
         with tempfile.NamedTemporaryFile(suffix=".yaml", delete=False) as f:
             wf = f.name
         try:
-            _greedy_loop_genetic(env=_CountingEnv(), policy=gp, n_generations=1,
-                                 weights_file=wf)
+            _greedy_loop_genetic(env=_CountingEnv(), policy=gp, n_generations=1, weights_file=wf)
         finally:
             if os.path.exists(wf):
                 os.unlink(wf)
@@ -269,8 +273,7 @@ class TestGeneticAdaptiveMutation(unittest.TestCase):
                 return np.zeros(BASE_OBS_DIM, dtype=np.float32), {}
 
             def step(self, action):
-                info = {"track_progress": 0.5, "laps_completed": 0,
-                        "pos_x": 0.0, "pos_z": 0.0}
+                info = {"track_progress": 0.5, "laps_completed": 0, "pos_x": 0.0, "pos_z": 0.0}
                 r = self._rewards[self._idx % len(self._rewards)]
                 self._idx += 1
                 return np.zeros(BASE_OBS_DIM, dtype=np.float32), r, True, False, info
@@ -295,7 +298,10 @@ class TestGeneticAdaptiveMutation(unittest.TestCase):
             wf = f.name
         try:
             _, _, sims, _, _ = _greedy_loop_genetic(
-                env=env, policy=gp, n_generations=3, weights_file=wf,
+                env=env,
+                policy=gp,
+                n_generations=3,
+                weights_file=wf,
                 adaptive_mutation=False,
             )
         finally:
@@ -316,7 +322,10 @@ class TestGeneticAdaptiveMutation(unittest.TestCase):
             wf = f.name
         try:
             _greedy_loop_genetic(
-                env=env, policy=gp, n_generations=20, weights_file=wf,
+                env=env,
+                policy=gp,
+                n_generations=20,
+                weights_file=wf,
                 adaptive_mutation=True,
             )
         finally:
@@ -336,7 +345,10 @@ class TestGeneticAdaptiveMutation(unittest.TestCase):
             wf = f.name
         try:
             _greedy_loop_genetic(
-                env=env, policy=gp, n_generations=20, weights_file=wf,
+                env=env,
+                policy=gp,
+                n_generations=20,
+                weights_file=wf,
                 adaptive_mutation=False,
             )
         finally:

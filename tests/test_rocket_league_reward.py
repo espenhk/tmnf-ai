@@ -4,7 +4,7 @@ import os
 import tempfile
 import unittest
 
-from games.rocket_league.reward import RocketLeagueRewardConfig, RocketLeagueRewardCalculator
+from games.rocket_league.reward import RocketLeagueRewardCalculator, RocketLeagueRewardConfig
 
 
 def _write_yaml(content: str) -> str:
@@ -16,7 +16,6 @@ def _write_yaml(content: str) -> str:
 
 
 class TestRocketLeagueRewardConfig(unittest.TestCase):
-
     def test_defaults(self):
         cfg = RocketLeagueRewardConfig()
         self.assertGreater(cfg.goal_weight, 0.0)
@@ -52,38 +51,53 @@ class TestRocketLeagueRewardConfig(unittest.TestCase):
     def test_from_yaml_loads_bundled_config(self):
         """Ensure the bundled Rocket League reward config loads without error."""
         cfg_path = os.path.join(
-            os.path.dirname(__file__), "..",
-            "games", "rocket_league", "config", "reward_config.yaml",
+            os.path.dirname(__file__),
+            "..",
+            "games",
+            "rocket_league",
+            "config",
+            "reward_config.yaml",
         )
         cfg = RocketLeagueRewardConfig.from_yaml(cfg_path)
         self.assertIsInstance(cfg.goal_weight, float)
 
 
 class TestRocketLeagueRewardCalculator(unittest.TestCase):
-
     def _make_calc(self, **kwargs) -> RocketLeagueRewardCalculator:
         return RocketLeagueRewardCalculator(RocketLeagueRewardConfig(**kwargs))
 
     def test_step_penalty(self):
         calc = self._make_calc(
-            vel_to_ball_weight=0.0, boost_weight=0.0, touch_bonus=0.0,
-            goal_weight=0.0, concede_penalty=0.0, step_penalty=-0.5,
+            vel_to_ball_weight=0.0,
+            boost_weight=0.0,
+            touch_bonus=0.0,
+            goal_weight=0.0,
+            concede_penalty=0.0,
+            step_penalty=-0.5,
         )
         r = calc.compute(None, None, False, 1.0, {})
         self.assertAlmostEqual(r, -0.5)
 
     def test_vel_to_ball_reward(self):
         calc = self._make_calc(
-            vel_to_ball_weight=0.01, boost_weight=0.0, touch_bonus=0.0,
-            goal_weight=0.0, concede_penalty=0.0, step_penalty=0.0,
+            vel_to_ball_weight=0.01,
+            boost_weight=0.0,
+            touch_bonus=0.0,
+            goal_weight=0.0,
+            concede_penalty=0.0,
+            step_penalty=0.0,
         )
         r = calc.compute(None, None, False, 1.0, {"vel_towards_ball": 100.0})
         self.assertAlmostEqual(r, 1.0)  # 0.01 * 100
 
     def test_touch_bonus_fires_once(self):
         calc = self._make_calc(
-            vel_to_ball_weight=0.0, boost_weight=0.0, touch_bonus=5.0,
-            goal_weight=0.0, concede_penalty=0.0, step_penalty=0.0,
+            vel_to_ball_weight=0.0,
+            boost_weight=0.0,
+            touch_bonus=5.0,
+            goal_weight=0.0,
+            concede_penalty=0.0,
+            step_penalty=0.0,
         )
         r1 = calc.compute(None, None, False, 1.0, {"ball_touched": True})
         r2 = calc.compute(None, None, False, 2.0, {"ball_touched": True})
@@ -92,8 +106,12 @@ class TestRocketLeagueRewardCalculator(unittest.TestCase):
 
     def test_touch_bonus_resets_each_episode(self):
         calc = self._make_calc(
-            vel_to_ball_weight=0.0, boost_weight=0.0, touch_bonus=5.0,
-            goal_weight=0.0, concede_penalty=0.0, step_penalty=0.0,
+            vel_to_ball_weight=0.0,
+            boost_weight=0.0,
+            touch_bonus=5.0,
+            goal_weight=0.0,
+            concede_penalty=0.0,
+            step_penalty=0.0,
         )
         calc.compute(None, None, False, 1.0, {"ball_touched": True})  # ep 1
         calc.reset()
@@ -102,24 +120,36 @@ class TestRocketLeagueRewardCalculator(unittest.TestCase):
 
     def test_goal_scored_reward(self):
         calc = self._make_calc(
-            vel_to_ball_weight=0.0, boost_weight=0.0, touch_bonus=0.0,
-            goal_weight=10.0, concede_penalty=0.0, step_penalty=0.0,
+            vel_to_ball_weight=0.0,
+            boost_weight=0.0,
+            touch_bonus=0.0,
+            goal_weight=10.0,
+            concede_penalty=0.0,
+            step_penalty=0.0,
         )
         r = calc.compute(None, None, True, 10.0, {"goal_scored": True})
         self.assertAlmostEqual(r, 10.0)
 
     def test_goal_conceded_penalty(self):
         calc = self._make_calc(
-            vel_to_ball_weight=0.0, boost_weight=0.0, touch_bonus=0.0,
-            goal_weight=0.0, concede_penalty=5.0, step_penalty=0.0,
+            vel_to_ball_weight=0.0,
+            boost_weight=0.0,
+            touch_bonus=0.0,
+            goal_weight=0.0,
+            concede_penalty=5.0,
+            step_penalty=0.0,
         )
         r = calc.compute(None, None, True, 10.0, {"goal_conceded": True})
         self.assertAlmostEqual(r, -5.0)
 
     def test_boost_weight(self):
         calc = self._make_calc(
-            vel_to_ball_weight=0.0, boost_weight=2.0, touch_bonus=0.0,
-            goal_weight=0.0, concede_penalty=0.0, step_penalty=0.0,
+            vel_to_ball_weight=0.0,
+            boost_weight=2.0,
+            touch_bonus=0.0,
+            goal_weight=0.0,
+            concede_penalty=0.0,
+            step_penalty=0.0,
         )
         r = calc.compute(None, None, False, 1.0, {"boosting": True})
         self.assertAlmostEqual(r, 2.0)
@@ -127,15 +157,25 @@ class TestRocketLeagueRewardCalculator(unittest.TestCase):
     def test_combined_rewards(self):
         """Verify additive nature of all reward components."""
         calc = self._make_calc(
-            vel_to_ball_weight=0.01, boost_weight=1.0, touch_bonus=3.0,
-            goal_weight=10.0, concede_penalty=0.0, step_penalty=-0.1,
+            vel_to_ball_weight=0.01,
+            boost_weight=1.0,
+            touch_bonus=3.0,
+            goal_weight=10.0,
+            concede_penalty=0.0,
+            step_penalty=-0.1,
         )
-        r = calc.compute(None, None, True, 5.0, {
-            "vel_towards_ball": 200.0,
-            "boosting": True,
-            "ball_touched": True,
-            "goal_scored": True,
-        })
+        r = calc.compute(
+            None,
+            None,
+            True,
+            5.0,
+            {
+                "vel_towards_ball": 200.0,
+                "boosting": True,
+                "ball_touched": True,
+                "goal_scored": True,
+            },
+        )
         # 0.01*200 + 1.0 + 3.0 + 10.0 - 0.1 = 15.9
         self.assertAlmostEqual(r, 15.9)
 

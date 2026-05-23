@@ -3,6 +3,7 @@
 All tests run without PySC2 installed; observations are fabricated numpy arrays
 and available_fn_ids are set directly as FUNCTION_IDS key sets (0-5).
 """
+
 from __future__ import annotations
 
 import unittest
@@ -15,7 +16,6 @@ from games.sc2.actions import (
     build_available_actions_mask,
     discrete_action_to_fn_id,
 )
-
 from games.sc2.obs_spec import SC2_MINIGAME_OBS_SPEC
 from games.sc2.sc2_policies import SC2NeuralDQNPolicy
 
@@ -50,8 +50,8 @@ def _zero_obs() -> np.ndarray:
 # Helper function tests
 # ---------------------------------------------------------------------------
 
-class TestActionMaskingHelpers(unittest.TestCase):
 
+class TestActionMaskingHelpers(unittest.TestCase):
     def test_discrete_action_to_fn_id_row1_is_select_army(self):
         # Row 1 is select_army (fn_idx=1) in the new layout
         self.assertEqual(discrete_action_to_fn_id(1), 1)
@@ -90,8 +90,8 @@ class TestActionMaskingHelpers(unittest.TestCase):
 # Masked Q-values → illegal action never chosen
 # ---------------------------------------------------------------------------
 
-class TestMaskedActionSelection(unittest.TestCase):
 
+class TestMaskedActionSelection(unittest.TestCase):
     def test_greedy_never_selects_masked_action(self):
         """With only fn_idx=2 available, only fn_idx=2 actions should be selected."""
         policy = _make_policy(epsilon_start=0.0, epsilon_end=0.0)
@@ -101,8 +101,7 @@ class TestMaskedActionSelection(unittest.TestCase):
         for _ in range(50):
             action = policy(obs)
             fn_idx = int(action[0])
-            self.assertEqual(fn_idx, 2,
-                "only fn_idx=2 should be selected when others are masked")
+            self.assertEqual(fn_idx, 2, "only fn_idx=2 should be selected when others are masked")
 
     def test_random_never_selects_masked_action(self):
         """ε=1 random exploration must also respect the mask."""
@@ -111,8 +110,7 @@ class TestMaskedActionSelection(unittest.TestCase):
         obs = _zero_obs()
         for _ in range(100):
             action = policy(obs)
-            self.assertEqual(int(action[0]), 2,
-                "random exploration must only pick fn_idx=2 when others are masked")
+            self.assertEqual(int(action[0]), 2, "random exploration must only pick fn_idx=2 when others are masked")
 
     def test_no_mask_selects_any_action(self):
         """Without a mask (all-True) multiple fn_idx values can be selected."""
@@ -144,8 +142,8 @@ class TestMaskedActionSelection(unittest.TestCase):
 # available_fn_ids stored from update() info kwarg
 # ---------------------------------------------------------------------------
 
-class TestUpdateStoresAvailableFnIds(unittest.TestCase):
 
+class TestUpdateStoresAvailableFnIds(unittest.TestCase):
     def test_initial_mask_is_all_true(self):
         """Freshly constructed policy must start with an all-True mask."""
         policy = _make_policy()
@@ -194,8 +192,8 @@ class TestUpdateStoresAvailableFnIds(unittest.TestCase):
 # Gradient does not flow through masked logits
 # ---------------------------------------------------------------------------
 
-class TestMaskedGradientStep(unittest.TestCase):
 
+class TestMaskedGradientStep(unittest.TestCase):
     def test_masked_action_q_value_not_maximised(self):
         """Train where cell 2 (first Move_screen) gives +5 but fn_idx=0,1 are masked.
         After training with only fn_idx=2 available, the greedy action among
@@ -221,16 +219,14 @@ class TestMaskedGradientStep(unittest.TestCase):
         for step in range(8000):
             action_idx = step % _N
             reward = 5.0 if action_idx == BEST_LEGAL else -0.1
-            policy.update(obs, action_idx, reward, next_obs, done=True,
-                          info={"available_fn_ids": {2}})
+            policy.update(obs, action_idx, reward, next_obs, done=True, info={"available_fn_ids": {2}})
 
         policy._eps = 0.0
         obs_norm = (obs / policy._scales).astype(np.float32)
         q = policy._q_values(policy._online, obs_norm).copy()
         q[~build_available_actions_mask({2})] = -np.inf
         greedy = int(np.argmax(q))
-        self.assertEqual(greedy, BEST_LEGAL,
-            f"Expected greedy={BEST_LEGAL}, got {greedy}. Q={q.tolist()}")
+        self.assertEqual(greedy, BEST_LEGAL, f"Expected greedy={BEST_LEGAL}, got {greedy}. Q={q.tolist()}")
 
     def test_policy_type_in_cfg(self):
         policy = _make_policy()
@@ -241,12 +237,14 @@ class TestMaskedGradientStep(unittest.TestCase):
 # Race mask tests
 # ---------------------------------------------------------------------------
 
+
 class TestSC2NeuralDQNPolicyRaceMask(unittest.TestCase):
     """Permanent race filter integrated into the per-step available_actions_fn."""
 
     def test_terran_race_blocks_zerg_in_cached_mask(self):
         """on_episode_start with race=terran must block Zerg-only DISCRETE_ACTIONS rows."""
         from games.sc2.actions import _ZERG_FN_IDS
+
         policy = SC2NeuralDQNPolicy(
             obs_spec=SC2_MINIGAME_OBS_SPEC,
             hidden_sizes=[8],
@@ -257,12 +255,12 @@ class TestSC2NeuralDQNPolicyRaceMask(unittest.TestCase):
         for i in range(len(DISCRETE_ACTIONS)):
             fn_id = int(DISCRETE_ACTIONS[i, 0])
             if fn_id in _ZERG_FN_IDS:
-                self.assertFalse(policy._cached_mask[i],
-                                 f"DISCRETE_ACTIONS[{i}] (fn_id={fn_id}) should be masked for terran")
+                self.assertFalse(
+                    policy._cached_mask[i], f"DISCRETE_ACTIONS[{i}] (fn_id={fn_id}) should be masked for terran"
+                )
 
     def test_terran_race_allows_terran_actions_when_available(self):
         """Terran actions in per-step info should remain enabled."""
-        from games.sc2.actions import _TERRAN_FN_IDS
         policy = SC2NeuralDQNPolicy(
             obs_spec=SC2_MINIGAME_OBS_SPEC,
             hidden_sizes=[8],
@@ -276,6 +274,7 @@ class TestSC2NeuralDQNPolicyRaceMask(unittest.TestCase):
 
     def test_construct_or_resume_reads_agent_race(self):
         from games.sc2.actions import _ZERG_FN_IDS
+
         policy = SC2NeuralDQNPolicy._construct_or_resume(
             obs_spec=SC2_MINIGAME_OBS_SPEC,
             head_names=["fn_idx", "x", "y", "queue"],

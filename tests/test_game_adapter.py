@@ -6,9 +6,11 @@ Verifies that each registered adapter:
   - returns sensible values for experiment_dir, track_label
   - returns ProbeSpec/WarmupSpec for TMNF, None for others
 """
+
 from __future__ import annotations
 
 import pytest
+
 from framework.game_adapter import GAME_ADAPTERS
 
 
@@ -17,7 +19,13 @@ class TestGameAdapterRegistry:
 
     def test_all_games_registered(self):
         assert set(GAME_ADAPTERS.keys()) == {
-            "tmnf", "torcs", "sc2", "beamng", "car_racing", "rocket_league", "iracing",
+            "tmnf",
+            "torcs",
+            "sc2",
+            "beamng",
+            "car_racing",
+            "rocket_league",
+            "iracing",
         }
 
     @pytest.mark.parametrize("game", list(GAME_ADAPTERS.keys()))
@@ -33,9 +41,7 @@ class TestTMNFAdapter:
 
     def test_experiment_dir_includes_track(self):
         a = self._adapter()
-        d = a.experiment_dir(
-            "myrun", {"track": "a03_centerline", "policy_type": "genetic"}, None
-        )
+        d = a.experiment_dir("myrun", {"track": "a03_centerline", "policy_type": "genetic"}, None)
         assert "tmnf" in d
         assert "genetic" in d
         assert "a03_centerline" in d
@@ -116,9 +122,7 @@ class TestSC2Adapter:
 
     def test_experiment_dir_includes_map_name(self):
         a = self._adapter()
-        d = a.experiment_dir(
-            "myrun", {"map_name": "MoveToBeacon", "policy_type": "sc2_genetic"}, None
-        )
+        d = a.experiment_dir("myrun", {"map_name": "MoveToBeacon", "policy_type": "sc2_genetic"}, None)
         assert "sc2" in d
         assert "sc2_genetic" in d
         assert "MoveToBeacon" in d
@@ -127,7 +131,8 @@ class TestSC2Adapter:
     def test_track_override_overrides_map(self):
         a = self._adapter()
         d = a.experiment_dir(
-            "myrun", {"map_name": "MoveToBeacon", "policy_type": "sc2_genetic"},
+            "myrun",
+            {"map_name": "MoveToBeacon", "policy_type": "sc2_genetic"},
             "CollectMineralShards",
         )
         assert "CollectMineralShards" in d
@@ -141,9 +146,12 @@ class TestSC2Adapter:
         a = self._adapter()
         assert a.build_probe({}) is None
 
-    def test_build_warmup_returns_none(self):
+    def test_build_warmup_returns_select_army(self):
         a = self._adapter()
-        assert a.build_warmup({}) is None
+        warmup = a.build_warmup({})
+        assert warmup is not None
+        assert warmup.steps == 1
+        assert int(warmup.action[0]) == 1  # select_army fn_idx
 
 
 class TestBeamNGAdapter:
@@ -159,7 +167,6 @@ class TestBeamNGAdapter:
     def test_build_probe_returns_none(self):
         a = self._adapter()
         assert a.build_probe({}) is None
-
 
 
 class TestCarRacingAdapter:

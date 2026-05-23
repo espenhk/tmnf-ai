@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 # Picklable env factory (used by framework.parallel_eval for issue #229)
 # ---------------------------------------------------------------------------
 
+
 class _SC2EnvFactory:
     """Zero-arg env factory that survives pickle (closures don't).
 
@@ -26,22 +27,26 @@ class _SC2EnvFactory:
 
     def __call__(self):
         from games.sc2.env import make_env
-        return make_env(**self._kwargs)
 
+        return make_env(**self._kwargs)
 
 
 def _get_obs_spec(map_name: str, preset: str | None, enable_belief: bool):
     """Return the obs spec for *map_name*, extending with belief dims when requested."""
     from games.sc2.obs_spec import get_spec
+
     obs_spec = get_spec(map_name, preset=preset)
     if enable_belief:
         from pathlib import Path
+
         from games.sc2.belief_schema import (
-            load_belief_config, extend_obs_spec as _extend_belief,
+            extend_obs_spec as _extend_belief,
         )
-        _bcfg = load_belief_config(
-            Path(__file__).parent / "config" / "belief_config.yaml"
+        from games.sc2.belief_schema import (
+            load_belief_config,
         )
+
+        _bcfg = load_belief_config(Path(__file__).parent / "config" / "belief_config.yaml")
         obs_spec = _extend_belief(obs_spec, _bcfg)
     return obs_spec
 
@@ -56,7 +61,9 @@ class SC2Adapter:
         return training_params.get("map_name", "MoveToBeacon")
 
     def experiment_dir(
-        self, experiment_name: str, training_params: dict,
+        self,
+        experiment_name: str,
+        training_params: dict,
         track_override: str | None,
     ) -> str:
         map_name = self._map_name(training_params, track_override)
@@ -64,35 +71,46 @@ class SC2Adapter:
         return f"experiments/sc2/{policy}/{map_name}/{experiment_name}"
 
     def experiment_dir_root(
-        self, training_params: dict, track_override: str | None,
+        self,
+        training_params: dict,
+        track_override: str | None,
     ) -> str:
         map_name = self._map_name(training_params, track_override)
         policy = training_params.get("policy_type", "sc2_genetic")
         return f"experiments/sc2/{policy}/{map_name}"
 
     def track_label(
-        self, training_params: dict, track_override: str | None,
+        self,
+        training_params: dict,
+        track_override: str | None,
     ) -> str:
         map_name = self._map_name(training_params, track_override)
         return f"sc2_{map_name}"
 
     def decorate_reward_cfg(
-        self, reward_cfg: dict, training_params: dict,
+        self,
+        reward_cfg: dict,
+        training_params: dict,
         track_override: str | None,
     ) -> None:
         pass
 
     def build_game_spec(
-        self, experiment_name: str, experiment_dir: str,
-        weights_file: str, reward_cfg_file: str,
-        training_params: dict, track_override: str | None,
+        self,
+        experiment_name: str,
+        experiment_dir: str,
+        weights_file: str,
+        reward_cfg_file: str,
+        training_params: dict,
+        track_override: str | None,
     ) -> GameSpec:
-        from games.sc2.actions import DISCRETE_ACTIONS
-        from games.sc2.analytics import save_experiment_results
+        import games.sc2.cnn_policy  # noqa: F401 — sc2_cnn
+
         # Side-effect imports register the SC2 policy types in POLICY_REGISTRY
         # so train_rl._make_policy can resolve them.
         import games.sc2.sc2_policies  # noqa: F401 — sc2_genetic/reinforce/cmaes/lstm/neural_net/neural_dqn
-        import games.sc2.cnn_policy    # noqa: F401 — sc2_cnn
+        from games.sc2.actions import DISCRETE_ACTIONS
+        from games.sc2.analytics import save_experiment_results
 
         map_name = self._map_name(training_params, track_override)
         obs_spec_preset = training_params.get("obs_spec_preset")
@@ -115,19 +133,18 @@ class SC2Adapter:
         pp["_agent_race"] = training_params.get("agent_race", "random")
 
         if policy_type == "sc2_cnn":
-            screen_layers  = training_params.get("screen_layers") or []
+            screen_layers = training_params.get("screen_layers") or []
             minimap_layers = training_params.get("minimap_layers") or []
             n_channels = len(screen_layers) + len(minimap_layers)
             # Fail fast here (before the SC2 env is launched) on a misconfigured
             # sc2_cnn run with no spatial layers.
             if n_channels == 0:
                 raise ValueError(
-                    "sc2_cnn requires at least one spatial layer.  "
-                    "Set screen_layers in training_params.yaml."
+                    "sc2_cnn requires at least one spatial layer.  Set screen_layers in training_params.yaml."
                 )
             pp["_n_channels"] = n_channels
         else:
-            screen_layers  = []
+            screen_layers = []
             minimap_layers = []
 
         # Use a picklable factory class (not a closure) so the
@@ -167,8 +184,9 @@ class SC2Adapter:
         return None
 
     def build_warmup(self, training_params: dict) -> WarmupSpec | None:
-        return None
+        from games.sc2.actions import WARMUP_ACTION
 
+        return WarmupSpec(action=WARMUP_ACTION, steps=1)
 
 
 def make_adapter() -> SC2Adapter:

@@ -1799,4 +1799,3 @@ Ranked by best track progress, then by best reward.
 ![Reward trajectory](../gs_sc2_mcts_v1__obs_spec_presetladder__mc1.41__alpha0.05__idle_bonus0.1/results/reward_trajectory.png)
 
 ![Task metrics](../gs_sc2_mcts_v1__obs_spec_presetladder__mc1.41__alpha0.05__idle_bonus0.1/results/task_metrics.png)
-

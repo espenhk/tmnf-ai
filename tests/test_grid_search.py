@@ -1,4 +1,5 @@
 """Tests for grid_search.py — grid expansion and name generation."""
+
 from __future__ import annotations
 
 import glob
@@ -11,15 +12,15 @@ import yaml
 
 from grid_search import (
     _ABBREV,
-    _expand_grid,
-    _make_experiment_name,
-    _split_grid_run_name,
-    _fmt_value,
-    _build_policy_params,
     _POLICY_PARAM_MAP,
-    _load_grid_config,
+    _build_policy_params,
+    _expand_grid,
+    _fmt_value,
     _launch_local_workers,
+    _load_grid_config,
+    _make_experiment_name,
     _parse_non_negative_int,
+    _split_grid_run_name,
     _stop_local_workers,
 )
 
@@ -53,7 +54,7 @@ class TestExpandGrid:
         t = {"mutation_scale": [0.05, 0.1]}
         r = {"centerline_weight": [-0.1, -0.5, -1.0]}
         combos, varied_keys = _expand_grid(t, r)
-        assert len(combos) == 6   # 2 × 3
+        assert len(combos) == 6  # 2 × 3
         assert set(varied_keys) == {"mutation_scale", "centerline_weight"}
 
     def test_fixed_params_preserved_across_combos(self):
@@ -134,15 +135,27 @@ class TestBuildPolicyParams:
 
     def test_all_new_policy_param_keys_are_mapped(self):
         new_keys = {
-            "hidden_sizes", "hidden_size", "learning_rate", "entropy_coeff",
-            "baseline", "batch_size", "target_update_freq", "epsilon_decay_steps",
+            "hidden_sizes",
+            "hidden_size",
+            "learning_rate",
+            "entropy_coeff",
+            "baseline",
+            "batch_size",
+            "target_update_freq",
+            "epsilon_decay_steps",
         }
         assert new_keys.issubset(_POLICY_PARAM_MAP.keys())
 
     def test_promoted_keys_have_correct_target_names(self):
         identity_mapped = {
-            "hidden_sizes", "hidden_size", "learning_rate", "entropy_coeff",
-            "baseline", "batch_size", "target_update_freq", "epsilon_decay_steps",
+            "hidden_sizes",
+            "hidden_size",
+            "learning_rate",
+            "entropy_coeff",
+            "baseline",
+            "batch_size",
+            "target_update_freq",
+            "epsilon_decay_steps",
         }
         for key in identity_mapped:
             assert _POLICY_PARAM_MAP[key] == key, (
@@ -211,8 +224,7 @@ class TestLoadGridConfig:
 
     def test_game_field_honoured(self):
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-            yaml.dump({"base_name": "test", "game": "torcs",
-                        "training_params": {"n_sims": 10}}, f)
+            yaml.dump({"base_name": "test", "game": "torcs", "training_params": {"n_sims": 10}}, f)
             f.flush()
             base_name, game, track, t, r, d = _load_grid_config(f.name)
         os.unlink(f.name)
@@ -220,8 +232,7 @@ class TestLoadGridConfig:
 
     def test_track_field_honoured(self):
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-            yaml.dump({"base_name": "test", "track": "aalborg",
-                        "training_params": {"n_sims": 10}}, f)
+            yaml.dump({"base_name": "test", "track": "aalborg", "training_params": {"n_sims": 10}}, f)
             f.flush()
             base_name, game, track, t, r, d = _load_grid_config(f.name)
         os.unlink(f.name)
@@ -238,12 +249,15 @@ class TestLoadGridConfig:
     def test_grid_expansion_unaffected_by_game_field(self):
         """Adding game: field should not affect grid expansion."""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-            yaml.dump({
-                "base_name": "test",
-                "game": "torcs",
-                "training_params": {"mutation_scale": [0.05, 0.1]},
-                "reward_params": {}
-            }, f)
+            yaml.dump(
+                {
+                    "base_name": "test",
+                    "game": "torcs",
+                    "training_params": {"mutation_scale": [0.05, 0.1]},
+                    "reward_params": {},
+                },
+                f,
+            )
             f.flush()
             _, _, _, t, r, _ = _load_grid_config(f.name)
         os.unlink(f.name)
@@ -332,9 +346,7 @@ class TestLocalDistributedWorkers:
             assert "--re-initialize" in cmd
             assert f"local-{i}" in cmd
 
-    def test_launch_local_workers_cascading_stagger_between_spawns(
-        self, monkeypatch
-    ):
+    def test_launch_local_workers_cascading_stagger_between_spawns(self, monkeypatch):
         """Issue #254: each worker after the first waits ``start_stagger_s``
         seconds before launching, so SC2 binaries don't race on the same
         ``.SC2Map`` file at boot."""
@@ -380,9 +392,7 @@ class TestLocalDistributedWorkers:
         ]
 
     def test_launch_local_workers_no_sleep_when_stagger_zero(self, monkeypatch):
-        monkeypatch.setattr(
-            "grid_search.subprocess.Popen", lambda cmd: type("P", (), {"cmd": cmd})()
-        )
+        monkeypatch.setattr("grid_search.subprocess.Popen", lambda cmd: type("P", (), {"cmd": cmd})())
 
         sleep_calls: list[float] = []
         monkeypatch.setattr("grid_search.sleep", lambda s: sleep_calls.append(s))
@@ -399,9 +409,7 @@ class TestLocalDistributedWorkers:
         )
         assert sleep_calls == []
 
-    def test_launch_local_workers_cleans_up_started_procs_on_launch_error(
-        self, monkeypatch
-    ):
+    def test_launch_local_workers_cleans_up_started_procs_on_launch_error(self, monkeypatch):
         started = []
 
         class _FakeProc:

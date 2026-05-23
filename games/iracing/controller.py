@@ -127,9 +127,7 @@ class VJoyController(BaseController):
 
         self._device_id = device_id
         self._steer_axis = steer_axis if steer_axis is not None else self.HID_USAGE_X
-        self._throttle_axis = (
-            throttle_axis if throttle_axis is not None else self.HID_USAGE_Y
-        )
+        self._throttle_axis = throttle_axis if throttle_axis is not None else self.HID_USAGE_Y
         self._brake_axis = brake_axis if brake_axis is not None else self.HID_USAGE_Z
         self._pyvjoy = pyvjoy
 
@@ -138,12 +136,8 @@ class VJoyController(BaseController):
 
     def send(self, steer: float, throttle: float, brake: float) -> None:
         steer_val = _float_to_vjoy_axis(float(np.clip(steer, -1.0, 1.0)))
-        throttle_val = _float_to_vjoy_axis_unipolar(
-            float(np.clip(throttle, 0.0, 1.0))
-        )
-        brake_val = _float_to_vjoy_axis_unipolar(
-            float(np.clip(brake, 0.0, 1.0))
-        )
+        throttle_val = _float_to_vjoy_axis_unipolar(float(np.clip(throttle, 0.0, 1.0)))
+        brake_val = _float_to_vjoy_axis_unipolar(float(np.clip(brake, 0.0, 1.0)))
 
         self._joy.set_axis(self._steer_axis, steer_val)
         self._joy.set_axis(self._throttle_axis, throttle_val)
@@ -158,9 +152,7 @@ class VJoyController(BaseController):
         try:
             self.reset()
         except Exception:
-            logger.warning(
-                "VJoyController: failed to reset axes on close", exc_info=True
-            )
+            logger.warning("VJoyController: failed to reset axes on close", exc_info=True)
         logger.info("VJoyController: released vJoy device %d", self._device_id)
 
 
@@ -205,7 +197,4 @@ def make_controller(action_mode: str, **kwargs) -> BaseController:
         return NullController()
     if action_mode == "live":
         return VJoyController(**kwargs)
-    raise ValueError(
-        f"Unknown action_mode {action_mode!r}.  "
-        f"Use 'telemetry_only' or 'live'."
-    )
+    raise ValueError(f"Unknown action_mode {action_mode!r}.  Use 'telemetry_only' or 'live'.")

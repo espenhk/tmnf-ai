@@ -11,8 +11,8 @@ from framework.live_monitor import (
     _derive_step_components,
     _fmt_action,
     _observation_column_count,
-    _rolling_means,
     _reward_sort_key,
+    _rolling_means,
     _split_into_columns_preserving_order,
 )
 
@@ -47,9 +47,15 @@ class TestRewardComponents(unittest.TestCase):
 class TestObservationClassification(unittest.TestCase):
     def test_classifies_xy_indexed_and_quads(self):
         names = [
-            "move_x", "move_y",
-            "lidar_0", "lidar_1", "lidar_2",
-            "screen_enemy_NE", "screen_enemy_NW", "screen_enemy_SE", "screen_enemy_SW",
+            "move_x",
+            "move_y",
+            "lidar_0",
+            "lidar_1",
+            "lidar_2",
+            "screen_enemy_NE",
+            "screen_enemy_NW",
+            "screen_enemy_SE",
+            "screen_enemy_SW",
             "speed_ms",
         ]
         groups = _classify_observation_features(names)

@@ -42,15 +42,14 @@ class FrameStack(gym.Wrapper):
         self._k = k
         obs_shape = env.observation_space.shape
         if obs_shape is None or len(obs_shape) != 1:
-            raise ValueError(
-                "FrameStack requires a 1-D observation space, "
-                f"got shape={obs_shape}"
-            )
+            raise ValueError(f"FrameStack requires a 1-D observation space, got shape={obs_shape}")
         self._obs_dim = obs_shape[0]
         low = np.tile(env.observation_space.low, k)
         high = np.tile(env.observation_space.high, k)
         self.observation_space = spaces.Box(
-            low=low, high=high, dtype=np.float32,
+            low=low,
+            high=high,
+            dtype=np.float32,
         )
         self._frames: deque[np.ndarray] = deque(maxlen=k)
 

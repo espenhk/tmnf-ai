@@ -43,7 +43,7 @@ from gymnasium import spaces
 from framework.base_env import BaseGameEnv
 from games.torcs.client import TorcsClient
 from games.torcs.obs_spec import BASE_OBS_DIM
-from games.torcs.reward import TorcsRewardConfig, TorcsRewardCalculator
+from games.torcs.reward import TorcsRewardCalculator, TorcsRewardConfig
 
 logger = logging.getLogger(__name__)
 

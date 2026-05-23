@@ -71,9 +71,7 @@ class EWMABelief(BeliefModule):
         else:
             self._decay_tau = np.asarray(decay_tau, dtype=np.float64)
             if self._decay_tau.shape != (n_slots,):
-                raise ValueError(
-                    f"decay_tau shape {self._decay_tau.shape} != ({n_slots},)"
-                )
+                raise ValueError(f"decay_tau shape {self._decay_tau.shape} != ({n_slots},)")
 
         self._values: np.ndarray = np.zeros(n_slots, dtype=np.float64)
         self._confidence: np.ndarray = np.zeros(n_slots, dtype=np.float64)

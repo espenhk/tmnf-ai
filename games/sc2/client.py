@@ -34,21 +34,21 @@ _FN_NAME_TO_IDX: dict[str, int] = {v: k for k, v in FUNCTION_IDS.items()}
 # Values taken from PySC2 feature layer documentation.  Unknown layers default
 # to 1.0 (no normalisation), so 0–max values map to ~[0, 1].
 _LAYER_SCALE: dict[str, float] = {
-    "player_relative":    4.0,
-    "selected":           1.0,
-    "unit_type":       1917.0,
-    "height_map":       255.0,
-    "unit_hit_points":  255.0,
-    "unit_shields":     255.0,
-    "unit_density":      16.0,
-    "unit_density_aa":  255.0,
-    "effects":           16.0,
-    "visibility_map":     2.0,
-    "unit_energy":      255.0,
-    "creep":              1.0,
-    "power":              1.0,
-    "pathable":           1.0,
-    "buildable":          1.0,
+    "player_relative": 4.0,
+    "selected": 1.0,
+    "unit_type": 1917.0,
+    "height_map": 255.0,
+    "unit_hit_points": 255.0,
+    "unit_shields": 255.0,
+    "unit_density": 16.0,
+    "unit_density_aa": 255.0,
+    "effects": 16.0,
+    "visibility_map": 2.0,
+    "unit_energy": 255.0,
+    "creep": 1.0,
+    "power": 1.0,
+    "pathable": 1.0,
+    "buildable": 1.0,
 }
 
 # Approximate SC2 weapon ranges in game units for common combat units.
@@ -125,6 +125,11 @@ _pysc2_id_to_fn_idx: dict[int, int] | None = None
 _SELECT_ARMY_RETRY_BLOCKED_STEPS: int = 8
 _SAVE_REPLAY_TIMEOUT_S: float = 5.0
 
+# Worker unit-type names (must match pysc2.lib.units member names).  Used to
+# locate a worker on screen for ``select_point`` when a Build action is blocked
+# and ``select_idle_worker`` is insufficient (workers may all be busy).
+_WORKER_TYPE_NAMES: frozenset[str] = frozenset({"SCV", "Probe", "Drone"})
+
 # ---------------------------------------------------------------------------
 # Lazy PySC2 field-name helpers
 # ---------------------------------------------------------------------------
@@ -152,18 +157,24 @@ def _get_score_field_names() -> tuple[str, ...]:
     if _score_field_names_cache is None:
         try:
             from pysc2.lib import features as pysc2_features  # type: ignore[import-untyped]
+
             raw = pysc2_features.ScoreCumulative._fields
-            _score_field_names_cache = tuple(
-                "score_total" if f == "score" else f for f in raw
-            )
+            _score_field_names_cache = tuple("score_total" if f == "score" else f for f in raw)
         except (ImportError, AttributeError):
             _score_field_names_cache = (
-                "score_total", "idle_production_time", "idle_worker_time",
-                "total_value_units", "total_value_structures",
-                "killed_value_units", "killed_value_structures",
-                "collected_minerals", "collected_vespene",
-                "collection_rate_minerals", "collection_rate_vespene",
-                "spent_minerals", "spent_vespene",
+                "score_total",
+                "idle_production_time",
+                "idle_worker_time",
+                "total_value_units",
+                "total_value_structures",
+                "killed_value_units",
+                "killed_value_structures",
+                "collected_minerals",
+                "collected_vespene",
+                "collection_rate_minerals",
+                "collection_rate_vespene",
+                "spent_minerals",
+                "spent_vespene",
             )
     return _score_field_names_cache
 
@@ -181,14 +192,20 @@ def _get_player_field_names() -> tuple[str, ...]:
     if _player_field_names_cache is None:
         try:
             from pysc2.lib import features as pysc2_features  # type: ignore[import-untyped]
-            _player_field_names_cache = tuple(
-                f for f in pysc2_features.Player._fields if f != "player_id"
-            )
+
+            _player_field_names_cache = tuple(f for f in pysc2_features.Player._fields if f != "player_id")
         except (ImportError, AttributeError):
             _player_field_names_cache = (
-                "minerals", "vespene", "food_used", "food_cap",
-                "army_count", "idle_worker_count", "warp_gate_count",
-                "larva_count", "food_workers", "food_army",
+                "minerals",
+                "vespene",
+                "food_used",
+                "food_cap",
+                "army_count",
+                "idle_worker_count",
+                "warp_gate_count",
+                "larva_count",
+                "food_workers",
+                "food_army",
             )
     return _player_field_names_cache
 
@@ -203,6 +220,7 @@ def _get_pysc2_id_to_fn_idx() -> dict[int, int]:
     if _pysc2_id_to_fn_idx is None:
         try:
             from pysc2.lib import actions as pysc2_actions  # type: ignore[import-untyped]
+
             _pysc2_id_to_fn_idx = {}
             for fn_idx, name in FUNCTION_IDS.items():
                 fn_obj = getattr(pysc2_actions.FUNCTIONS, name, None)
@@ -297,6 +315,11 @@ class SC2Client:
         # Lookup table for unit-type ids → attack range (game units), used by
         # self_attack_range_px for idle-bonus gating.
         self._unit_type_id_to_attack_range_gu: dict[int, float] | None = None
+        # Cached screen position (x, y) of a friendly worker from the most
+        # recent observation's feature_units.  Used by _action_to_call to
+        # select_point a worker when a Build action is blocked and no units
+        # are selected (select_idle_worker may fail if all workers are busy).
+        self._worker_screen_xy: tuple[int, int] | None = None
 
     # ------------------------------------------------------------------
     # Public interface
@@ -330,7 +353,44 @@ class SC2Client:
         minigames this is the score increment; for ladder maps it is the
         terminal +1 / -1 / 0.  The reward calculator computes the actual
         training reward in :class:`games.sc2.env.SC2Env`.
+
+        Strategy 2 (proactive selection): if no unit is currently selected
+        and the requested action is not itself a selection command, replace
+        it with a selection action so the agent never idles with an empty
+        selection.  Build actions prefer ``select_point`` on a visible
+        worker; everything else uses ``select_army``.
         """
+        fn_idx = int(action[0])
+        fn_name = FUNCTION_IDS.get(fn_idx, "no_op")
+        is_selection = fn_name.startswith("select_")
+        if self._selected_count < 1.0 and fn_name != "no_op" and not is_selection:
+            select_point_available = (
+                self._available_actions is None
+                or _get_pysc2_id_to_fn_idx().get(_FN_NAME_TO_IDX["select_point"], -1) in self._available_actions
+            )
+            if fn_name.startswith("Build_") and self._worker_screen_xy is not None and select_point_available:
+                # Build action: select_point on a visible worker.
+                wx, wy = self._worker_screen_xy
+                x_norm = float(wx) / max(self._screen_size - 1, 1)
+                y_norm = float(wy) / max(self._screen_size - 1, 1)
+                action = np.array([6, x_norm, y_norm, 0], dtype=np.float32)
+                self._last_fn_idx = 6  # select_point
+                logger.debug(
+                    "Proactive selection: %s replaced with select_point on worker at (%d, %d) (no units selected).",
+                    fn_name,
+                    wx,
+                    wy,
+                )
+            else:
+                from games.sc2.actions import WARMUP_ACTION  # select_army
+
+                action = WARMUP_ACTION.copy()
+                self._last_fn_idx = 1  # select_army
+                logger.debug(
+                    "Proactive selection: %s replaced with select_army (no units selected).",
+                    fn_name,
+                )
+
         fn_call = self._action_to_call(action)
         timesteps = self._sc2_env.step([fn_call])
         timestep = timesteps[0]
@@ -365,8 +425,7 @@ class SC2Client:
                 controller.leave()
         except Exception as exc:
             logger.warning(
-                "SC2Client: leave() before ladder reset raised %s; "
-                "closing the SC2 env to force a clean restart.",
+                "SC2Client: leave() before ladder reset raised %s; closing the SC2 env to force a clean restart.",
                 exc,
             )
             self._sc2_env.close()
@@ -427,6 +486,7 @@ class SC2Client:
     @staticmethod
     def _detect_ladder(map_name: str) -> bool:
         from games.sc2.obs_spec import MINIGAME_NAMES
+
         return map_name not in MINIGAME_NAMES
 
     def _make_sc2_env(self) -> Any:
@@ -442,13 +502,15 @@ class SC2Client:
             ) from exc
 
         from absl import flags as _absl_flags  # type: ignore[import-untyped]
+
         if not _absl_flags.FLAGS.is_parsed():
-            _absl_flags.FLAGS([''])
+            _absl_flags.FLAGS([""])
 
         # Issue #254: serialise map-file reads across all SC2 binaries
         # running on this host (distributed local workers, parallel-eval
         # workers, etc.) so they don't race on the same .SC2Map file.
         from games.sc2.map_access_gate import acquire_map_access_slot
+
         acquire_map_access_slot()
 
         if self._play_mode:
@@ -504,52 +566,71 @@ class SC2Client:
 
         Issues #121 / #124 / #286: when the policy emits a blocked
         selection-required action while no units are selected, fall back to
-        ``select_army`` rather than ``no_op``. Otherwise the agent appears to
-        "idle" — the next step has the same observation, the policy emits the
-        same blocked action, and PySC2 keeps no-op'ing it until the policy
-        stochastically elects ``select_army`` itself.
+        a context-aware selection command rather than ``no_op``.  Build
+        actions use ``select_point`` on a visible worker (workers may all
+        be busy, so ``select_idle_worker`` is unreliable); everything else
+        falls back to ``select_army``.
         """
         from pysc2.lib import actions as pysc2_actions  # type: ignore[import-untyped]
 
-        fn_call = action_to_function_call(
-            action, self._screen_size, self._minimap_size
-        )
+        fn_call = action_to_function_call(action, self._screen_size, self._minimap_size)
 
         fn_idx = int(action[0])
         fn_name = FUNCTION_IDS.get(fn_idx, "no_op")
 
-        if (
-            self._available_actions is not None
-            and int(fn_call.function) not in self._available_actions
-        ):
+        if self._available_actions is not None and int(fn_call.function) not in self._available_actions:
             select_army_id = int(pysc2_actions.FUNCTIONS.select_army.id)
+            select_point_id = int(pysc2_actions.FUNCTIONS.select_point.id)
             selection_required = fn_name != "no_op" and not fn_name.startswith("select_")
             no_units_selected = self._selected_count < 1.0
-            if (
-                selection_required
+            # Context-aware selection: build commands need a worker.  Use
+            # select_point on a visible worker (workers may all be busy, so
+            # select_idle_worker is unreliable); fall back to select_army.
+            is_build_action = fn_name.startswith("Build_")
+            use_select_point_worker = (
+                is_build_action
                 and no_units_selected
-                and select_army_id in self._available_actions
-            ):
+                and self._worker_screen_xy is not None
+                and select_point_id in (self._available_actions or set())
+            )
+            if use_select_point_worker:
+                preferred_select_id = select_point_id
+                preferred_fn_idx = 6  # FUNCTION_IDS index for select_point
+            else:
+                preferred_select_id = select_army_id
+                preferred_fn_idx = 1  # FUNCTION_IDS index for select_army
+            # Fall back to select_army when preferred is not available.
+            if preferred_select_id not in (self._available_actions or set()):
+                preferred_select_id = select_army_id
+                preferred_fn_idx = 1
+                use_select_point_worker = False
+            if selection_required and no_units_selected and preferred_select_id in self._available_actions:
                 self._blocked_unit_targeted_steps += 1
                 if (
                     self._blocked_unit_targeted_steps == 1
                     or self._blocked_unit_targeted_steps % _SELECT_ARMY_RETRY_BLOCKED_STEPS == 0
                 ):
-                    # First blocked step: issue select_army to re-establish army
-                    # selection. If the blocked state persists for many steps
+                    # First blocked step: issue the appropriate selection
+                    # command. If the blocked state persists for many steps
                     # (e.g. post-round transitions), retry periodically so the
                     # agent does not get stuck in perpetual no_op.
                     logger.debug(
-                        "Action %s blocked; auto-selecting army (#124).", fn_name,
+                        "Action %s blocked; auto-selecting (%s).",
+                        fn_name,
+                        FUNCTION_IDS.get(preferred_fn_idx, "select_army"),
                     )
                     # Reflect the executed action, not the requested one, so the
                     # rich preset's last_fn_* one-hot stays consistent.
-                    self._last_fn_idx = 1  # FUNCTION_IDS index for select_army
-                    return pysc2_actions.FunctionCall(select_army_id, [[0]])
+                    self._last_fn_idx = preferred_fn_idx
+                    if use_select_point_worker:
+                        wx, wy = self._worker_screen_xy  # type: ignore[misc]
+                        return pysc2_actions.FunctionCall(select_point_id, [[0], [wx, wy]])
+                    return pysc2_actions.FunctionCall(preferred_select_id, [[0]])
                 # Between periodic retries, wait with no_op to avoid spamming
-                # select_army every step during short transition windows.
+                # selection commands every step during short transition windows.
                 logger.debug(
-                    "Action %s still blocked after select_army; issuing no_op.", fn_name,
+                    "Action %s still blocked after selection; issuing no_op.",
+                    fn_name,
                 )
             else:
                 self._blocked_unit_targeted_steps = 0
@@ -557,10 +638,8 @@ class SC2Client:
                 "Action %s blocked (not in available_actions); substituting no_op.",
                 fn_name,
             )
-            self._last_fn_idx = 0      # FUNCTION_IDS index for no_op
-            return pysc2_actions.FunctionCall(
-                int(pysc2_actions.FUNCTIONS.no_op.id), []
-            )
+            self._last_fn_idx = 0  # FUNCTION_IDS index for no_op
+            return pysc2_actions.FunctionCall(int(pysc2_actions.FUNCTIONS.no_op.id), [])
 
         # Action is available — reset blocked-step tracking.
         self._blocked_unit_targeted_steps = 0
@@ -575,7 +654,10 @@ class SC2Client:
             else:
                 logger.debug(
                     "Action: %s  screen=(%d, %d)  queue=%d",
-                    fn_name, x_screen, y_screen, queue,
+                    fn_name,
+                    x_screen,
+                    y_screen,
+                    queue,
                 )
 
         return fn_call
@@ -592,7 +674,7 @@ class SC2Client:
         feature group has its own extractor so unit tests can target them.
         """
         ob = timestep.observation
-        feat_screen  = self._safe_array(ob, "feature_screen")
+        feat_screen = self._safe_array(ob, "feature_screen")
         feat_minimap = self._safe_array(ob, "feature_minimap")
 
         feats: dict[str, float] = {}
@@ -605,6 +687,7 @@ class SC2Client:
         feats.update(self._screen_hp_features(feat_screen))
         feats.update(self._topk_enemy_features(feat_screen))
         feats.update(self._per_unit_type_features(ob))
+        self._update_worker_screen_pos(ob)
         feats.update(self._quadrant_features(feat_screen))
         feats.update(self._available_actions_features(ob))
         feats.update(self._last_action_features())
@@ -644,11 +727,7 @@ class SC2Client:
             self._available_actions = set(avail_arr.tolist())
             id_map = _get_pysc2_id_to_fn_idx()
             if id_map:
-                available_fn_ids = {
-                    id_map[pid]
-                    for pid in self._available_actions
-                    if pid in id_map
-                }
+                available_fn_ids = {id_map[pid] for pid in self._available_actions if pid in id_map}
             inferred_fn_ids = self._infer_fn_ids_from_units(ob)
             if inferred_fn_ids is not None:
                 if available_fn_ids is None:
@@ -662,9 +741,7 @@ class SC2Client:
         # a terminal +1 / -1 / 0.  For minigames timestep.reward is a per-step
         # score delta, not a win/loss signal, so we leave it as None.
         if timestep.last() and self._is_ladder:
-            player_outcome: float | None = float(
-                getattr(timestep, "reward", 0.0) or 0.0
-            )
+            player_outcome: float | None = float(getattr(timestep, "reward", 0.0) or 0.0)
         else:
             player_outcome = None
 
@@ -673,7 +750,7 @@ class SC2Client:
             "prev_score": prev_score,
             "minerals": feats.get("minerals", 0.0),
             "vespene": feats.get("vespene", 0.0),
-            "prev_minerals": 0.0,   # filled in by env on subsequent steps
+            "prev_minerals": 0.0,  # filled in by env on subsequent steps
             "prev_vespene": 0.0,
             "food_used": feats.get("food_used", 0.0),
             "food_cap": feats.get("food_cap", 0.0),
@@ -685,20 +762,17 @@ class SC2Client:
             "available_fn_ids": available_fn_ids,
             "game_loop": game_loop,
             # Screen summary used by reward shaping (idle_bonus, #127).
-            "screen_self_count":  feats.get("screen_self_count", 0.0),
+            "screen_self_count": feats.get("screen_self_count", 0.0),
             "screen_enemy_count": feats.get("screen_enemy_count", 0.0),
-            "screen_self_cx":     feats.get("screen_self_cx", 0.0),
-            "screen_self_cy":     feats.get("screen_self_cy", 0.0),
-            "screen_enemy_cx":    feats.get("screen_enemy_cx", 0.0),
-            "screen_enemy_cy":    feats.get("screen_enemy_cy", 0.0),
-            "selected_count":     feats.get("selected_count", 0.0),
+            "screen_self_cx": feats.get("screen_self_cx", 0.0),
+            "screen_self_cy": feats.get("screen_self_cy", 0.0),
+            "screen_enemy_cx": feats.get("screen_enemy_cx", 0.0),
+            "screen_enemy_cy": feats.get("screen_enemy_cy", 0.0),
+            "selected_count": feats.get("selected_count", 0.0),
             "visible_self_unit_count": self._visible_self_unit_count(ob),
             # Per-unit-type counts for build-order tracking (analytics).
             # Keys follow _RICH_UNIT_TYPES naming: "Marine", "SCV", etc.
-            "unit_counts": {
-                name: feats.get(f"unit_count_{name}", 0.0)
-                for name in self._get_rich_unit_types()
-            },
+            "unit_counts": {name: feats.get(f"unit_count_{name}", 0.0) for name in self._get_rich_unit_types()},
         }
         self_attack_range_px = self._self_attack_range_px(ob)
         if self_attack_range_px is not None:
@@ -721,9 +795,7 @@ class SC2Client:
                 if layer is not None:
                     channels.append((layer / scale).astype(np.float32))
                 else:
-                    channels.append(
-                        np.zeros((self._screen_size, self._screen_size), dtype=np.float32)
-                    )
+                    channels.append(np.zeros((self._screen_size, self._screen_size), dtype=np.float32))
             if self._minimap_layers:
                 feat_minimap = self._safe_array(ob, "feature_minimap")
                 for name in self._minimap_layers:
@@ -735,9 +807,7 @@ class SC2Client:
                             layer = self._resize_layer(layer, self._screen_size)
                         channels.append(layer)
                     else:
-                        channels.append(
-                            np.zeros((self._screen_size, self._screen_size), dtype=np.float32)
-                        )
+                        channels.append(np.zeros((self._screen_size, self._screen_size), dtype=np.float32))
             if channels:
                 info["spatial_obs"] = np.stack(channels, axis=0)
 
@@ -753,16 +823,16 @@ class SC2Client:
     def _player_features(self, ob: Any) -> dict[str, float]:
         player = self._safe_player(ob)
         return {
-            "minerals":          float(player.get("minerals", 0.0)),
-            "vespene":           float(player.get("vespene", 0.0)),
-            "food_used":         float(player.get("food_used", 0.0)),
-            "food_cap":          float(player.get("food_cap", 0.0)),
-            "army_count":        float(player.get("army_count", 0.0)),
+            "minerals": float(player.get("minerals", 0.0)),
+            "vespene": float(player.get("vespene", 0.0)),
+            "food_used": float(player.get("food_used", 0.0)),
+            "food_cap": float(player.get("food_cap", 0.0)),
+            "army_count": float(player.get("army_count", 0.0)),
             "idle_worker_count": float(player.get("idle_worker_count", 0.0)),
-            "warp_gate_count":   float(player.get("warp_gate_count", 0.0)),
-            "larva_count":       float(player.get("larva_count", 0.0)),
-            "food_workers":      float(player.get("food_workers", 0.0)),
-            "food_army":         float(player.get("food_army", 0.0)),
+            "warp_gate_count": float(player.get("warp_gate_count", 0.0)),
+            "larva_count": float(player.get("larva_count", 0.0)),
+            "food_workers": float(player.get("food_workers", 0.0)),
+            "food_army": float(player.get("food_army", 0.0)),
         }
 
     def _selected_features(self, ob: Any) -> dict[str, float]:
@@ -791,48 +861,48 @@ class SC2Client:
         else:
             count, avg_hp, avg_shields, avg_energy = 0.0, 0.0, 0.0, 0.0
         return {
-            "selected_count":       count,
-            "selected_avg_hp":      avg_hp,
+            "selected_count": count,
+            "selected_avg_hp": avg_hp,
             "selected_avg_shields": avg_shields,
-            "selected_avg_energy":  avg_energy,
+            "selected_avg_energy": avg_energy,
         }
 
     def _screen_summary_features(self, feat_screen: np.ndarray | None) -> dict[str, float]:
         out = {
-            "screen_self_count":  0.0,
+            "screen_self_count": 0.0,
             "screen_enemy_count": 0.0,
-            "screen_self_cx":     0.0,
-            "screen_self_cy":     0.0,
-            "screen_enemy_cx":    0.0,
-            "screen_enemy_cy":    0.0,
+            "screen_self_cx": 0.0,
+            "screen_self_cy": 0.0,
+            "screen_enemy_cx": 0.0,
+            "screen_enemy_cy": 0.0,
         }
         layer = self._extract_player_relative(feat_screen, screen=True)
         if layer is None:
             return out
-        self_mask  = layer == 1
+        self_mask = layer == 1
         enemy_mask = layer == 4
-        out["screen_self_count"]  = float(self_mask.sum())
+        out["screen_self_count"] = float(self_mask.sum())
         out["screen_enemy_count"] = float(enemy_mask.sum())
-        out["screen_self_cx"], out["screen_self_cy"]   = self._centroid(self_mask)
+        out["screen_self_cx"], out["screen_self_cy"] = self._centroid(self_mask)
         out["screen_enemy_cx"], out["screen_enemy_cy"] = self._centroid(enemy_mask)
         return out
 
     def _minimap_summary_features(self, feat_minimap: np.ndarray | None) -> dict[str, float]:
         out = {
-            "minimap_self_count":   0.0,
-            "minimap_enemy_count":  0.0,
-            "minimap_enemy_cx":     0.0,
-            "minimap_enemy_cy":     0.0,
+            "minimap_self_count": 0.0,
+            "minimap_enemy_count": 0.0,
+            "minimap_enemy_cx": 0.0,
+            "minimap_enemy_cy": 0.0,
             "minimap_visible_frac": 0.0,
-            "minimap_explored_frac":0.0,
-            "minimap_camera_x":     0.0,
-            "minimap_camera_y":     0.0,
+            "minimap_explored_frac": 0.0,
+            "minimap_camera_x": 0.0,
+            "minimap_camera_y": 0.0,
         }
         if feat_minimap is None:
             return out
         layer = self._extract_player_relative(feat_minimap, screen=False)
         if layer is not None:
-            out["minimap_self_count"]  = float((layer == 1).sum())
+            out["minimap_self_count"] = float((layer == 1).sum())
             enemy_mask = layer == 4
             out["minimap_enemy_count"] = float(enemy_mask.sum())
             out["minimap_enemy_cx"], out["minimap_enemy_cy"] = self._centroid(enemy_mask)
@@ -842,7 +912,7 @@ class SC2Client:
             if self._explored_mask is None:
                 self._explored_mask = (visible > 0).astype(bool)
             else:
-                self._explored_mask |= (visible > 0)
+                self._explored_mask |= visible > 0
             out["minimap_explored_frac"] = float(self._explored_mask.sum()) / max(self._explored_mask.size, 1)
         camera = self._extract_named_layer(feat_minimap, "camera")
         if camera is not None:
@@ -905,8 +975,8 @@ class SC2Client:
     def _screen_hp_features(self, feat_screen: np.ndarray | None) -> dict[str, float]:
         out = {
             "screen_unit_density_mean": 0.0,
-            "screen_self_hp_mean":      0.0,
-            "screen_enemy_hp_mean":     0.0,
+            "screen_self_hp_mean": 0.0,
+            "screen_enemy_hp_mean": 0.0,
         }
         if feat_screen is None:
             return out
@@ -916,7 +986,7 @@ class SC2Client:
         hp = self._extract_named_layer(feat_screen, "unit_hit_points")
         rel = self._extract_player_relative(feat_screen, screen=True)
         if hp is not None and rel is not None:
-            self_mask  = rel == 1
+            self_mask = rel == 1
             enemy_mask = rel == 4
             if self_mask.any():
                 out["screen_self_hp_mean"] = float(hp[self_mask].mean())
@@ -937,7 +1007,7 @@ class SC2Client:
         rel = self._extract_player_relative(feat_screen, screen=True)
         if rel is None:
             return out
-        self_mask  = rel == 1
+        self_mask = rel == 1
         enemy_mask = rel == 4
         if not self_mask.any() or not enemy_mask.any():
             return out
@@ -946,7 +1016,7 @@ class SC2Client:
         dx = xs.astype(np.float32) - scx
         dy = ys.astype(np.float32) - scy
         dist = np.sqrt(dx * dx + dy * dy)
-        out["topk_enemy_within_8"]  = float((dist <= 8.0).sum())
+        out["topk_enemy_within_8"] = float((dist <= 8.0).sum())
         out["topk_enemy_within_24"] = float((dist <= 24.0).sum())
 
         order = np.argsort(dist)[:3]
@@ -962,6 +1032,7 @@ class SC2Client:
     def _per_unit_type_features(self, ob: Any) -> dict[str, float]:
         # Initialise every rich-preset unit type to zero.
         from games.sc2.obs_spec import _RICH_UNIT_TYPES
+
         out = {f"unit_count_{name}": 0.0 for name in _RICH_UNIT_TYPES}
         feat_units = self._safe_array(ob, "feature_units")
         if feat_units is None or feat_units.size == 0:
@@ -990,10 +1061,14 @@ class SC2Client:
 
     def _quadrant_features(self, feat_screen: np.ndarray | None) -> dict[str, float]:
         out = {
-            "screen_self_NE_count":  0.0, "screen_self_NW_count":  0.0,
-            "screen_self_SE_count":  0.0, "screen_self_SW_count":  0.0,
-            "screen_enemy_NE_count": 0.0, "screen_enemy_NW_count": 0.0,
-            "screen_enemy_SE_count": 0.0, "screen_enemy_SW_count": 0.0,
+            "screen_self_NE_count": 0.0,
+            "screen_self_NW_count": 0.0,
+            "screen_self_SE_count": 0.0,
+            "screen_self_SW_count": 0.0,
+            "screen_enemy_NE_count": 0.0,
+            "screen_enemy_NW_count": 0.0,
+            "screen_enemy_SE_count": 0.0,
+            "screen_enemy_SW_count": 0.0,
         }
         rel = self._extract_player_relative(feat_screen, screen=True)
         if rel is None:
@@ -1037,6 +1112,7 @@ class SC2Client:
 
     def _enemy_unit_type_features(self, ob: Any) -> dict[str, float]:
         from games.sc2.obs_spec import _RICH_UNIT_TYPES
+
         out = {f"enemy_count_{name}": 0.0 for name in _RICH_UNIT_TYPES}
         feat_units = self._safe_array(ob, "feature_units")
         if feat_units is None or feat_units.size == 0:
@@ -1057,21 +1133,21 @@ class SC2Client:
 
     def _shield_energy_features(self, feat_screen: np.ndarray | None) -> dict[str, float]:
         out = {
-            "screen_self_shield_mean":  0.0,
+            "screen_self_shield_mean": 0.0,
             "screen_enemy_shield_mean": 0.0,
-            "screen_self_energy_mean":  0.0,
+            "screen_self_energy_mean": 0.0,
         }
         if feat_screen is None:
             return out
         rel = self._extract_player_relative(feat_screen, screen=True)
         if rel is None:
             return out
-        self_mask  = rel == 1
+        self_mask = rel == 1
         enemy_mask = rel == 4
         shield = self._extract_named_layer(feat_screen, "unit_shields")
         if shield is not None:
             if self_mask.any():
-                out["screen_self_shield_mean"]  = float(shield[self_mask].mean())
+                out["screen_self_shield_mean"] = float(shield[self_mask].mean())
             if enemy_mask.any():
                 out["screen_enemy_shield_mean"] = float(shield[enemy_mask].mean())
         energy = self._extract_named_layer(feat_screen, "unit_energy")
@@ -1093,14 +1169,10 @@ class SC2Client:
             out["upgrade_count"] = float(upgrades.size)
         build_queue = self._safe_array(ob, "build_queue")
         if build_queue is not None and build_queue.ndim >= 1:
-            out["build_queue_size"] = float(
-                build_queue.shape[0] if build_queue.ndim >= 2 else build_queue.size
-            )
+            out["build_queue_size"] = float(build_queue.shape[0] if build_queue.ndim >= 2 else build_queue.size)
         cargo = self._safe_array(ob, "cargo")
         if cargo is not None and cargo.ndim >= 1:
-            out["cargo_count"] = float(
-                cargo.shape[0] if cargo.ndim >= 2 else cargo.size
-            )
+            out["cargo_count"] = float(cargo.shape[0] if cargo.ndim >= 2 else cargo.size)
         return out
 
     def _screen_visibility_features(self, feat_screen: np.ndarray | None) -> dict[str, float]:
@@ -1190,11 +1262,7 @@ class SC2Client:
         if max_range_gu <= 0.0:
             return None
 
-        scale = (
-            _MARINE_RANGE_PX_AT_64
-            / _MARINE_RANGE_GU
-            * (float(self._screen_size) / 64.0)
-        )
+        scale = _MARINE_RANGE_PX_AT_64 / _MARINE_RANGE_GU * (float(self._screen_size) / 64.0)
         return float(max_range_gu * scale)
 
     def _total_self_hp(self, ob: Any) -> float:
@@ -1229,6 +1297,38 @@ class SC2Client:
         if feat_units.ndim != 2 or feat_units.shape[1] < 2:
             return 0.0
         return float((feat_units[:, 1] == 1).sum())
+
+    def _update_worker_screen_pos(self, ob: Any) -> None:
+        """Cache screen (x, y) of the first friendly worker visible in ``feature_units``.
+
+        PySC2 ``feature_units`` column layout (0-indexed):
+          0=unit_type, 1=alliance, …, 8=x, 9=y.
+
+        Workers are identified by matching the unit_type id against
+        :data:`_WORKER_TYPE_NAMES` via the lazy ``_unit_type_id_to_name``
+        lookup.  The position is stored in ``self._worker_screen_xy`` for
+        use in ``_action_to_call`` (``select_point`` fallback when a Build
+        action is blocked and ``select_idle_worker`` is unavailable or
+        insufficient).
+        """
+        feat_units = self._safe_array(ob, "feature_units")
+        if feat_units is None or feat_units.size == 0:
+            self._worker_screen_xy = None
+            return
+        # Need at least 10 columns (0..9) for unit_type, alliance, …, x, y.
+        if feat_units.ndim != 2 or feat_units.shape[1] < 10:
+            self._worker_screen_xy = None
+            return
+        if self._unit_type_id_to_name is None:
+            self._unit_type_id_to_name = self._build_unit_type_lookup()
+        for row in feat_units:
+            if int(row[1]) != 1:  # alliance != self
+                continue
+            name = self._unit_type_id_to_name.get(int(row[0]))
+            if name in _WORKER_TYPE_NAMES:
+                self._worker_screen_xy = (int(row[8]), int(row[9]))
+                return
+        self._worker_screen_xy = None
 
     @staticmethod
     def _build_attack_range_lookup() -> dict[int, float]:
@@ -1266,6 +1366,7 @@ class SC2Client:
         except ImportError:
             return {}
         from games.sc2.obs_spec import _RICH_UNIT_TYPES
+
         lookup: dict[int, str] = {}
         races = (
             getattr(pysc2_units, "Terran", None),
@@ -1314,12 +1415,7 @@ class SC2Client:
 
         race_votes: set[str] = set()
         feat_units = self._safe_array(ob, "feature_units")
-        if (
-            feat_units is not None
-            and feat_units.size > 0
-            and feat_units.ndim == 2
-            and feat_units.shape[1] >= 2
-        ):
+        if feat_units is not None and feat_units.size > 0 and feat_units.ndim == 2 and feat_units.shape[1] >= 2:
             for row in feat_units:
                 if int(row[1]) != 1:
                     continue
@@ -1329,10 +1425,7 @@ class SC2Client:
 
         for key in ("single_select", "multi_select"):
             selected = self._safe_array(ob, key)
-            if (
-                selected is None
-                or selected.size == 0
-            ):
+            if selected is None or selected.size == 0:
                 continue
             if selected.ndim == 1:
                 if selected.shape[0] < 1:
@@ -1356,6 +1449,7 @@ class SC2Client:
     def _get_rich_unit_types() -> tuple:
         """Return the _RICH_UNIT_TYPES tuple (lazy import avoids circular deps)."""
         from games.sc2.obs_spec import _RICH_UNIT_TYPES
+
         return _RICH_UNIT_TYPES
 
     # ------------------------------------------------------------------

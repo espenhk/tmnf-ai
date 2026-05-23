@@ -28,7 +28,7 @@ from games.sc2.client import SC2Client
 
 if TYPE_CHECKING:
     import argparse
-    import numpy as np
+
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +38,7 @@ _HEAD_NAMES = ["fn_idx", "x", "y", "queue"]
 # ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
+
 
 def play_sc2(experiment_name: str, args: argparse.Namespace) -> None:
     """Load champion weights and run a human-vs-AI interactive session.
@@ -73,11 +74,11 @@ def play_sc2(experiment_name: str, args: argparse.Namespace) -> None:
         with open(training_params_file) as f:
             p = yaml.safe_load(f)
 
-    map_name    = track_override or p.get("map_name", "MoveToBeacon")
-    step_mul    = p.get("step_mul", 1)
+    map_name = track_override or p.get("map_name", "MoveToBeacon")
+    step_mul = p.get("step_mul", 1)
     screen_size = p.get("screen_size", 64)
     minimap_size = p.get("minimap_size", 64)
-    agent_race  = p.get("agent_race", "random")
+    agent_race = p.get("agent_race", "random")
 
     policy = _load_champion_policy(weights_file, map_name)
 
@@ -87,8 +88,8 @@ def play_sc2(experiment_name: str, args: argparse.Namespace) -> None:
     print("=" * 52)
     print(f"  Map:    {map_name}")
     print(f"  Policy: {weights_file}")
-    print(f"  You (Human) vs the trained AI agent")
-    print(f"  Close the SC2 window or press Ctrl-C to quit")
+    print("  You (Human) vs the trained AI agent")
+    print("  Close the SC2 window or press Ctrl-C to quit")
     print("=" * 52)
     print()
 
@@ -110,6 +111,7 @@ def play_sc2(experiment_name: str, args: argparse.Namespace) -> None:
 # ---------------------------------------------------------------------------
 # Play loop
 # ---------------------------------------------------------------------------
+
 
 def _run_episode(client: SC2Client, policy) -> None:
     """Step through one episode and print the summary on termination."""
@@ -141,6 +143,7 @@ def _run_episode(client: SC2Client, policy) -> None:
 # Policy loading
 # ---------------------------------------------------------------------------
 
+
 def _load_champion_policy(
     weights_file: str,
     map_name: str,
@@ -164,16 +167,18 @@ def _load_champion_policy(
     """
     if not os.path.exists(weights_file):
         raise SystemExit(
-            f"No champion weights found at: {weights_file}\n"
-            "Train the agent first to generate champion weights."
+            f"No champion weights found at: {weights_file}\nTrain the agent first to generate champion weights."
         )
 
     from games.sc2.obs_spec import get_spec
+
     obs_spec = get_spec(map_name, preset=obs_spec_preset)
 
     if enable_belief:
         from pathlib import Path
-        from games.sc2.belief_schema import load_belief_config, extend_obs_spec
+
+        from games.sc2.belief_schema import extend_obs_spec, load_belief_config
+
         _cfg_path = Path(__file__).parent / "config" / "belief_config.yaml"
         belief_cfg = load_belief_config(_cfg_path)
         obs_spec = extend_obs_spec(obs_spec, belief_cfg)
@@ -186,22 +191,27 @@ def _load_champion_policy(
 
     if policy_type in ("sc2_genetic", "sc2_cmaes"):
         from games.sc2.sc2_policies import SC2MultiHeadLinearPolicy
+
         return SC2MultiHeadLinearPolicy.load(weights_file, obs_spec)
 
     if policy_type == "sc2_neural_net":
         from games.sc2.sc2_policies import SC2NeuralNetPolicy
+
         return SC2NeuralNetPolicy.from_cfg(cfg, obs_spec)
 
     if policy_type == "sc2_reinforce":
         from games.sc2.sc2_policies import SC2REINFORCEPolicy
+
         return SC2REINFORCEPolicy.from_cfg(cfg, obs_spec)
 
     if policy_type == "sc2_lstm":
         from games.sc2.sc2_policies import SC2LSTMPolicy
+
         return SC2LSTMPolicy.from_cfg(cfg, obs_spec)
 
     if policy_type == "sc2_neural_dqn":
         from games.sc2.sc2_policies import SC2NeuralDQNPolicy
+
         return SC2NeuralDQNPolicy.from_cfg(cfg, obs_spec)
 
     if policy_type == "sc2_cnn":
@@ -210,11 +220,12 @@ def _load_champion_policy(
         npz_path = weights_file.replace(".yaml", ".npz")
         if not os.path.exists(npz_path):
             raise SystemExit(
-                f"sc2_cnn champion not found at: {npz_path}\n"
-                "Train the agent first to generate champion weights."
+                f"sc2_cnn champion not found at: {npz_path}\nTrain the agent first to generate champion weights."
             )
-        from games.sc2.cnn_policy import SC2CNNEvolutionPolicy
         import numpy as _np
+
+        from games.sc2.cnn_policy import SC2CNNEvolutionPolicy
+
         with _np.load(npz_path) as _data:
             n_channels = int(_data["n_channels"])
         policy = SC2CNNEvolutionPolicy(n_channels=n_channels, obs_spec=obs_spec)
@@ -229,6 +240,7 @@ def _load_champion_policy(
             stacklevel=2,
         )
         from games.sc2.sc2_policies import SC2NeuralDQNPolicy
+
         return SC2NeuralDQNPolicy.from_cfg(cfg, obs_spec)
 
     if policy_type == "reinforce":
@@ -238,15 +250,13 @@ def _load_champion_policy(
             DeprecationWarning,
             stacklevel=2,
         )
-        if (
-            any(k in cfg for k in ("weights", "biases", "baseline_value"))
-            and "trunk_weights" not in cfg
-        ):
+        if any(k in cfg for k in ("weights", "biases", "baseline_value")) and "trunk_weights" not in cfg:
             raise SystemExit(
                 "Unsupported legacy SC2 bare-name 'reinforce' weights format detected. "
                 "This format was removed; retrain/save with policy_type 'sc2_reinforce'."
             )
         from games.sc2.sc2_policies import SC2REINFORCEPolicy
+
         return SC2REINFORCEPolicy.from_cfg(cfg, obs_spec)
 
     if policy_type == "lstm":
@@ -262,11 +272,11 @@ def _load_champion_policy(
                 "This format was removed; retrain/save with policy_type 'sc2_lstm'."
             )
         from games.sc2.sc2_policies import SC2LSTMPolicy
+
         if "W_out" in cfg:
             return SC2LSTMPolicy.from_cfg(cfg, obs_spec)
         raise SystemExit(
-            "Unsupported SC2 bare-name 'lstm' weights format. "
-            "Use a champion saved with policy_type 'sc2_lstm'."
+            "Unsupported SC2 bare-name 'lstm' weights format. Use a champion saved with policy_type 'sc2_lstm'."
         )
 
     # No explicit policy_type — detect format by key structure.
@@ -275,15 +285,18 @@ def _load_champion_policy(
     # Legacy CMA-ES saves via SC2LinearPolicy.save() → fn_idx_weights / x_weights.
     if "fn_idx_0_weights" in cfg:
         from games.sc2.sc2_policies import SC2MultiHeadLinearPolicy
+
         return SC2MultiHeadLinearPolicy.load(weights_file, obs_spec)
 
     from games.sc2.policies import SC2LinearPolicy
+
     return SC2LinearPolicy(obs_spec, _HEAD_NAMES, weights_file)
 
 
 # ---------------------------------------------------------------------------
 # Summary printer
 # ---------------------------------------------------------------------------
+
 
 def _print_summary(info: dict, step_count: int) -> None:
     outcome = info.get("player_outcome")
@@ -294,7 +307,7 @@ def _print_summary(info: dict, step_count: int) -> None:
     else:
         result = "DRAW / INCONCLUSIVE"
 
-    score     = info.get("score", 0.0)
+    score = info.get("score", 0.0)
     game_loop = info.get("game_loop", 0.0)
 
     print()

@@ -39,6 +39,7 @@ to an unconditional ``sleep(gap_s)`` (single-process best-effort) and
 logs a warning — the multi-worker SC2 scenario this fixes runs on Linux
 in practice (see ``CLAUDE.md`` SC2 setup notes).
 """
+
 from __future__ import annotations
 
 import logging
@@ -76,9 +77,9 @@ def _resolve_gap_s(explicit: float | None) -> float:
         return v
     except ValueError:
         logger.warning(
-            "GAMER_AI_SC2_MAP_GAP_S=%r is not a non-negative float; "
-            "using default %.1fs",
-            raw, DEFAULT_GAP_S,
+            "GAMER_AI_SC2_MAP_GAP_S=%r is not a non-negative float; using default %.1fs",
+            raw,
+            DEFAULT_GAP_S,
         )
         return DEFAULT_GAP_S
 
@@ -136,15 +137,17 @@ def acquire_map_access_slot(
                 logger.warning(
                     "SC2 map-access gate: stored timestamp %.3f is in the "
                     "future (now=%.3f); clamping to now to recover from clock skew",
-                    last, now,
+                    last,
+                    now,
                 )
                 last = now
             wait = (last + resolved_gap) - now
             if wait > 0:
                 logger.info(
-                    "SC2 map-access gate: waiting %.1fs to maintain %.1fs "
-                    "gap since last access at %.3f",
-                    wait, resolved_gap, last,
+                    "SC2 map-access gate: waiting %.1fs to maintain %.1fs gap since last access at %.3f",
+                    wait,
+                    resolved_gap,
+                    last,
                 )
                 _sleep(wait)
                 now = _now()

@@ -1,4 +1,5 @@
 """Tests for _discretize_obs helper in tmnf/policies.py."""
+
 import unittest
 
 import numpy as np
@@ -10,7 +11,6 @@ _N = BASE_OBS_DIM
 
 
 class TestDiscretizeObs(unittest.TestCase):
-
     def _scales(self) -> np.ndarray:
         return WeightedLinearPolicy.OBS_SCALES
 
@@ -30,7 +30,7 @@ class TestDiscretizeObs(unittest.TestCase):
     def test_symmetry(self):
         # +scale → norm=+1, -scale → norm=-1; should be symmetric around the middle bin
         scales = self._scales()
-        pos_bins = _discretize_obs( scales.copy(), scales, n_bins=7)
+        pos_bins = _discretize_obs(scales.copy(), scales, n_bins=7)
         neg_bins = _discretize_obs(-scales.copy(), scales, n_bins=7)
         mid = 3
         for p, n in zip(pos_bins, neg_bins):

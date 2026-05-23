@@ -3,11 +3,14 @@
 tminterface is a Windows-only, non-PyPI library so we stub it out at the
 sys.modules level before any client code is imported.
 """
+
 import sys
 import types
 import unittest
 from unittest.mock import MagicMock, patch
+
 import numpy as np
+
 
 # ---------------------------------------------------------------------------
 # Stub out tminterface so the module can be imported without the real library.
@@ -17,32 +20,35 @@ def _make_stub(name):
     sys.modules[name] = mod
     return mod
 
-_tm      = _make_stub("tminterface")
-_client  = _make_stub("tminterface.client")
-_iface   = _make_stub("tminterface.interface")
+
+_tm = _make_stub("tminterface")
+_client = _make_stub("tminterface.client")
+_iface = _make_stub("tminterface.interface")
 _structs = _make_stub("tminterface.structs")
 
-class _FakeClient:
-    def __init__(self): pass
 
-_client.Client     = _FakeClient
+class _FakeClient:
+    def __init__(self):
+        pass
+
+
+_client.Client = _FakeClient
 _iface.TMInterface = MagicMock
 
 # ---------------------------------------------------------------------------
 # Now we can safely import the module under test.
 # ---------------------------------------------------------------------------
 from games.tmnf.clients.rl_client import (  # noqa: E402
-    ACTIONS,
-    RLClient,
-    StepState,
     _DEFAULT_ACTION,
     _FINISH_THRESHOLD,
+    RLClient,
 )
 
 
 def _make_state_data(track_progress=0.5, lateral_offset=0.0, speed=10.0):
     """Build a StateData-like mock for injection into on_run_step."""
     from helpers import make_state_data
+
     return make_state_data(
         track_progress=track_progress,
         lateral_offset=lateral_offset,
@@ -53,8 +59,8 @@ def _make_state_data(track_progress=0.5, lateral_offset=0.0, speed=10.0):
 def _make_client(action_window_ticks=1):
     """Instantiate RLClient with a mocked Centerline (no file I/O)."""
     with patch("games.tmnf.clients.rl_client.Centerline", return_value=MagicMock()):
-        return RLClient(centerline_file="fake.npy", speed=1.0,
-                        action_window_ticks=action_window_ticks)
+        return RLClient(centerline_file="fake.npy", speed=1.0, action_window_ticks=action_window_ticks)
+
 
 class TestSetInputStateCalled(unittest.TestCase):
     """Verify set_input_state is called on every normal running tick."""
@@ -69,8 +75,10 @@ class TestSetInputStateCalled(unittest.TestCase):
     def _run_step(self, iface, action, time_ms=1000):
         """Execute one on_run_step with the given action, mocking away StateData and yaw."""
         self.client.set_action(action)
-        with patch("games.tmnf.clients.rl_client.StateData", return_value=self.state_data), \
-             patch.object(self.client, "_compute_yaw_error", return_value=0.0):
+        with (
+            patch("games.tmnf.clients.rl_client.StateData", return_value=self.state_data),
+            patch.object(self.client, "_compute_yaw_error", return_value=0.0),
+        ):
             self.client.on_run_step(iface, time_ms)
 
     def _iface(self):
@@ -186,8 +194,10 @@ class TestActionWindow(unittest.TestCase):
         if action is not None:
             self.client.set_action(action)
         sd = state_data if state_data is not None else self.state_data
-        with patch("games.tmnf.clients.rl_client.StateData", return_value=sd), \
-             patch.object(self.client, "_compute_yaw_error", return_value=0.0):
+        with (
+            patch("games.tmnf.clients.rl_client.StateData", return_value=sd),
+            patch.object(self.client, "_compute_yaw_error", return_value=0.0),
+        ):
             self.client.on_run_step(iface, time_ms)
 
     def test_decision_idx_computed(self):
@@ -199,9 +209,7 @@ class TestActionWindow(unittest.TestCase):
         iface = self._iface()
         # window_tick=0 at start of test → tick 0 of a window.
         self._run_step(iface, action=np.array([0.5, 1.0, 0.0], dtype=np.float32))
-        iface.set_input_state.assert_called_once_with(
-            accelerate=True, brake=False, steer=32768
-        )
+        iface.set_input_state.assert_called_once_with(accelerate=True, brake=False, steer=32768)
 
     def test_later_window_ticks_do_not_commit(self):
         """Ticks 1, 2, 3 of a window do NOT call set_input_state.
@@ -272,9 +280,7 @@ class TestActionWindow(unittest.TestCase):
         # Tick 4 (next window's tick 0): commits action B.
         iface.set_input_state.reset_mock()
         self._run_step(iface)
-        iface.set_input_state.assert_called_once_with(
-            accelerate=False, brake=True, steer=-65536
-        )
+        iface.set_input_state.assert_called_once_with(accelerate=False, brake=True, steer=-65536)
 
     def test_finish_forces_immediate_commit_and_emit(self):
         """A finish detected during transit phase triggers commit + StepState."""
@@ -287,8 +293,7 @@ class TestActionWindow(unittest.TestCase):
         iface.set_input_state.reset_mock()
         # Tick 3: transit, but inject finish.
         finished_state = _make_state_data(track_progress=_FINISH_THRESHOLD)
-        self._run_step(iface, action=np.array([1.0, 1.0, 0.0], dtype=np.float32),
-                       state_data=finished_state)
+        self._run_step(iface, action=np.array([1.0, 1.0, 0.0], dtype=np.float32), state_data=finished_state)
         iface.set_input_state.assert_called_once()
         self.assertEqual(self.client._state_queue.qsize(), 1)
         emitted = self.client._state_queue.get_nowait()
@@ -297,6 +302,7 @@ class TestActionWindow(unittest.TestCase):
     def test_hard_crash_forces_commit(self):
         """A hard-crash detected during transit phase triggers commit + StepState."""
         from games.tmnf.clients.rl_client import _HARD_CRASH_THRESHOLD_M
+
         iface = self._iface()
         for _ in range(3):
             self._run_step(iface)
@@ -330,8 +336,10 @@ class TestActionWindow(unittest.TestCase):
         iface = MagicMock()
         iface.get_simulation_state.return_value = MagicMock()
         for i in range(5):
-            with patch("games.tmnf.clients.rl_client.StateData", return_value=_make_state_data()), \
-                 patch.object(client, "_compute_yaw_error", return_value=0.0):
+            with (
+                patch("games.tmnf.clients.rl_client.StateData", return_value=_make_state_data()),
+                patch.object(client, "_compute_yaw_error", return_value=0.0),
+            ):
                 client.set_action(np.array([0.0, 1.0, 0.0], dtype=np.float32))
                 client.on_run_step(iface, i)
         self.assertEqual(iface.set_input_state.call_count, 5)
@@ -346,11 +354,9 @@ class TestRLClientConstructorValidation(unittest.TestCase):
     def test_decision_offset_pct_bounds(self):
         with patch("games.tmnf.clients.rl_client.Centerline", return_value=MagicMock()):
             with self.assertRaises(AssertionError):
-                RLClient(centerline_file="fake.npy", speed=1.0,
-                         action_window_ticks=4, decision_offset_pct=0.0)
+                RLClient(centerline_file="fake.npy", speed=1.0, action_window_ticks=4, decision_offset_pct=0.0)
             with self.assertRaises(AssertionError):
-                RLClient(centerline_file="fake.npy", speed=1.0,
-                         action_window_ticks=4, decision_offset_pct=1.5)
+                RLClient(centerline_file="fake.npy", speed=1.0, action_window_ticks=4, decision_offset_pct=1.5)
 
 
 if __name__ == "__main__":

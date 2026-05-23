@@ -22,6 +22,7 @@ You can then refer to `v<new_version>` in issues, experiment notes, and
 when investigating an `experiment_data.json` whose `code_version` field
 starts with the same prefix.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -41,8 +42,11 @@ _SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+$")
 
 def _run(*args: str) -> str:
     out = subprocess.run(
-        list(args), cwd=str(REPO_ROOT),
-        capture_output=True, text=True, check=False,
+        list(args),
+        cwd=str(REPO_ROOT),
+        capture_output=True,
+        text=True,
+        check=False,
     )
     if out.returncode != 0:
         sys.exit(f"command failed: {' '.join(args)}\n{out.stderr}")
@@ -63,7 +67,7 @@ def _bump_pyproject(new_version: str) -> None:
         flags=re.MULTILINE,
     )
     if n != 1:
-        sys.exit("could not find a `version = \"...\"` line in pyproject.toml")
+        sys.exit('could not find a `version = "..."` line in pyproject.toml')
     PYPROJECT.write_text(new_text)
 
 
@@ -108,10 +112,7 @@ def _roll_changelog(new_version: str, date: str) -> None:
     body_stripped = re.sub(r"^-{3,}\s*", "", body_stripped).strip()
     body_stripped = re.sub(r"\s*-{3,}$", "", body_stripped).strip()
 
-    new_section = (
-        "\n\n---\n\n"
-        f"## [{new_version}] - {date}\n\n"
-    )
+    new_section = f"\n\n---\n\n## [{new_version}] - {date}\n\n"
     if body_stripped:
         new_section += body_stripped + "\n\n"
     new_section += "---\n\n"
@@ -123,11 +124,13 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("new_version", help='New version, e.g. "0.2.0"')
     parser.add_argument(
-        "--allow-dirty", action="store_true",
+        "--allow-dirty",
+        action="store_true",
         help="Don't bail if the working tree has uncommitted changes",
     )
     parser.add_argument(
-        "--no-tag", action="store_true",
+        "--no-tag",
+        action="store_true",
         help="Skip creating the annotated git tag (only commit)",
     )
     args = parser.parse_args()

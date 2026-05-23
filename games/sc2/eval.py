@@ -62,6 +62,7 @@ _ALL_FN_NAMES: tuple[str, ...] = tuple(FUNCTION_IDS[k] for k in sorted(FUNCTION_
 # Public entry point
 # ---------------------------------------------------------------------------
 
+
 def eval_sc2(experiment_name: str, args: argparse.Namespace) -> None:
     """Load champion weights and run evaluation episodes against the bot.
 
@@ -105,10 +106,9 @@ def eval_sc2(experiment_name: str, args: argparse.Namespace) -> None:
     if os.path.exists(reward_cfg_file):
         with open(reward_cfg_file) as f:
             reward_cfg_dict = yaml.safe_load(f) or {}
-        reward_config = SC2RewardConfig(**{
-            k: v for k, v in reward_cfg_dict.items()
-            if k in SC2RewardConfig.__dataclass_fields__
-        })
+        reward_config = SC2RewardConfig(
+            **{k: v for k, v in reward_cfg_dict.items() if k in SC2RewardConfig.__dataclass_fields__}
+        )
 
     map_name = track_override or p.get("map_name", "MoveToBeacon")
     screen_size: int = p.get("screen_size", 64)
@@ -137,10 +137,7 @@ def eval_sc2(experiment_name: str, args: argparse.Namespace) -> None:
     step_mul: int = eval_speed if eval_speed is not None else config_step_mul
 
     # bot_difficulty: --bot-difficulty overrides experiment config.
-    bot_difficulty: str = (
-        getattr(args, "bot_difficulty", None)
-        or p.get("bot_difficulty", "very_easy")
-    )
+    bot_difficulty: str = getattr(args, "bot_difficulty", None) or p.get("bot_difficulty", "very_easy")
 
     num_episodes: int = getattr(args, "num_episodes", 1)
 
@@ -151,11 +148,7 @@ def eval_sc2(experiment_name: str, args: argparse.Namespace) -> None:
         enable_belief=enable_belief,
     )
 
-    speed_note = (
-        f"{step_mul}  (overriding config={config_step_mul})"
-        if eval_speed is not None
-        else f"{step_mul}"
-    )
+    speed_note = f"{step_mul}  (overriding config={config_step_mul})" if eval_speed is not None else f"{step_mul}"
     print()
     print("=" * 62)
     print("  SC2 Evaluation Mode")
@@ -168,7 +161,7 @@ def eval_sc2(experiment_name: str, args: argparse.Namespace) -> None:
     print(f"  Episode limit:  {max_episode_time_s:.0f} s")
     if max_apm:
         print(f"  Max APM:        {max_apm}")
-    print(f"  Realtime:       yes")
+    print("  Realtime:       yes")
     print("=" * 62)
     print()
 
@@ -211,6 +204,7 @@ def eval_sc2(experiment_name: str, args: argparse.Namespace) -> None:
 # ---------------------------------------------------------------------------
 # Episode loop
 # ---------------------------------------------------------------------------
+
 
 def _run_episode(
     env: SC2Env,
@@ -256,13 +250,21 @@ def _run_episode(
             if executed_fn_name != requested_fn_name:
                 logger.debug(
                     "Step %4d | %-24s -> %-24s (subst.) | x=%.3f y=%.3f | r=%+.2f",
-                    step_count, requested_fn_name, executed_fn_name,
-                    x_norm, y_norm, reward,
+                    step_count,
+                    requested_fn_name,
+                    executed_fn_name,
+                    x_norm,
+                    y_norm,
+                    reward,
                 )
             else:
                 logger.debug(
                     "Step %4d | %-24s            | x=%.3f y=%.3f | r=%+.2f",
-                    step_count, executed_fn_name, x_norm, y_norm, reward,
+                    step_count,
+                    executed_fn_name,
+                    x_norm,
+                    y_norm,
+                    reward,
                 )
 
     if hasattr(policy, "on_episode_end"):
@@ -273,12 +275,13 @@ def _run_episode(
     game_loop = info.get("game_loop", 0)
     result_str = "WIN " if outcome > 0 else ("LOSS" if outcome < 0 else "DRAW")
 
-    print(f"\n  Episode {ep_idx}/{total_episodes}  [{result_str}]"
-          f"  score={final_score:.1f}  loop={int(game_loop)}"
-          f"  steps={step_count}  reward={cumulative_reward:.1f}")
+    print(
+        f"\n  Episode {ep_idx}/{total_episodes}  [{result_str}]"
+        f"  score={final_score:.1f}  loop={int(game_loop)}"
+        f"  steps={step_count}  reward={cumulative_reward:.1f}"
+    )
 
-    _print_action_breakdown(action_counts, step_count, substitution_count,
-                            label=f"Episode {ep_idx}")
+    _print_action_breakdown(action_counts, step_count, substitution_count, label=f"Episode {ep_idx}")
 
     return {
         "outcome": outcome,
@@ -294,6 +297,7 @@ def _run_episode(
 # ---------------------------------------------------------------------------
 # Summary printers
 # ---------------------------------------------------------------------------
+
 
 def _print_action_breakdown(
     action_counts: collections.Counter,
@@ -313,8 +317,7 @@ def _print_action_breakdown(
         print(f"    {fn_name:<28} {count:5d} / {total_steps:5d}  ({pct:5.1f}%)  [{bar}]")
     if substitution_count > 0:
         sub_pct = 100.0 * substitution_count / max(total_steps, 1)
-        print(f"    {'  (blocked → substituted)':<28} {substitution_count:5d} / "
-              f"{total_steps:5d}  ({sub_pct:5.1f}%)")
+        print(f"    {'  (blocked → substituted)':<28} {substitution_count:5d} / {total_steps:5d}  ({sub_pct:5.1f}%)")
 
 
 def _print_aggregate_summary(
@@ -342,13 +345,13 @@ def _print_aggregate_summary(
     print(f"  Wins / Losses / Draws:   {wins} / {losses} / {draws}")
     if n > 0:
         print(f"  Win rate:                {100.0 * wins / n:.1f}%")
-    print(f"  Score:    mean={np.mean(scores):.1f}  σ={np.std(scores):.1f}"
-          f"  range=[{min(scores):.1f}, {max(scores):.1f}]")
+    print(
+        f"  Score:    mean={np.mean(scores):.1f}  σ={np.std(scores):.1f}  range=[{min(scores):.1f}, {max(scores):.1f}]"
+    )
     print(f"  Game loop: mean={np.mean(game_loops):.0f}  σ={np.std(game_loops):.0f}")
     print(f"  Steps:     mean={np.mean(steps):.0f}  σ={np.std(steps):.0f}")
     print(f"  Reward:    mean={np.mean(rewards):.1f}  σ={np.std(rewards):.1f}")
     print()
-    _print_action_breakdown(all_action_counts, total_steps, total_subs,
-                            label="all episodes")
+    _print_action_breakdown(all_action_counts, total_steps, total_subs, label="all episodes")
     print("=" * 62)
     print()

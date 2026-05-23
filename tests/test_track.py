@@ -1,12 +1,13 @@
 """Tests for tmnf/track.py — Centerline projection."""
+
 import os
 import tempfile
 import unittest
 
 import numpy as np
 
-from games.tmnf.track import Centerline
 from games.tmnf.state import Vec3
+from games.tmnf.track import Centerline
 
 
 class TestCenterline(unittest.TestCase):
@@ -94,7 +95,7 @@ class TestProjectAhead(unittest.TestCase):
         lat_pos, _ = self.cl.project_ahead(Vec3(3.0, 0, 0), nearest_idx=0, steps=5)
         lat_neg, _ = self.cl.project_ahead(Vec3(-3.0, 0, 0), nearest_idx=0, steps=5)
         # Signs must be strictly opposite
-        self.assertGreater(lat_pos * lat_neg, -float('inf'))  # both finite
+        self.assertGreater(lat_pos * lat_neg, -float("inf"))  # both finite
         self.assertNotEqual(lat_pos, 0.0)
         self.assertNotEqual(lat_neg, 0.0)
         # Opposite sides → opposite signs

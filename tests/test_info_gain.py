@@ -1,4 +1,5 @@
 """Tests for framework/info_gain.py — RegionStalenessTracker module."""
+
 import unittest
 
 import numpy as np
@@ -11,7 +12,8 @@ class TestRegionStalenessNeverObserved(unittest.TestCase):
 
     def setUp(self):
         self.tracker = RegionStalenessTracker(
-            n_rows=2, n_cols=2,
+            n_rows=2,
+            n_cols=2,
             scout_horizon_s=60.0,
             stale_threshold=0.5,
             scout_drive_weight=0.1,
@@ -34,7 +36,8 @@ class TestRegionStalenessRecentlyObserved(unittest.TestCase):
 
     def setUp(self):
         self.tracker = RegionStalenessTracker(
-            n_rows=2, n_cols=2,
+            n_rows=2,
+            n_cols=2,
             scout_horizon_s=60.0,
             stale_threshold=0.5,
             scout_drive_weight=0.1,
@@ -64,7 +67,8 @@ class TestIntrinsicRewardFires(unittest.TestCase):
 
     def setUp(self):
         self.tracker = RegionStalenessTracker(
-            n_rows=2, n_cols=2,
+            n_rows=2,
+            n_cols=2,
             scout_horizon_s=60.0,
             stale_threshold=0.5,
             scout_drive_weight=1.0,  # weight=1 for easy assertion
@@ -88,7 +92,8 @@ class TestIntrinsicRewardFires(unittest.TestCase):
 
     def test_reward_zero_when_weight_zero(self):
         tracker = RegionStalenessTracker(
-            n_rows=2, n_cols=2,
+            n_rows=2,
+            n_cols=2,
             scout_drive_weight=0.0,
         )
         visible = np.array([True, False, False, False])
