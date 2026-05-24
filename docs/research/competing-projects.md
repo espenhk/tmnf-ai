@@ -252,35 +252,68 @@ de-facto integration layer for the whole TMNF-RL ecosystem, ours included.
 
 ### AlphaStar (DeepMind) — the reference point
 The landmark SC2 agent (Vinyals et al., *Nature* 2019, "Grandmaster level in
-StarCraft II using multi-agent reinforcement learning").
+StarCraft II using multi-agent reinforcement learning"). Figures below are from
+the paper.
 
-- **Architecture:** a **transformer torso over the list of units**, a **deep
-  LSTM core**, an **auto-regressive policy head with a pointer network**, and a
-  **centralised value baseline**; "scatter connections" fuse spatial and
-  non-spatial features. Each action argument is produced auto-regressively,
-  conditioned on the previously chosen arguments.
-- **Observation:** the **raw interface** — a structured list of all visible
-  units with their attributes, plus spatial minimap/screen layers and scalar
-  stats — *not* rendered pixels.
-- **Action space:** a structured **function-with-arguments** space (action
-  type, target unit/point, queue), with **APM/action-rate limits** and camera
-  movement to keep play human-comparable.
-- **Training:** **supervised/imitation learning from anonymised human replays**
-  to bootstrap, then multi-agent RL via the **AlphaStar League** — main agents,
-  main exploiters, and league exploiters trained with **prioritised fictitious
-  self-play (PFSP)** to avoid strategic cycles. Trained on **TPUs** over weeks.
-- **Result:** reached **Grandmaster** on the public Battle.net ladder, **above
-  99.8% of ranked human players**, across all three races.
-- **Open source:** `google-deepmind/alphastar` (**Apache-2.0**) releases the
-  **AlphaStar Unplugged** offline-RL benchmark, data readers, evaluation, and
-  **general network architectures** — using **behaviour cloning** as the
-  worked example. The **full online league-training system was not released**;
-  the repo cites the AlphaStar Unplugged paper (OpenReview), not the Nature
-  one. ~567★, archived/low activity.
+- **Observation:** the **raw interface** — a structured list of **up to 512
+  units** with attributes, a **minimap**, and scalar stats — *not* rendered
+  pixels — but **constrained to a camera-like view** (info on off-camera enemy
+  units is hidden; some actions can only target inside the camera).
+- **Action space:** a structured, **typed function-with-arguments** action
+  (action type, selected units, target unit *or* a point on a 256×256 grid,
+  queued, repeat, delay) — **≈10²⁶ choices per step**.
+- **Architecture (≈139M params training / 55M at inference):** scalar stats →
+  MLP, the **entity list → Transformer (self-attention)**, the minimap →
+  **ResNet**, fused by novel **scatter connections**, into a **deep LSTM core**
+  for partial observability, then an **auto-regressive action head** (type →
+  delay → queued → selected-units → target) using a **pointer network** to pick
+  units. Ablation (supervised win-rate vs the Elite bot): the **Transformer**
+  (+35 pts) and **pointer network** (+29 pts) are the biggest contributors.
+- **Constraints (human-comparable, pro-player-approved):** capped at **22
+  non-duplicate actions per 5-second window**; ~**110 ms** action delay and
+  ~**370 ms** average between observations. Notably, **raising the APM cap
+  *hurt* Elo** (the agent over-invests in micro at strategy's expense).
+- **Supervised bootstrap:** every agent is initialised by **imitation learning
+  on 971,000 human replays (MMR > 3500, top ~22%)**, then fine-tuned on **16,000
+  winning replays at MMR > 6200**. The policy is conditioned on a statistic
+  **`z`** = build order (first 20 buildings/units) + cumulative stats; `z` is
+  zeroed 10% of the time so an unconditional mode is also learned.
+- **RL:** reward is terminal **{−1, 0, +1}** (win/draw/loss) plus **pseudo-
+  rewards** for matching the sampled `z` (build-order edit distance,
+  cumulative-stats Hamming distance), each active 25% of the time with **its own
+  value head**. The update is **actor-critic** with **V-trace** (policy) +
+  **TD(λ)** (value) + **UPGO** (a self-imitation term that bootstraps toward
+  better-than-average actions), plus a **KL penalty toward the frozen supervised
+  policy** to retain human-like diversity. The critic is **opponent-aware
+  during training only** (a privileged baseline — ablation: 22% → 82% win-rate).
+- **League training (PFSP):** **3 main agents** (one per race, never reset) +
+  **3 main exploiters** + **6 league exploiters**, ~**900 distinct players**
+  total. Opponents are sampled by **prioritised fictitious self-play**
+  (weighting `f_hard(x)=(1−x)ᵖ`, focusing on the hardest unbeaten opponents);
+  exploiters periodically reset to the supervised weights to keep finding
+  weaknesses. The league Nash does not cycle or regress.
+- **Compute:** each of the 12 concurrent agents trained on **32 third-gen TPUs
+  for 44 days**, running ~16,000 concurrent matches; the learner consumes
+  ~50,000 agent-steps/s.
+- **Result:** evaluated as **three separate per-race agents** (not one
+  multi-race agent) on Battle.net under blind/anonymous conditions. **AlphaStar
+  Final**: MMR **6,275 (Protoss) / 6,048 (Terran) / 5,835 (Zerg)** —
+  **Grandmaster, > 99.8%** of ranked players (top ~0.15%). **AlphaStar
+  Supervised** (imitation only, no RL) already reached **3,699 MMR / top 16%**;
+  AlphaStar Mid (27 days of league) ≈ top 0.5%. Uses **no tree search / MCTS**
+  (a deliberate contrast to AlphaGo/AlphaZero).
+- **Open source:** `google-deepmind/alphastar` (**Apache-2.0**, ~567★, archived)
+  releases the **AlphaStar Unplugged** offline-RL benchmark, data readers,
+  evaluation, and **general network architectures** — with **behaviour cloning**
+  as the worked example. The **full online league-training system was *not*
+  released**; the repo cites the AlphaStar Unplugged paper (OpenReview), not the
+  Nature one.
 
 > Out of our league computationally, but it is the canonical design for **any
-> future SC2 self-play / 1v1 ladder ambition**: imitation bootstrap + PFSP
-> league + entity-transformer obs + autoregressive actions.
+> future SC2 self-play / 1v1 ladder ambition**: imitation bootstrap → PFSP
+> league self-play, entity-transformer obs, autoregressive actions. Our
+> `max_apm` already echoes its action-rate cap; everything else (transformer
+> encoder, league, V-trace/UPGO) is far beyond our current numpy/ES stack.
 
 ### PySC2 / SC2LE (DeepMind) — the environment we build on
 `google-deepmind/pysc2` (**Apache-2.0**, ~8.3k★) is DeepMind's Python wrapper
@@ -449,12 +482,17 @@ noted above — these are *ideas to try*, not code to copy.
    won't reach that ceiling; this is a multi-issue research arc, not a quick
    win. The **APM-limiting** idea is already reflected in our `max_apm`.
 
-8. **Imitation / offline RL is a gap we have no answer for.** AlphaStar
-   (replays), AlphaStar Unplugged (offline RL / behaviour cloning), and
-   MineRL/BASALT (human-demo datasets) all bootstrap from demonstrations. We
-   have none. For games where we *can* record human or scripted demos (TMNF
-   replays exist in `replays/`; SC2 has replay files), a behaviour-cloning warm
-   start could dramatically cut cold-start cost — a candidate future issue.
+8. **Imitation / offline RL is a gap we have no answer for — and it pays off
+   hugely.** AlphaStar (replays), AlphaStar Unplugged (offline RL / behaviour
+   cloning), SC2LE (replay-supervised policies beat its RL agents on
+   BuildMarines), and MineRL/BASALT (human-demo datasets) all bootstrap from
+   demonstrations. The quantified payoff is striking: **AlphaStar's
+   imitation-only "Supervised" agent already reached the top 16% of ranked
+   players (3,699 MMR) before any RL**, and every league agent was *initialised*
+   from it. We have no imitation path. For games where we *can* record human or
+   scripted demos (TMNF replays exist in `replays/`; SC2 has replay files), a
+   behaviour-cloning warm start could dramatically cut cold-start cost — a
+   candidate future issue.
 
 9. **Benchmark SC2 minigames against the published baselines.** Use the
    DeepMind SC2LE scores (MoveToBeacon 26, CollectMineralShards 103,
