@@ -3,38 +3,37 @@ Tests for distributed grid search — coordinator re-queue logic and JSON round-
 
 These tests do NOT require a live TMInterface session; they use synthetic data.
 """
+
 from __future__ import annotations
 
 import json
 import threading
 import time
-import urllib.parse
 
 import pytest
 
+from distributed.coordinator import Coordinator
 from distributed.protocol import (
     ComboSpec,
     ResultPayload,
-    combo_to_dict,
     combo_from_dict,
-    result_to_dict,
-    result_from_dict,
-    experiment_to_json,
+    combo_to_dict,
     experiment_from_dict,
+    experiment_to_json,
+    result_from_dict,
+    result_to_dict,
 )
-from distributed.coordinator import Coordinator
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_combo(name: str = "test_combo") -> ComboSpec:
     return ComboSpec(
         name=name,
         track="a03_centerline",
-        training_params={"speed": 10.0, "n_sims": 5, "mutation_scale": 0.05,
-                         "in_game_episode_s": 30.0},
+        training_params={"speed": 10.0, "n_sims": 5, "mutation_scale": 0.05, "in_game_episode_s": 30.0},
         reward_params={"progress_weight": 10000.0},
     )
 
@@ -42,22 +41,30 @@ def _make_combo(name: str = "test_combo") -> ComboSpec:
 def _make_experiment_data_dict(name: str = "test_combo") -> dict:
     """Return a minimal ExperimentData-compatible dict for round-trip tests."""
     from framework.analytics import (
-        ExperimentData, GreedySimResult, RunTrace,
+        ExperimentData,
+        GreedySimResult,
+        RunTrace,
     )
+
     data = ExperimentData(
         experiment_name=name,
         probe_results=[],
         cold_start_restarts=[],
         greedy_sims=[
             GreedySimResult(
-                sim=1, reward=123.4, improved=True,
-                throttle_counts=[5, 10, 85], total_steps=100,
-                trace=RunTrace(pos_x=[0.0, 1.0], pos_z=[0.0, 2.0],
-                               throttle_state=[(0, 1)], total_reward=123.4),
+                sim=1,
+                reward=123.4,
+                improved=True,
+                throttle_counts=[5, 10, 85],
+                total_steps=100,
+                trace=RunTrace(pos_x=[0.0, 1.0], pos_z=[0.0, 2.0], throttle_state=[(0, 1)], total_reward=123.4),
             ),
             GreedySimResult(
-                sim=2, reward=100.0, improved=False,
-                throttle_counts=[10, 10, 80], total_steps=100,
+                sim=2,
+                reward=100.0,
+                improved=False,
+                throttle_counts=[10, 10, 80],
+                total_steps=100,
             ),
         ],
         probe_floor=None,
@@ -73,6 +80,7 @@ def _make_experiment_data_dict(name: str = "test_combo") -> dict:
 # ---------------------------------------------------------------------------
 # Protocol serialisation
 # ---------------------------------------------------------------------------
+
 
 class TestComboSpecSerialization:
     def test_round_trip(self):
@@ -143,26 +151,37 @@ class TestExperimentDataSerialization:
     def test_round_trip_task_metric_fields(self):
         """finish_time_s, mean_abs_lateral_offset, reward_components survive round-trip."""
         from framework.analytics import ExperimentData, GreedySimResult
+
         comps = {"progress": 8.5, "step_penalty": -0.1, "finish_bonus": 100.0}
         data = ExperimentData(
             experiment_name="task_metric_test",
-            probe_results=[], cold_start_restarts=[],
+            probe_results=[],
+            cold_start_restarts=[],
             greedy_sims=[
                 GreedySimResult(
-                    sim=1, reward=99.0, improved=True,
-                    throttle_counts=[0, 0, 100], total_steps=50,
+                    sim=1,
+                    reward=99.0,
+                    improved=True,
+                    throttle_counts=[0, 0, 100],
+                    total_steps=50,
                     finish_time_s=42.5,
                     mean_abs_lateral_offset=1.23,
                     reward_components=comps,
                 ),
                 GreedySimResult(
-                    sim=2, reward=10.0, improved=False,
-                    throttle_counts=[0, 50, 50], total_steps=50,
+                    sim=2,
+                    reward=10.0,
+                    improved=False,
+                    throttle_counts=[0, 50, 50],
+                    total_steps=50,
                     # None fields: ensure they round-trip as None
                 ),
             ],
-            probe_floor=None, weights_file="", reward_config_file="",
-            training_params={}, timings={},
+            probe_floor=None,
+            weights_file="",
+            reward_config_file="",
+            training_params={},
+            timings={},
         )
         recovered = experiment_from_dict(json.loads(experiment_to_json(data)))
         s0 = recovered.greedy_sims[0]
@@ -181,26 +200,37 @@ class TestExperimentDataSerialization:
         to int so callers continue to index by fn_idx integer.
         """
         from framework.analytics import ExperimentData, GreedySimResult
+
         hist = [[i + j for j in range(8)] for i in range(8)]
         data = ExperimentData(
             experiment_name="sc2_fields_test",
-            probe_results=[], cold_start_restarts=[],
+            probe_results=[],
+            cold_start_restarts=[],
             greedy_sims=[
                 GreedySimResult(
-                    sim=1, reward=5.0, improved=True,
-                    throttle_counts=[0, 0, 0], total_steps=50,
+                    sim=1,
+                    reward=5.0,
+                    improved=True,
+                    throttle_counts=[0, 0, 0],
+                    total_steps=50,
                     action_counts={0: 10, 1: 5, 2: 85},
                     obs_averages={"army_count": 3.0, "minerals": 150.0},
                     xy_hist=hist,
                     skipped_frames=12,
                 ),
                 GreedySimResult(
-                    sim=2, reward=3.0, improved=False,
-                    throttle_counts=[0, 0, 0], total_steps=50,
+                    sim=2,
+                    reward=3.0,
+                    improved=False,
+                    throttle_counts=[0, 0, 0],
+                    total_steps=50,
                 ),
             ],
-            probe_floor=None, weights_file="", reward_config_file="",
-            training_params={}, timings={},
+            probe_floor=None,
+            weights_file="",
+            reward_config_file="",
+            training_params={},
+            timings={},
         )
         recovered = experiment_from_dict(json.loads(experiment_to_json(data)))
         s0 = recovered.greedy_sims[0]
@@ -224,21 +254,31 @@ class TestExperimentDataSerialization:
             pytest.skip("numpy not available")
 
         from framework.analytics import ExperimentData, GreedySimResult, RunTrace
+
         data = ExperimentData(
             experiment_name="np_test",
-            probe_results=[], cold_start_restarts=[],
-            greedy_sims=[GreedySimResult(
-                sim=1, reward=1.0, improved=True,
-                throttle_counts=[0, 0, 100], total_steps=100,
-                trace=RunTrace(
-                    pos_x=np.array([1.0, 2.0, 3.0]),
-                    pos_z=np.array([4.0, 5.0, 6.0]),
-                    throttle_state=[],
-                    total_reward=1.0,
-                ),
-            )],
-            probe_floor=None, weights_file="", reward_config_file="",
-            training_params={}, timings={},
+            probe_results=[],
+            cold_start_restarts=[],
+            greedy_sims=[
+                GreedySimResult(
+                    sim=1,
+                    reward=1.0,
+                    improved=True,
+                    throttle_counts=[0, 0, 100],
+                    total_steps=100,
+                    trace=RunTrace(
+                        pos_x=np.array([1.0, 2.0, 3.0]),
+                        pos_z=np.array([4.0, 5.0, 6.0]),
+                        throttle_state=[],
+                        total_reward=1.0,
+                    ),
+                )
+            ],
+            probe_floor=None,
+            weights_file="",
+            reward_config_file="",
+            training_params={},
+            timings={},
         )
         json_str = experiment_to_json(data)
         recovered = experiment_from_dict(json.loads(json_str))
@@ -271,17 +311,23 @@ class TestCoordinator:
 
     def _get(self, coord, path: str):
         import urllib.request
+
         req = urllib.request.Request(self._url(coord, path), headers=self._auth_headers())
         return urllib.request.urlopen(req, timeout=5)
 
     def _post(self, coord, path: str, body: bytes):
         import urllib.request
+
         req = urllib.request.Request(
-            self._url(coord, path), data=body, method="POST",
-            headers=self._auth_headers({
-                "Content-Type": "application/json",
-                "Content-Length": str(len(body)),
-            }),
+            self._url(coord, path),
+            data=body,
+            method="POST",
+            headers=self._auth_headers(
+                {
+                    "Content-Type": "application/json",
+                    "Content-Length": str(len(body)),
+                }
+            ),
         )
         return urllib.request.urlopen(req, timeout=5)
 
@@ -375,9 +421,7 @@ class TestCoordinator:
         import urllib.request
 
         coord = self._start_coord([_make_combo("monitor_test")])
-        body = urllib.parse.urlencode(
-            {"username": "monitor", "password": "wrong"}
-        ).encode()
+        body = urllib.parse.urlencode({"username": "monitor", "password": "wrong"}).encode()
         req = urllib.request.Request(
             self._url(coord, "/monitor/login"),
             data=body,
@@ -402,9 +446,7 @@ class TestCoordinator:
         combos = [_make_combo("queued_run"), _make_combo("active_run")]
         coord = self._start_coord(combos)
         opener = self._monitor_opener()
-        body = urllib.parse.urlencode(
-            {"username": "monitor", "password": _TEST_TOKEN}
-        ).encode()
+        body = urllib.parse.urlencode({"username": "monitor", "password": _TEST_TOKEN}).encode()
         login_req = urllib.request.Request(
             self._url(coord, "/monitor/login"),
             data=body,
@@ -570,8 +612,8 @@ class TestCoordinator:
 
     def test_unauthorized_request_rejected(self):
         """Requests with wrong or missing token must receive 401."""
-        import urllib.request
         import urllib.error
+        import urllib.request
 
         coord = self._start_coord([_make_combo("auth_test")])
 
@@ -658,6 +700,7 @@ class TestCoordinator:
     def _get_with_game(self, coord, game: str):
         """GET /work with an X-Worker-Game filter header."""
         import urllib.request
+
         req = urllib.request.Request(
             self._url(coord, "/work"),
             headers=self._auth_headers({"X-Worker-Game": game}),
@@ -717,7 +760,7 @@ class TestCoordinator:
         combos = [
             ComboSpec(name="tmnf_1", track="a03", training_params={}, reward_params={}, game="tmnf"),
             ComboSpec(name="tmnf_2", track="a03", training_params={}, reward_params={}, game="tmnf"),
-            ComboSpec(name="sc2_1",  track="map",  training_params={}, reward_params={}, game="sc2"),
+            ComboSpec(name="sc2_1", track="map", training_params={}, reward_params={}, game="sc2"),
         ]
         coord = self._start_coord(combos)
 
@@ -786,6 +829,7 @@ class TestCoordinator:
 # ---------------------------------------------------------------------------
 # Worker game filter (unit tests — no real coordinator needed)
 # ---------------------------------------------------------------------------
+
 
 class TestWorkerGameFilter:
     """Unit tests for the worker --game filtering logic via run_worker internals."""

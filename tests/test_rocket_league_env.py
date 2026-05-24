@@ -5,7 +5,7 @@ Rocket League or rlgym to be installed (the rlgym import is mocked).
 """
 
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import numpy as np
 
@@ -26,6 +26,7 @@ def _make_env(**kwargs):
     """Instantiate RocketLeagueEnv with rlgym mocked out."""
     from games.rocket_league.env import RocketLeagueEnv
     from games.rocket_league.reward import RocketLeagueRewardConfig
+
     reward_config = kwargs.pop("reward_config", None) or RocketLeagueRewardConfig()
     return RocketLeagueEnv(reward_config=reward_config, **kwargs)
 
@@ -36,6 +37,7 @@ class TestRocketLeagueEnvSpaces(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         import sys
+
         cls._old_modules = {k: sys.modules.get(k) for k in _MODULE_PATCHES}
         for mod, mock in _MODULE_PATCHES.items():
             sys.modules[mod] = mock
@@ -43,6 +45,7 @@ class TestRocketLeagueEnvSpaces(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         import sys
+
         for mod, old in cls._old_modules.items():
             if old is None:
                 sys.modules.pop(mod, None)
@@ -51,13 +54,12 @@ class TestRocketLeagueEnvSpaces(unittest.TestCase):
 
     def setUp(self):
         from games.rocket_league.obs_spec import BASE_OBS_DIM
+
         self._base_obs_dim = BASE_OBS_DIM
         self.env = _make_env()
 
     def test_observation_space_shape(self):
-        self.assertEqual(
-            self.env.observation_space.shape, (self._base_obs_dim,)
-        )
+        self.assertEqual(self.env.observation_space.shape, (self._base_obs_dim,))
 
     def test_action_space_shape(self):
         self.assertEqual(self.env.action_space.shape, (8,))
@@ -65,13 +67,13 @@ class TestRocketLeagueEnvSpaces(unittest.TestCase):
     def test_action_space_low(self):
         np.testing.assert_array_almost_equal(
             self.env.action_space.low,
-            [-1., -1., -1., -1., -1., 0., 0., 0.],
+            [-1.0, -1.0, -1.0, -1.0, -1.0, 0.0, 0.0, 0.0],
         )
 
     def test_action_space_high(self):
         np.testing.assert_array_almost_equal(
             self.env.action_space.high,
-            [1., 1., 1., 1., 1., 1., 1., 1.],
+            [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
         )
 
 
@@ -81,6 +83,7 @@ class TestRocketLeagueEnvEpisodeTime(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         import sys
+
         cls._old_modules = {k: sys.modules.get(k) for k in _MODULE_PATCHES}
         for mod, mock in _MODULE_PATCHES.items():
             sys.modules[mod] = mock
@@ -88,6 +91,7 @@ class TestRocketLeagueEnvEpisodeTime(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         import sys
+
         for mod, old in cls._old_modules.items():
             if old is None:
                 sys.modules.pop(mod, None)
@@ -110,6 +114,7 @@ class TestRocketLeagueEnvStepLogic(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         import sys
+
         cls._old_modules = {k: sys.modules.get(k) for k in _MODULE_PATCHES}
         for mod, mock in _MODULE_PATCHES.items():
             sys.modules[mod] = mock
@@ -117,6 +122,7 @@ class TestRocketLeagueEnvStepLogic(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         import sys
+
         for mod, old in cls._old_modules.items():
             if old is None:
                 sys.modules.pop(mod, None)
@@ -125,12 +131,16 @@ class TestRocketLeagueEnvStepLogic(unittest.TestCase):
 
     def setUp(self):
         from games.rocket_league.obs_spec import BASE_OBS_DIM
+
         self._dim = BASE_OBS_DIM
 
         self._raw_obs = np.zeros(BASE_OBS_DIM, dtype=np.float32)
         _mock_rlgym_env.reset.return_value = self._raw_obs
         _mock_rlgym_env.step.return_value = (
-            self._raw_obs, 0.0, False, {},
+            self._raw_obs,
+            0.0,
+            False,
+            {},
         )
         self.env = _make_env()
 
@@ -154,9 +164,15 @@ class TestRocketLeagueEnvStepLogic(unittest.TestCase):
     def test_info_contains_expected_keys(self):
         self.env.reset()
         _, _, _, _, info = self.env.step(np.zeros(8, dtype=np.float32))
-        for key in ("vel_towards_ball", "boosting", "ball_touched",
-                    "goal_scored", "goal_conceded", "elapsed_s",
-                    "termination_reason"):
+        for key in (
+            "vel_towards_ball",
+            "boosting",
+            "ball_touched",
+            "goal_scored",
+            "goal_conceded",
+            "elapsed_s",
+            "termination_reason",
+        ):
             self.assertIn(key, info)
 
     def test_boost_flag_detected_from_action(self):
@@ -175,7 +191,10 @@ class TestRocketLeagueEnvStepLogic(unittest.TestCase):
 
     def test_goal_scored_sets_termination_reason(self):
         _mock_rlgym_env.step.return_value = (
-            self._raw_obs, 0.0, True, {"goal_scored": True},
+            self._raw_obs,
+            0.0,
+            True,
+            {"goal_scored": True},
         )
         self.env.reset()
         _, _, terminated, truncated, info = self.env.step(np.zeros(8))
@@ -201,6 +220,7 @@ class TestRocketLeagueEnvStepLogic(unittest.TestCase):
 
     def test_make_env_factory_forwards_tick_skip(self):
         from games.rocket_league.env import make_env
+
         make_env(experiment_dir=".", tick_skip=10)
         _mock_rlgym.make.assert_called_with(tick_skip=10, team_size=3, self_play=False)
 
@@ -245,11 +265,13 @@ class TestRocketLeagueActions(unittest.TestCase):
 
     def test_discrete_actions_shape(self):
         from games.rocket_league.actions import DISCRETE_ACTIONS
+
         self.assertEqual(DISCRETE_ACTIONS.shape[1], 8)
         self.assertGreaterEqual(DISCRETE_ACTIONS.shape[0], 9)
 
     def test_probe_actions_count(self):
         from games.rocket_league.actions import PROBE_ACTIONS
+
         self.assertEqual(len(PROBE_ACTIONS), 6)
         for probe in PROBE_ACTIONS:
             self.assertEqual(probe.action.shape, (8,))
@@ -257,10 +279,12 @@ class TestRocketLeagueActions(unittest.TestCase):
 
     def test_warmup_action_shape(self):
         from games.rocket_league.actions import WARMUP_ACTION
+
         self.assertEqual(WARMUP_ACTION.shape, (8,))
 
     def test_action_bounds_respected(self):
-        from games.rocket_league.actions import DISCRETE_ACTIONS, ACTION_LOW, ACTION_HIGH
+        from games.rocket_league.actions import ACTION_HIGH, ACTION_LOW, DISCRETE_ACTIONS
+
         self.assertTrue(np.all(DISCRETE_ACTIONS >= ACTION_LOW))
         self.assertTrue(np.all(DISCRETE_ACTIONS <= ACTION_HIGH))
 

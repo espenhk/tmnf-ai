@@ -8,12 +8,12 @@ ExperimentData serialisation round-trips through dataclasses.asdict() + JSON.
 Numpy arrays are converted to lists on the way out; reconstruction is done
 via experiment_from_dict() which rebuilds the full dataclass tree.
 """
+
 from __future__ import annotations
 
 import dataclasses
 import json
 from typing import Any
-
 
 # ---------------------------------------------------------------------------
 # Wire types
@@ -27,6 +27,7 @@ DEFAULT_GAME: str = "tmnf"
 @dataclasses.dataclass
 class ComboSpec:
     """One grid-search combination, ready for a worker to execute."""
+
     name: str
     track: str
     training_params: dict[str, Any]
@@ -37,18 +38,21 @@ class ComboSpec:
 @dataclasses.dataclass
 class ResultPayload:
     """Serialised experiment result posted by a worker to the coordinator."""
+
     name: str
-    data_json: str   # ExperimentData serialised via experiment_to_json()
+    data_json: str  # ExperimentData serialised via experiment_to_json()
 
 
 # ---------------------------------------------------------------------------
 # JSON helpers
 # ---------------------------------------------------------------------------
 
+
 def _default(obj: Any) -> Any:
     """Custom encoder: numpy arrays/scalars → plain Python, dataclasses → dict."""
     try:
         import numpy as np
+
         if isinstance(obj, np.ndarray):
             return obj.tolist()
         if isinstance(obj, np.integer):
@@ -70,8 +74,12 @@ def experiment_to_json(data: Any) -> str:
 def experiment_from_dict(d: dict[str, Any]) -> Any:
     """Reconstruct an ExperimentData instance from a plain dict (e.g. from JSON)."""
     from framework.analytics import (
-        ExperimentData, RunTrace, ProbeResult,
-        ColdStartSimResult, ColdStartRestartResult, GreedySimResult,
+        ColdStartRestartResult,
+        ColdStartSimResult,
+        ExperimentData,
+        GreedySimResult,
+        ProbeResult,
+        RunTrace,
     )
 
     def _trace(t: dict | None) -> RunTrace | None:
@@ -114,9 +122,7 @@ def experiment_from_dict(d: dict[str, Any]) -> Any:
         # action_counts: JSON serialisation turns int dict keys into strings;
         # convert them back to int for a lossless round-trip.
         raw_ac = s.get("action_counts")
-        action_counts = (
-            {int(k): v for k, v in raw_ac.items()} if raw_ac is not None else None
-        )
+        action_counts = {int(k): v for k, v in raw_ac.items()} if raw_ac is not None else None
         return GreedySimResult(
             sim=s["sim"],
             reward=s["reward"],

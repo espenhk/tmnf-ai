@@ -3,6 +3,7 @@
 These tests validate the client's data transformation logic without
 requiring TORCS to be installed.
 """
+
 import unittest
 
 import numpy as np
@@ -13,9 +14,10 @@ from games.torcs.obs_spec import BASE_OBS_DIM
 
 class _FakeObs:
     """Mimics the observation object returned by gym_torcs."""
+
     def __init__(self, **kwargs):
         defaults = {
-            "speedX": 0.5,          # normalised by 300 in gym_torcs
+            "speedX": 0.5,  # normalised by 300 in gym_torcs
             "trackPos": 0.0,
             "angle": 0.1,
             "distRaced": 500.0,
@@ -78,8 +80,8 @@ class TestTorcsClientMapAction(unittest.TestCase):
     def test_full_throttle_straight(self):
         action = np.array([0.0, 1.0, 0.0], dtype=np.float32)
         result = TorcsClient._map_action(action)
-        self.assertAlmostEqual(result[0], 0.0)   # steer
-        self.assertAlmostEqual(result[1], 1.0)    # net accel
+        self.assertAlmostEqual(result[0], 0.0)  # steer
+        self.assertAlmostEqual(result[1], 1.0)  # net accel
 
     def test_full_brake(self):
         action = np.array([0.0, 0.0, 1.0], dtype=np.float32)
@@ -90,12 +92,12 @@ class TestTorcsClientMapAction(unittest.TestCase):
     def test_steer_clipped(self):
         action = np.array([2.0, 0.5, 0.0], dtype=np.float32)
         result = TorcsClient._map_action(action)
-        self.assertAlmostEqual(result[0], 1.0)    # clipped to 1
+        self.assertAlmostEqual(result[0], 1.0)  # clipped to 1
 
     def test_combined_accel_brake(self):
         action = np.array([0.0, 0.8, 0.3], dtype=np.float32)
         result = TorcsClient._map_action(action)
-        self.assertAlmostEqual(result[1], 0.5)    # 0.8 - 0.3
+        self.assertAlmostEqual(result[1], 0.5)  # 0.8 - 0.3
 
 
 if __name__ == "__main__":

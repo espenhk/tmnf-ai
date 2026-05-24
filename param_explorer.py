@@ -73,6 +73,7 @@ def cmd_load(args, db_path):
         sys.exit(f"Error: not a directory: {exp_dir}")
 
     import yaml
+
     params = {}
     for fname in ("training_params.yaml", "reward_config.yaml"):
         fpath = os.path.join(exp_dir, fname)
@@ -141,8 +142,8 @@ def cmd_list(args, db_path):
 
 def cmd_plot(args, db_path):
     try:
-        import matplotlib.pyplot as plt
         import matplotlib.colors as mcolors
+        import matplotlib.pyplot as plt
         import numpy as np
     except ImportError:
         sys.exit("Error: matplotlib and numpy are required for the plot command")
@@ -177,6 +178,7 @@ def cmd_plot(args, db_path):
     x_range = max(xs) - min(xs) if len(xs) > 1 else 1.0
     y_range = max(ys) - min(ys) if len(ys) > 1 else 1.0
     from collections import Counter
+
     coord_counts = Counter(zip(xs.tolist(), ys.tolist()))
     jx = np.zeros(len(xs))
     jy = np.zeros(len(ys))
@@ -194,8 +196,7 @@ def cmd_plot(args, db_path):
     norm = mcolors.Normalize(vmin=mn, vmax=mx)
 
     fig, ax = plt.subplots(figsize=(8, 7))
-    sc = ax.scatter(xs, ys, c=scores, cmap="RdYlGn", norm=norm, s=80,
-                    edgecolors="#333333", linewidths=0.5, zorder=3)
+    sc = ax.scatter(xs, ys, c=scores, cmap="RdYlGn", norm=norm, s=80, edgecolors="#333333", linewidths=0.5, zorder=3)
     fig.colorbar(sc, ax=ax, label="Score")
 
     ax.set_xlabel(x_param)
@@ -212,8 +213,9 @@ def cmd_plot(args, db_path):
 
     if args.annotate:
         for x, y, s in zip(xs, ys, scores):
-            ax.annotate(f"{s:.0f}", (x, y), fontsize=7, ha="left", va="bottom",
-                        xytext=(4, 4), textcoords="offset points")
+            ax.annotate(
+                f"{s:.0f}", (x, y), fontsize=7, ha="left", va="bottom", xytext=(4, 4), textcoords="offset points"
+            )
 
     out = args.out or f"param_plot_{x_param}_vs_{y_param}.png"
     fig.savefig(out, dpi=150, bbox_inches="tight")
@@ -236,8 +238,9 @@ def cmd_remove(args, db_path):
 
 def main():
     parser = argparse.ArgumentParser(description="Manual parameter exploration tracker")
-    parser.add_argument("--db", default=_DEFAULT_DB, metavar="PATH",
-                        help="Path to the JSON database (default: param_exploration.json)")
+    parser.add_argument(
+        "--db", default=_DEFAULT_DB, metavar="PATH", help="Path to the JSON database (default: param_exploration.json)"
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
     add_p = sub.add_parser("add", help="Add an entry with key=value params")

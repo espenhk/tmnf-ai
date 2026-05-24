@@ -40,17 +40,17 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
-EXPERIMENT_DIR   = "experiments/ppo_default"
-CENTERLINE_FILE  = os.environ.get("TMNF_TRACK", "tracks/a03_centerline.npy")
-SPEED            = 10.0      # game speed multiplier
-IN_GAME_EPISODE_S = 20.0     # in-game seconds per episode
-TOTAL_TIMESTEPS  = 500_000
-CHECKPOINT_FREQ  = 5_000     # save a checkpoint every N steps
+EXPERIMENT_DIR = "experiments/ppo_default"
+CENTERLINE_FILE = os.environ.get("TMNF_TRACK", "tracks/a03_centerline.npy")
+SPEED = 10.0  # game speed multiplier
+IN_GAME_EPISODE_S = 20.0  # in-game seconds per episode
+TOTAL_TIMESTEPS = 500_000
+CHECKPOINT_FREQ = 5_000  # save a checkpoint every N steps
 
-RUNS_DIR         = "runs"
-CHECKPOINT_DIR   = os.path.join(RUNS_DIR, "checkpoints")
-TB_LOG_DIR       = os.path.join(RUNS_DIR, "tb_logs")
-BEST_MODEL_PATH  = os.path.join(RUNS_DIR, "best_model")
+RUNS_DIR = "runs"
+CHECKPOINT_DIR = os.path.join(RUNS_DIR, "checkpoints")
+TB_LOG_DIR = os.path.join(RUNS_DIR, "tb_logs")
+BEST_MODEL_PATH = os.path.join(RUNS_DIR, "best_model")
 
 
 def main() -> None:

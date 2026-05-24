@@ -18,6 +18,7 @@ import numpy as np
 @dataclass(frozen=True)
 class ObsDim:
     """A single observation feature dimension."""
+
     name: str
     scale: float
     description: str
@@ -73,10 +74,7 @@ class ObsSpec:
         """
         if n_rays == 0:
             return self
-        lidar_dims = [
-            ObsDim(f"lidar_{i}", 1.0, "LIDAR ray wall-distance [0, 1]")
-            for i in range(n_rays)
-        ]
+        lidar_dims = [ObsDim(f"lidar_{i}", 1.0, "LIDAR ray wall-distance [0, 1]") for i in range(n_rays)]
         return ObsSpec(self._dims + lidar_dims)
 
     def __repr__(self) -> str:

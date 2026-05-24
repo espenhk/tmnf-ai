@@ -1,4 +1,5 @@
 """Tests for LSTMCore and LSTMEvolutionPolicy in framework/lstm.py."""
+
 import unittest
 
 import numpy as np
@@ -25,8 +26,8 @@ def _rand_obs(n_lidar_rays: int = 0, seed: int = 0) -> np.ndarray:
 # LSTMCore unit tests
 # ---------------------------------------------------------------------------
 
-class TestLSTMPolicyStructure(unittest.TestCase):
 
+class TestLSTMPolicyStructure(unittest.TestCase):
     def setUp(self):
         self.policy = LSTMPolicy(_OBS_SPEC, hidden_size=8, seed=0)
 
@@ -38,7 +39,7 @@ class TestLSTMPolicyStructure(unittest.TestCase):
         for _ in range(20):
             action = self.policy(_zero_obs())
             self.assertGreaterEqual(float(action[0]), -1.0)
-            self.assertLessEqual(float(action[0]),     1.0)
+            self.assertLessEqual(float(action[0]), 1.0)
 
     def test_accel_binary(self):
         for _ in range(20):
@@ -54,9 +55,10 @@ class TestLSTMPolicyStructure(unittest.TestCase):
         h_before = self.policy._h.copy()
         c_before = self.policy._c.copy()
         self.policy(_rand_obs())
-        self.assertFalse(np.allclose(self.policy._h, h_before) and
-                         np.allclose(self.policy._c, c_before),
-                         "Hidden state (h, c) did not change after __call__")
+        self.assertFalse(
+            np.allclose(self.policy._h, h_before) and np.allclose(self.policy._c, c_before),
+            "Hidden state (h, c) did not change after __call__",
+        )
 
     def test_episode_reset_zeros_hidden_state(self):
         # Drive the hidden state to non-zero values
@@ -67,20 +69,24 @@ class TestLSTMPolicyStructure(unittest.TestCase):
         np.testing.assert_array_equal(self.policy._c, np.zeros(8))
 
     def test_update_is_noop(self):
-        obs    = _zero_obs()
-        w_snap = [w.copy() for w in [
-            self.policy._W_f, self.policy._W_i,
-            self.policy._W_g, self.policy._W_o,
-        ]]
+        obs = _zero_obs()
+        w_snap = [
+            w.copy()
+            for w in [
+                self.policy._W_f,
+                self.policy._W_i,
+                self.policy._W_g,
+                self.policy._W_o,
+            ]
+        ]
         self.policy.update(obs, np.array([0, 1, 0]), 1.0, obs, False)
-        for i, w in enumerate([self.policy._W_f, self.policy._W_i,
-                                self.policy._W_g, self.policy._W_o]):
+        for i, w in enumerate([self.policy._W_f, self.policy._W_i, self.policy._W_g, self.policy._W_o]):
             np.testing.assert_array_equal(w, w_snap[i])
 
     def test_different_history_gives_different_action(self):
         """Same final observation but different prior history → different action."""
-        obs_seq  = [_rand_obs(seed=i) for i in range(5)]
-        final    = _rand_obs(seed=99)
+        obs_seq = [_rand_obs(seed=i) for i in range(5)]
+        final = _rand_obs(seed=99)
 
         policy_a = LSTMPolicy(_OBS_SPEC, hidden_size=16, seed=7)
         policy_b = LSTMPolicy(_OBS_SPEC, hidden_size=16, seed=7)
@@ -93,18 +99,18 @@ class TestLSTMPolicyStructure(unittest.TestCase):
         action_a = policy_a(final)
         action_b = policy_b(final)
 
-        self.assertFalse(np.allclose(action_a, action_b),
-                         "Policies with different histories produced identical actions")
+        self.assertFalse(
+            np.allclose(action_a, action_b), "Policies with different histories produced identical actions"
+        )
 
 
 class TestLSTMFlatInterface(unittest.TestCase):
-
     def setUp(self):
         self.policy = LSTMPolicy(_OBS_SPEC, hidden_size=8, seed=1)
 
     def test_flat_dim_correct(self):
-        h    = 8
-        d    = _OBS_DIM
+        h = 8
+        d = _OBS_DIM
         c_in = h + d
         expected = 4 * (h * c_in + h) + 3 * h
         self.assertEqual(self.policy.flat_dim, expected)
@@ -114,9 +120,9 @@ class TestLSTMFlatInterface(unittest.TestCase):
         self.assertEqual(flat.shape, (self.policy.flat_dim,))
 
     def test_flat_roundtrip_values(self):
-        flat1  = self.policy.to_flat()
+        flat1 = self.policy.to_flat()
         policy2 = self.policy.with_flat(flat1)
-        flat2  = policy2.to_flat()
+        flat2 = policy2.to_flat()
         np.testing.assert_array_almost_equal(flat1, flat2, decimal=6)
 
     def test_with_flat_zeroed_hidden_state(self):
@@ -124,18 +130,16 @@ class TestLSTMFlatInterface(unittest.TestCase):
         # Advance hidden state
         for _ in range(3):
             self.policy(_rand_obs())
-        flat     = self.policy.to_flat()
-        policy2  = self.policy.with_flat(flat)
+        flat = self.policy.to_flat()
+        policy2 = self.policy.with_flat(flat)
         np.testing.assert_array_equal(policy2._h, np.zeros(8))
         np.testing.assert_array_equal(policy2._c, np.zeros(8))
 
     def test_with_flat_preserves_weights(self):
-        flat    = self.policy.to_flat()
+        flat = self.policy.to_flat()
         policy2 = self.policy.with_flat(flat)
-        np.testing.assert_array_almost_equal(
-            self.policy._W_f, policy2._W_f, decimal=6)
-        np.testing.assert_array_almost_equal(
-            self.policy._W_steer, policy2._W_steer, decimal=6)
+        np.testing.assert_array_almost_equal(self.policy._W_f, policy2._W_f, decimal=6)
+        np.testing.assert_array_almost_equal(self.policy._W_steer, policy2._W_steer, decimal=6)
 
     def test_with_flat_wrong_size_raises(self):
         wrong_flat = np.zeros(self.policy.flat_dim + 1, dtype=np.float32)
@@ -151,24 +155,36 @@ class TestLSTMFlatInterface(unittest.TestCase):
     def test_mutated_same_hidden_size(self):
         mutant = self.policy.mutated(scale=0.5)
         self.assertEqual(mutant._hidden_size, self.policy._hidden_size)
-        self.assertEqual(mutant._obs_dim,     self.policy._obs_dim)
+        self.assertEqual(mutant._obs_dim, self.policy._obs_dim)
 
     def test_flat_roundtrip_with_lidar(self):
         lidar_spec = _OBS_SPEC.with_lidar(3)
-        p    = LSTMPolicy(lidar_spec, hidden_size=4, seed=5)
+        p = LSTMPolicy(lidar_spec, hidden_size=4, seed=5)
         flat = p.to_flat()
-        p2   = p.with_flat(flat)
+        p2 = p.with_flat(flat)
         np.testing.assert_array_almost_equal(flat, p2.to_flat(), decimal=6)
 
 
 class TestLSTMPolicySerialisation(unittest.TestCase):
-
     def test_to_cfg_contains_required_keys(self):
-        p   = LSTMPolicy(_OBS_SPEC, hidden_size=8)
+        p = LSTMPolicy(_OBS_SPEC, hidden_size=8)
         cfg = p.to_cfg()
-        for key in ("policy_type", "hidden_size", "obs_dim",
-                    "W_f", "b_f", "W_i", "b_i", "W_g", "b_g", "W_o", "b_o",
-                    "W_steer", "W_accel", "W_brake"):
+        for key in (
+            "policy_type",
+            "hidden_size",
+            "obs_dim",
+            "W_f",
+            "b_f",
+            "W_i",
+            "b_i",
+            "W_g",
+            "b_g",
+            "W_o",
+            "b_o",
+            "W_steer",
+            "W_accel",
+            "W_brake",
+        ):
             self.assertIn(key, cfg)
 
     def test_policy_type_string(self):
@@ -176,16 +192,20 @@ class TestLSTMPolicySerialisation(unittest.TestCase):
         self.assertEqual(p.to_cfg()["policy_type"], "lstm")
 
     def test_from_cfg_roundtrip(self):
-        p   = LSTMPolicy(_OBS_SPEC, hidden_size=8, seed=3)
+        p = LSTMPolicy(_OBS_SPEC, hidden_size=8, seed=3)
         cfg = p.to_cfg()
-        p2  = LSTMCore.from_cfg(cfg, _OBS_SPEC)
-        np.testing.assert_array_almost_equal(p._W_f,    p2._W_f,    decimal=6)
+        p2 = LSTMCore.from_cfg(cfg, _OBS_SPEC)
+        np.testing.assert_array_almost_equal(p._W_f, p2._W_f, decimal=6)
         np.testing.assert_array_almost_equal(p._W_steer, p2._W_steer, decimal=6)
         self.assertEqual(p2._hidden_size, 8)
         np.testing.assert_array_equal(p2._h, np.zeros(8))
 
     def test_save_and_reload(self):
-        import tempfile, os, yaml
+        import os
+        import tempfile
+
+        import yaml
+
         p = LSTMPolicy(_OBS_SPEC, hidden_size=4, seed=42)
         with tempfile.NamedTemporaryFile(suffix=".yaml", delete=False) as f:
             path = f.name
@@ -204,8 +224,8 @@ class TestLSTMPolicySerialisation(unittest.TestCase):
 # LSTMEvolutionPolicy unit tests
 # ---------------------------------------------------------------------------
 
-class TestLSTMEvolutionPolicyInit(unittest.TestCase):
 
+class TestLSTMEvolutionPolicyInit(unittest.TestCase):
     def test_population_size_property(self):
         policy = LSTMEvolutionPolicy(_OBS_SPEC, population_size=12)
         self.assertEqual(policy.population_size, 12)
@@ -232,10 +252,9 @@ class TestLSTMEvolutionPolicyInit(unittest.TestCase):
 
 
 class TestLSTMEvolutionPolicySampling(unittest.TestCase):
-
     def test_sample_population_count(self):
         policy = LSTMEvolutionPolicy(_OBS_SPEC, hidden_size=4, population_size=8, seed=0)
-        pop    = policy.sample_population()
+        pop = policy.sample_population()
         self.assertEqual(len(pop), 8)
 
     def test_sample_population_returns_lstm_policies(self):
@@ -250,17 +269,15 @@ class TestLSTMEvolutionPolicySampling(unittest.TestCase):
 
     def test_sample_produces_distinct_individuals(self):
         policy = LSTMEvolutionPolicy(_OBS_SPEC, hidden_size=4, population_size=6, seed=3)
-        pop    = policy.sample_population()
+        pop = policy.sample_population()
         flat_0 = pop[0].to_flat()
         flat_1 = pop[1].to_flat()
         self.assertFalse(np.allclose(flat_0, flat_1))
 
 
 class TestLSTMEvolutionPolicyUpdate(unittest.TestCase):
-
     def _setup(self, pop=8, seed=0):
-        policy = LSTMEvolutionPolicy(_OBS_SPEC, hidden_size=4, population_size=pop,
-                                     initial_sigma=0.1, seed=seed)
+        policy = LSTMEvolutionPolicy(_OBS_SPEC, hidden_size=4, population_size=pop, initial_sigma=0.1, seed=seed)
         policy.sample_population()
         return policy
 
@@ -282,13 +299,13 @@ class TestLSTMEvolutionPolicyUpdate(unittest.TestCase):
 
     def test_update_returns_false_when_no_improvement(self):
         policy = self._setup()
-        policy.update_distribution([100.0] * 8)   # sets champion_reward = 100
+        policy.update_distribution([100.0] * 8)  # sets champion_reward = 100
         policy.sample_population()
         improved = policy.update_distribution([50.0] * 8)
         self.assertFalse(improved)
 
     def test_mean_shifts_after_update(self):
-        policy   = self._setup()
+        policy = self._setup()
         old_mean = policy._mean.copy()
         policy.update_distribution([float(i) for i in range(8)])
         self.assertFalse(np.allclose(policy._mean, old_mean))
@@ -305,7 +322,7 @@ class TestLSTMEvolutionPolicyUpdate(unittest.TestCase):
             policy.update_distribution([0.0] * 8)
 
     def test_sigma_adapts(self):
-        policy   = self._setup()
+        policy = self._setup()
         old_sigma = policy.sigma
         policy.update_distribution([float(i) for i in range(8)])
         # sigma should have changed (up or down)
@@ -313,7 +330,6 @@ class TestLSTMEvolutionPolicyUpdate(unittest.TestCase):
 
 
 class TestLSTMEvolutionPolicyCallable(unittest.TestCase):
-
     def test_call_raises_before_any_update(self):
         policy = LSTMEvolutionPolicy(_OBS_SPEC, hidden_size=4, population_size=4, seed=0)
         policy.sample_population()
@@ -327,7 +343,7 @@ class TestLSTMEvolutionPolicyCallable(unittest.TestCase):
         action = policy(_zero_obs())
         self.assertEqual(action.shape, (3,))
         self.assertGreaterEqual(float(action[0]), -1.0)
-        self.assertLessEqual(float(action[0]),     1.0)
+        self.assertLessEqual(float(action[0]), 1.0)
         self.assertIn(float(action[1]), (0.0, 1.0))
         self.assertIn(float(action[2]), (0.0, 1.0))
 
@@ -344,12 +360,10 @@ class TestLSTMEvolutionPolicyCallable(unittest.TestCase):
 
 
 class TestLSTMEvolutionPolicySerialisation(unittest.TestCase):
-
     def test_to_cfg_keys(self):
         policy = LSTMEvolutionPolicy(_OBS_SPEC, hidden_size=4, population_size=6)
-        cfg    = policy.to_cfg()
-        for key in ("policy_type", "hidden_size", "population_size",
-                    "sigma", "champion_reward"):
+        cfg = policy.to_cfg()
+        for key in ("policy_type", "hidden_size", "population_size", "sigma", "champion_reward"):
             self.assertIn(key, cfg)
 
     def test_policy_type_string(self):
@@ -357,7 +371,11 @@ class TestLSTMEvolutionPolicySerialisation(unittest.TestCase):
         self.assertEqual(policy.to_cfg()["policy_type"], "lstm")
 
     def test_save_writes_lstm_yaml(self):
-        import tempfile, os, yaml
+        import os
+        import tempfile
+
+        import yaml
+
         policy = LSTMEvolutionPolicy(_OBS_SPEC, hidden_size=4, population_size=4, seed=0)
         policy.sample_population()
         policy.update_distribution([float(i) for i in range(4)])
@@ -374,41 +392,33 @@ class TestLSTMEvolutionPolicySerialisation(unittest.TestCase):
 
     def test_initialize_from_champion(self):
         champion = LSTMPolicy(_OBS_SPEC, hidden_size=8, seed=5)
-        policy   = LSTMEvolutionPolicy(_OBS_SPEC, hidden_size=8, population_size=4)
+        policy = LSTMEvolutionPolicy(_OBS_SPEC, hidden_size=8, population_size=4)
         policy.initialize_from_champion(champion)
-        np.testing.assert_array_almost_equal(
-            policy._mean, champion.to_flat().astype(np.float64), decimal=6)
+        np.testing.assert_array_almost_equal(policy._mean, champion.to_flat().astype(np.float64), decimal=6)
         self.assertIs(policy._champion, champion)
 
 
 class TestLSTMEvolutionConvergence(unittest.TestCase):
-
     def test_mean_moves_toward_target(self):
         """ES mean should move toward the minimizer of a quadratic after 20 generations."""
-        policy = LSTMEvolutionPolicy(_OBS_SPEC, hidden_size=4, population_size=16,
-                                     initial_sigma=0.5, seed=42)
+        policy = LSTMEvolutionPolicy(_OBS_SPEC, hidden_size=4, population_size=16, initial_sigma=0.5, seed=42)
         target = np.ones(policy._flat_dim, dtype=np.float64)
         initial_dist = float(np.linalg.norm(policy._mean - target))
 
         for _ in range(20):
             individuals = policy.sample_population()
-            rewards = [
-                -float(np.sum((ind.to_flat().astype(np.float64) - target) ** 2))
-                for ind in individuals
-            ]
+            rewards = [-float(np.sum((ind.to_flat().astype(np.float64) - target) ** 2)) for ind in individuals]
             policy.update_distribution(rewards)
 
         final_dist = float(np.linalg.norm(policy._mean - target))
-        self.assertLess(final_dist, initial_dist,
-                        f"ES failed to converge: initial={initial_dist:.3f}, "
-                        f"final={final_dist:.3f}")
+        self.assertLess(
+            final_dist, initial_dist, f"ES failed to converge: initial={initial_dist:.3f}, final={final_dist:.3f}"
+        )
 
 
 class TestLSTMEvolutionTrainerState(unittest.TestCase):
-
     def _make_trained_policy(self) -> "LSTMEvolutionPolicy":
-        policy = LSTMEvolutionPolicy(_OBS_SPEC, hidden_size=4, population_size=6,
-                                     initial_sigma=0.1, seed=42)
+        policy = LSTMEvolutionPolicy(_OBS_SPEC, hidden_size=4, population_size=6, initial_sigma=0.1, seed=42)
         for _ in range(2):
             policy.sample_population()
             policy.update_distribution([float(i) for i in range(6)])
@@ -417,7 +427,9 @@ class TestLSTMEvolutionTrainerState(unittest.TestCase):
     def test_save_load_roundtrip(self):
         """save_trainer_state → load_trainer_state preserves mean and sigma,
         and the loaded state drives subsequent evolution correctly."""
-        import tempfile, os
+        import os
+        import tempfile
+
         policy = self._make_trained_policy()
 
         with tempfile.NamedTemporaryFile(suffix=".npz", delete=False) as f:
@@ -425,8 +437,7 @@ class TestLSTMEvolutionTrainerState(unittest.TestCase):
         try:
             policy.save_trainer_state(path)
 
-            policy2 = LSTMEvolutionPolicy(_OBS_SPEC, hidden_size=4, population_size=6,
-                                          initial_sigma=0.99, seed=99)
+            policy2 = LSTMEvolutionPolicy(_OBS_SPEC, hidden_size=4, population_size=6, initial_sigma=0.99, seed=99)
             policy2.load_trainer_state(path)
 
             np.testing.assert_array_equal(policy._mean, policy2._mean)
@@ -443,7 +454,9 @@ class TestLSTMEvolutionTrainerState(unittest.TestCase):
 
     def test_load_wrong_flat_dim_raises(self):
         """Loading state with mismatched flat_dim raises ValueError."""
-        import tempfile, os
+        import os
+        import tempfile
+
         policy1 = LSTMEvolutionPolicy(_OBS_SPEC, hidden_size=4, population_size=4)
         policy1.sample_population()
         policy1.update_distribution([float(i) for i in range(4)])

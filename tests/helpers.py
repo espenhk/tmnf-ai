@@ -4,6 +4,7 @@ Shared test helpers for tmnf tests.
 conftest.py ensures tmnf/ and tmnf/tests/ are on sys.path before this
 module is imported, so the source imports below resolve correctly.
 """
+
 import numpy as np
 
 from games.tmnf.policies import WeightedLinearPolicy
@@ -21,14 +22,19 @@ def make_game_state(
     wheel_sliding=(False, False, False, False),
 ):
     """Build a plain Python object matching StateData's nested attribute expectations."""
+
     class _CS:
         pass
+
     class _Dyna:
         current_state = _CS()
+
     class _Engine:
         pass
+
     class _Mobil:
         engine = _Engine()
+
     class _State:
         pass
 
@@ -72,15 +78,14 @@ def zero_obs(n: int = 15) -> np.ndarray:
     return np.zeros(n, dtype=np.float32)
 
 
-def make_wlp(steer_weights=None, throttle_weights=None,
-             steer_threshold=0.5, throttle_threshold=0.5):
+def make_wlp(steer_weights=None, throttle_weights=None, steer_threshold=0.5, throttle_threshold=0.5):
     """Construct a WeightedLinearPolicy directly from weight vectors (no YAML file)."""
     names = WeightedLinearPolicy.OBS_NAMES
     n = len(names)
-    sw = steer_weights    if steer_weights    is not None else np.zeros(n, dtype=np.float32)
+    sw = steer_weights if steer_weights is not None else np.zeros(n, dtype=np.float32)
     tw = throttle_weights if throttle_weights is not None else np.zeros(n, dtype=np.float32)
     cfg = {
-        "steer_threshold":    steer_threshold,
+        "steer_threshold": steer_threshold,
         "throttle_threshold": throttle_threshold,
         "steer_weights": {names[i]: float(sw[i]) for i in range(n)},
         "accel_weights": {names[i]: float(tw[i]) for i in range(n)},

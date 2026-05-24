@@ -11,9 +11,9 @@ from games.sc2.obs_spec import SC2_MINIGAME_OBS_SPEC
 
 
 def _import_policy_modules() -> None:
-    import games.tmnf.policies  # noqa: F401
-    import games.sc2.sc2_policies  # noqa: F401
     import games.sc2.cnn_policy  # noqa: F401
+    import games.sc2.sc2_policies  # noqa: F401
+    import games.tmnf.policies  # noqa: F401
 
 
 @pytest.mark.parametrize(

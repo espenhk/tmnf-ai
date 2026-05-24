@@ -6,9 +6,6 @@ SC2Env and SC2Client are mocked throughout — no PySC2 installation needed.
 import argparse
 import collections
 import io
-import os
-import sys
-import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -16,10 +13,10 @@ import numpy as np
 
 from games.sc2.obs_spec import BASE_OBS_DIM
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_obs(dim: int = BASE_OBS_DIM) -> np.ndarray:
     return np.zeros(dim, dtype=np.float32)
@@ -49,11 +46,13 @@ def _make_args(**kwargs) -> argparse.Namespace:
 # CLI argument validation
 # ---------------------------------------------------------------------------
 
+
 class TestArgValidation(unittest.TestCase):
     """--num-episodes and --eval-speed must be ≥ 1; exercises the real main.py parser."""
 
     def _parser(self):
         from main import _build_arg_parser
+
         return _build_arg_parser()
 
     def test_num_episodes_zero_rejected(self):
@@ -97,10 +96,11 @@ class TestArgValidation(unittest.TestCase):
 # _print_action_breakdown
 # ---------------------------------------------------------------------------
 
-class TestPrintActionBreakdown(unittest.TestCase):
 
+class TestPrintActionBreakdown(unittest.TestCase):
     def _capture(self, counts, total, subs=0, label="test"):
         from games.sc2.eval import _print_action_breakdown
+
         buf = io.StringIO()
         with patch("sys.stdout", buf):
             _print_action_breakdown(counts, total, subs, label=label)
@@ -139,10 +139,9 @@ class TestPrintActionBreakdown(unittest.TestCase):
 # _print_aggregate_summary
 # ---------------------------------------------------------------------------
 
-class TestPrintAggregateSummary(unittest.TestCase):
 
-    def _make_result(self, outcome, score=10.0, game_loop=500, steps=20,
-                     reward=5.0, subs=0):
+class TestPrintAggregateSummary(unittest.TestCase):
+    def _make_result(self, outcome, score=10.0, game_loop=500, steps=20, reward=5.0, subs=0):
         return {
             "outcome": outcome,
             "score": score,
@@ -155,6 +154,7 @@ class TestPrintAggregateSummary(unittest.TestCase):
 
     def _capture(self, results, counts):
         from games.sc2.eval import _print_aggregate_summary
+
         buf = io.StringIO()
         with patch("sys.stdout", buf):
             _print_aggregate_summary(results, counts)
@@ -162,9 +162,9 @@ class TestPrintAggregateSummary(unittest.TestCase):
 
     def test_win_rate_correct(self):
         results = [
-            self._make_result(1),   # win
+            self._make_result(1),  # win
             self._make_result(-1),  # loss
-            self._make_result(1),   # win
+            self._make_result(1),  # win
         ]
         all_counts = sum((r["action_counts"] for r in results), collections.Counter())
         out = self._capture(results, all_counts)
@@ -187,6 +187,7 @@ class TestPrintAggregateSummary(unittest.TestCase):
 # _run_episode
 # ---------------------------------------------------------------------------
 
+
 class TestRunEpisode(unittest.TestCase):
     """Episode loop: policy called, actions logged, lifecycle hooks invoked."""
 
@@ -202,8 +203,7 @@ class TestRunEpisode(unittest.TestCase):
         steps = []
         for i in range(n_steps):
             done = i == n_steps - 1
-            steps.append((_make_obs(obs_dim), 1.0, done, False,
-                          _make_info(outcome=outcome if done else None)))
+            steps.append((_make_obs(obs_dim), 1.0, done, False, _make_info(outcome=outcome if done else None)))
         env.step.side_effect = steps
         return env
 
@@ -214,6 +214,7 @@ class TestRunEpisode(unittest.TestCase):
 
     def test_policy_called_each_step(self):
         from games.sc2.eval import _run_episode
+
         env = self._make_env(n_steps=4)
         policy = self._make_policy()
         _run_episode(env, policy, ep_idx=1, total_episodes=1)
@@ -221,6 +222,7 @@ class TestRunEpisode(unittest.TestCase):
 
     def test_result_step_count_matches_env_steps(self):
         from games.sc2.eval import _run_episode
+
         env = self._make_env(n_steps=5)
         policy = self._make_policy()
         result = _run_episode(env, policy, ep_idx=1, total_episodes=1)
@@ -230,6 +232,7 @@ class TestRunEpisode(unittest.TestCase):
         """on_episode_start(info=reset_info) — info dict passed as 'info' kwarg,
         not spread as top-level kwargs, so policies can read available_fn_ids."""
         from games.sc2.eval import _run_episode
+
         env = self._make_env(n_steps=1)
         policy = self._make_policy()
         policy.on_episode_start = MagicMock()
@@ -244,6 +247,7 @@ class TestRunEpisode(unittest.TestCase):
         """update(prev_obs, action, reward, next_obs, done, info=info) —
         verify positional and keyword args match the policy contract."""
         from games.sc2.eval import _run_episode
+
         obs_dim = BASE_OBS_DIM
 
         received_calls = []
@@ -251,12 +255,18 @@ class TestRunEpisode(unittest.TestCase):
         class _FakePolicy:
             def __call__(self, obs):
                 return np.array([1, 0.0, 0.0, 0], dtype=np.float32)
+
             def update(self, obs, action, reward, next_obs, done, **kwargs):
-                received_calls.append({
-                    "obs": obs, "action": action, "reward": reward,
-                    "next_obs": next_obs, "done": done,
-                    "info": kwargs.get("info"),
-                })
+                received_calls.append(
+                    {
+                        "obs": obs,
+                        "action": action,
+                        "reward": reward,
+                        "next_obs": next_obs,
+                        "done": done,
+                        "info": kwargs.get("info"),
+                    }
+                )
 
         env = self._make_env(n_steps=2, obs_dim=obs_dim)
         _run_episode(env, _FakePolicy(), ep_idx=1, total_episodes=1)
@@ -272,6 +282,7 @@ class TestRunEpisode(unittest.TestCase):
 
     def test_result_outcome_from_terminal_info(self):
         from games.sc2.eval import _run_episode
+
         env = self._make_env(n_steps=2, outcome=1)
         policy = self._make_policy()
         result = _run_episode(env, policy, ep_idx=1, total_episodes=1)
@@ -306,6 +317,7 @@ class TestRunEpisode(unittest.TestCase):
 
     def test_cumulative_reward_summed(self):
         from games.sc2.eval import _run_episode
+
         env = self._make_env(n_steps=4)
         policy = self._make_policy()
         result = _run_episode(env, policy, ep_idx=1, total_episodes=1)

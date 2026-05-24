@@ -1,4 +1,5 @@
 """Tests for the SC2 action definitions."""
+
 import sys
 import types
 import unittest
@@ -18,9 +19,8 @@ from games.sc2.actions import (
     fn_ids_for_race,
 )
 
-
 _N = SCREEN_GRID_RESOLUTION
-_N2 = _N ** 2
+_N2 = _N**2
 # Spatial fn_ids get N² rows; non-spatial get 1 row each.
 _N_SPATIAL = len(SPATIAL_FN_IDS)
 _N_NON_SPATIAL = len(FUNCTION_IDS) - _N_SPATIAL
@@ -28,7 +28,6 @@ _EXPECTED_ROWS = _N_SPATIAL * _N2 + _N_NON_SPATIAL
 
 
 class TestSC2Actions(unittest.TestCase):
-
     def test_discrete_actions_shape(self):
         self.assertEqual(DISCRETE_ACTIONS.shape, (_EXPECTED_ROWS, 4))
 
@@ -65,39 +64,30 @@ class TestSC2Actions(unittest.TestCase):
                 expected_rows = 1
             for offset in range(expected_rows):
                 self.assertEqual(
-                    int(DISCRETE_ACTIONS[row + offset, 0]), fn_idx,
-                    f"row {row + offset}: expected fn_idx={fn_idx} ({name}), "
-                    f"offset {offset}/{expected_rows}",
+                    int(DISCRETE_ACTIONS[row + offset, 0]),
+                    fn_idx,
+                    f"row {row + offset}: expected fn_idx={fn_idx} ({name}), offset {offset}/{expected_rows}",
                 )
             row += expected_rows
-        self.assertEqual(row, len(DISCRETE_ACTIONS),
-                         "All rows accounted for")
+        self.assertEqual(row, len(DISCRETE_ACTIONS), "All rows accounted for")
 
     def test_spatial_actions_span_unit_square(self):
         """Spatial grid rows must cover the screen — derived from issue #122."""
         for fn_idx in sorted(SPATIAL_FN_IDS):
             # Find the first row for this fn_id.
-            offset = sum(
-                _N2 if i in SPATIAL_FN_IDS else 1
-                for i in sorted(FUNCTION_IDS.keys()) if i < fn_idx
-            )
-            xs = DISCRETE_ACTIONS[offset:offset + _N2, 1]
-            ys = DISCRETE_ACTIONS[offset:offset + _N2, 2]
+            offset = sum(_N2 if i in SPATIAL_FN_IDS else 1 for i in sorted(FUNCTION_IDS.keys()) if i < fn_idx)
+            xs = DISCRETE_ACTIONS[offset : offset + _N2, 1]
+            ys = DISCRETE_ACTIONS[offset : offset + _N2, 2]
             name = FUNCTION_IDS[fn_idx]
-            self.assertLessEqual(float(xs.min()), 0.1,
-                                 f"{name}: x grid doesn't reach near 0")
-            self.assertGreaterEqual(float(xs.max()), 0.9,
-                                    f"{name}: x grid doesn't reach near 1")
-            self.assertLessEqual(float(ys.min()), 0.1,
-                                 f"{name}: y grid doesn't reach near 0")
-            self.assertGreaterEqual(float(ys.max()), 0.9,
-                                    f"{name}: y grid doesn't reach near 1")
+            self.assertLessEqual(float(xs.min()), 0.1, f"{name}: x grid doesn't reach near 0")
+            self.assertGreaterEqual(float(xs.max()), 0.9, f"{name}: x grid doesn't reach near 1")
+            self.assertLessEqual(float(ys.min()), 0.1, f"{name}: y grid doesn't reach near 0")
+            self.assertGreaterEqual(float(ys.max()), 0.9, f"{name}: y grid doesn't reach near 1")
 
     def test_move_screen_cells_are_unique(self):
         """Each (x, y) cell appears exactly once in the Move_screen rows."""
         # Move_screen is fn_idx 2; fn_idx 0 and 1 are non-spatial (1 row each).
-        coords = {(float(r[1]), float(r[2]))
-                  for r in DISCRETE_ACTIONS[2:2 + _N2]}
+        coords = {(float(r[1]), float(r[2])) for r in DISCRETE_ACTIONS[2 : 2 + _N2]}
         self.assertEqual(len(coords), _N2)
 
     def test_probe_actions_count(self):
@@ -135,9 +125,9 @@ class TestSC2Actions(unittest.TestCase):
         """SPATIAL_FN_IDS contains exactly the fn_ids whose names end in
         _screen or _minimap, plus select_point and select_rect."""
         expected = frozenset(
-            fn_idx for fn_idx, name in FUNCTION_IDS.items()
-            if name.endswith("_screen") or name.endswith("_minimap")
-            or name in ("select_point", "select_rect")
+            fn_idx
+            for fn_idx, name in FUNCTION_IDS.items()
+            if name.endswith("_screen") or name.endswith("_minimap") or name in ("select_point", "select_rect")
         )
         self.assertEqual(SPATIAL_FN_IDS, expected)
 
@@ -146,8 +136,8 @@ class TestSC2Actions(unittest.TestCase):
 # Race gating tests
 # ---------------------------------------------------------------------------
 
-class TestRaceGating(unittest.TestCase):
 
+class TestRaceGating(unittest.TestCase):
     def test_race_keys_exist(self):
         for race in ("terran", "protoss", "zerg", "random"):
             self.assertIn(race, RACE_FUNCTION_IDS)
@@ -155,9 +145,7 @@ class TestRaceGating(unittest.TestCase):
     def test_race_fn_ids_are_subsets_of_function_ids(self):
         all_ids = frozenset(FUNCTION_IDS.keys())
         for race, ids in RACE_FUNCTION_IDS.items():
-            self.assertTrue(ids <= all_ids,
-                            f"{race} has fn_ids outside FUNCTION_IDS: "
-                            f"{ids - all_ids}")
+            self.assertTrue(ids <= all_ids, f"{race} has fn_ids outside FUNCTION_IDS: {ids - all_ids}")
 
     def test_random_race_includes_all(self):
         self.assertEqual(fn_ids_for_race("random"), frozenset(FUNCTION_IDS.keys()))
@@ -165,18 +153,17 @@ class TestRaceGating(unittest.TestCase):
     def test_race_sets_are_disjoint_from_each_other_for_race_specific(self):
         """Race-specific (non-universal) fn_ids must not overlap between races."""
         from games.sc2.actions import (
-            _TERRAN_FN_IDS, _PROTOSS_FN_IDS, _ZERG_FN_IDS,
+            _PROTOSS_FN_IDS,
+            _TERRAN_FN_IDS,
+            _ZERG_FN_IDS,
         )
-        self.assertFalse(_TERRAN_FN_IDS & _PROTOSS_FN_IDS,
-                         "Terran and Protoss-specific fn_ids overlap")
-        self.assertFalse(_TERRAN_FN_IDS & _ZERG_FN_IDS,
-                         "Terran and Zerg-specific fn_ids overlap")
-        self.assertFalse(_PROTOSS_FN_IDS & _ZERG_FN_IDS,
-                         "Protoss and Zerg-specific fn_ids overlap")
+
+        self.assertFalse(_TERRAN_FN_IDS & _PROTOSS_FN_IDS, "Terran and Protoss-specific fn_ids overlap")
+        self.assertFalse(_TERRAN_FN_IDS & _ZERG_FN_IDS, "Terran and Zerg-specific fn_ids overlap")
+        self.assertFalse(_PROTOSS_FN_IDS & _ZERG_FN_IDS, "Protoss and Zerg-specific fn_ids overlap")
 
     def test_fn_ids_for_race_unknown_falls_back_to_all(self):
-        self.assertEqual(fn_ids_for_race("unknown_race"),
-                         frozenset(FUNCTION_IDS.keys()))
+        self.assertEqual(fn_ids_for_race("unknown_race"), frozenset(FUNCTION_IDS.keys()))
 
     def test_terran_has_barracks_not_nexus(self):
         terran_ids = fn_ids_for_race("terran")
@@ -187,23 +174,21 @@ class TestRaceGating(unittest.TestCase):
 
     def test_protoss_has_nexus_not_barracks(self):
         protoss_ids = fn_ids_for_race("protoss")
-        self.assertIn(50, protoss_ids)   # Build_Nexus_screen
+        self.assertIn(50, protoss_ids)  # Build_Nexus_screen
         self.assertNotIn(8, protoss_ids)  # Build_Barracks_screen
 
     def test_zerg_has_hatchery_not_barracks(self):
         zerg_ids = fn_ids_for_race("zerg")
-        self.assertIn(82, zerg_ids)   # Build_Hatchery_screen
+        self.assertIn(82, zerg_ids)  # Build_Hatchery_screen
         self.assertNotIn(8, zerg_ids)  # Build_Barracks_screen
 
     def test_all_races_include_move_screen(self):
         for race in ("terran", "protoss", "zerg"):
-            self.assertIn(2, fn_ids_for_race(race),
-                          f"{race} missing Move_screen")
+            self.assertIn(2, fn_ids_for_race(race), f"{race} missing Move_screen")
 
     def test_all_races_include_no_op(self):
         for race in ("terran", "protoss", "zerg"):
-            self.assertIn(0, fn_ids_for_race(race),
-                          f"{race} missing no_op")
+            self.assertIn(0, fn_ids_for_race(race), f"{race} missing no_op")
 
 
 class _FakeFunctionCall:

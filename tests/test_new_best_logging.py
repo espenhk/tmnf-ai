@@ -1,4 +1,5 @@
 """Unit tests for _log_new_best_details and _print_episode_summary."""
+
 import logging
 import os
 import sys
@@ -35,12 +36,10 @@ def _capture_training_logs(fn):
 
 
 class TestPrintEpisodeSummary(unittest.TestCase):
-
     def test_terminated_episode_short(self):
         info = {"track_progress": 0.5, "finished": False}
         lines = _capture_training_logs(
-            lambda: _print_episode_summary(info, steps=68, total_reward=-1.8,
-                                           truncated=False)
+            lambda: _print_episode_summary(info, steps=68, total_reward=-1.8, truncated=False)
         )
         self.assertEqual(len(lines), 1)
         self.assertIn("terminated", lines[0])
@@ -50,8 +49,7 @@ class TestPrintEpisodeSummary(unittest.TestCase):
     def test_finished_episode_short(self):
         info = {"finished": True}
         lines = _capture_training_logs(
-            lambda: _print_episode_summary(info, steps=100, total_reward=50.0,
-                                           truncated=False)
+            lambda: _print_episode_summary(info, steps=100, total_reward=50.0, truncated=False)
         )
         self.assertEqual(len(lines), 1)
         self.assertIn("finished", lines[0])
@@ -59,8 +57,7 @@ class TestPrintEpisodeSummary(unittest.TestCase):
     def test_truncated_episode_short(self):
         info = {}
         lines = _capture_training_logs(
-            lambda: _print_episode_summary(info, steps=200, total_reward=10.0,
-                                           truncated=True)
+            lambda: _print_episode_summary(info, steps=200, total_reward=10.0, truncated=True)
         )
         self.assertEqual(len(lines), 1)
         self.assertIn("truncated", lines[0])
@@ -68,8 +65,7 @@ class TestPrintEpisodeSummary(unittest.TestCase):
     def test_no_laps_or_progress_in_log(self):
         info = {"track_progress": 0.75, "laps_completed": 2, "finished": False}
         lines = _capture_training_logs(
-            lambda: _print_episode_summary(info, steps=50, total_reward=5.0,
-                                           truncated=False)
+            lambda: _print_episode_summary(info, steps=50, total_reward=5.0, truncated=False)
         )
         self.assertEqual(len(lines), 1)
         self.assertNotIn("laps", lines[0])
@@ -78,8 +74,7 @@ class TestPrintEpisodeSummary(unittest.TestCase):
     def test_sc2_outcome_reward_score_logged_as_scalars(self):
         info = {"player_outcome": 1, "raw_reward": 1, "score": 0, "episode_skipped_frames": 3}
         lines = _capture_training_logs(
-            lambda: _print_episode_summary(info, steps=240, total_reward=-30.1,
-                                           truncated=False)
+            lambda: _print_episode_summary(info, steps=240, total_reward=-30.1, truncated=False)
         )
         self.assertEqual(len(lines), 1)
         self.assertIn("outcome=win", lines[0])
@@ -89,7 +84,6 @@ class TestPrintEpisodeSummary(unittest.TestCase):
 
 
 class TestLogNewBestDetails(unittest.TestCase):
-
     def test_empty_info_emits_nothing(self):
         lines = _capture_training_logs(lambda: _log_new_best_details({}, None))
         self.assertEqual(lines, [])

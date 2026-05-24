@@ -11,30 +11,31 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
-
 # ---------------------------------------------------------------------------
 # Game / track binding
 # ---------------------------------------------------------------------------
+
 
 @dataclass(frozen=True)
 class GameSpec:
     """Game/track-specific binding, built once per experiment by the adapter."""
 
     experiment_name: str
-    track: str                                  # label used in results/dir naming
-    make_env_fn: Callable[[], Any]              # factory returning a BaseGameEnv
-    obs_spec: Any                               # ObsSpec instance
-    head_names: list[str]                        # e.g. ["steer","accel","brake"]
-    discrete_actions: Any                        # np.ndarray
+    track: str  # label used in results/dir naming
+    make_env_fn: Callable[[], Any]  # factory returning a BaseGameEnv
+    obs_spec: Any  # ObsSpec instance
+    head_names: list[str]  # e.g. ["steer","accel","brake"]
+    discrete_actions: Any  # np.ndarray
     weights_file: str
     reward_config_file: str
-    game_name: str                               # adapter.name; used for policy/game compatibility checks
-    save_results_fn: Callable | None = None     # optional callable(data, results_dir)
+    game_name: str  # adapter.name; used for policy/game compatibility checks
+    save_results_fn: Callable | None = None  # optional callable(data, results_dir)
 
 
 # ---------------------------------------------------------------------------
 # Algorithm-level config
 # ---------------------------------------------------------------------------
+
 
 @dataclass(frozen=True)
 class RunConfig:
@@ -50,7 +51,7 @@ class RunConfig:
     patience: int = 0
     policy_type: str = "hill_climbing"
     policy_params: dict = field(default_factory=dict)
-    training_params: dict = field(default_factory=dict)   # raw YAML for record-keeping
+    training_params: dict = field(default_factory=dict)  # raw YAML for record-keeping
 
     @classmethod
     def from_training_params(cls, p: dict) -> RunConfig:
@@ -86,6 +87,7 @@ class ProbeAction:
 # TMNF-only optional specs (pass None to skip)
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class ProbeSpec:
     """Probe + cold-start phase config."""
@@ -100,5 +102,5 @@ class ProbeSpec:
 class WarmupSpec:
     """Forced-action warmup at episode start."""
 
-    action: Any             # np.ndarray
+    action: Any  # np.ndarray
     steps: int

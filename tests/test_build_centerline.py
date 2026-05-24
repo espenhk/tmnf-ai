@@ -1,5 +1,5 @@
 """Tests for build_centerline.update_registry() (issue #14 multi-track support)."""
-import os
+
 import tempfile
 import unittest
 from pathlib import Path
@@ -10,13 +10,13 @@ from games.tmnf.tools.build_centerline import update_registry
 
 
 class TestUpdateRegistry(unittest.TestCase):
-
     def setUp(self):
         self._tmp = tempfile.mkdtemp()
         self.registry_path = Path(self._tmp) / "registry.yaml"
 
     def tearDown(self):
         import shutil
+
         shutil.rmtree(self._tmp, ignore_errors=True)
 
     def test_creates_registry_when_absent(self):

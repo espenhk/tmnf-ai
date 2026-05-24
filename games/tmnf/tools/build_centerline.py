@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 def extract_positions(gbx_path: str) -> np.ndarray:
     from pygbx import Gbx, GbxType
+
     g = Gbx(gbx_path)
     ghost = g.get_class_by_id(GbxType.CTN_GHOST)
     if ghost is None:
@@ -66,7 +67,7 @@ def update_registry(registry_path: Path, track_name: str, output_path: Path, rep
     registry = yaml.safe_load(registry_path.read_text()) if registry_path.exists() else {}
     registry[track_name] = {
         "centerline_path": output_path.as_posix(),
-        "default_par_time_s": None,   # user fills in manually
+        "default_par_time_s": None,  # user fills in manually
         "source_replay": replay_path,
     }
     registry_path.write_text(yaml.dump(registry, sort_keys=True))
@@ -76,12 +77,19 @@ def update_registry(registry_path: Path, track_name: str, output_path: Path, rep
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build a track centerline from a TMNF ghost replay.")
     parser.add_argument("replay", help="Path to .Replay.Gbx file")
-    parser.add_argument("--output", default="runs/centerline.npy", help="Output .npy path (default: runs/centerline.npy)")
-    parser.add_argument("--track-name", default=None,
-                        help="Track identifier for tracks/registry.yaml (defaults to stem of --output)")
+    parser.add_argument(
+        "--output", default="runs/centerline.npy", help="Output .npy path (default: runs/centerline.npy)"
+    )
+    parser.add_argument(
+        "--track-name", default=None, help="Track identifier for tracks/registry.yaml (defaults to stem of --output)"
+    )
     parser.add_argument("--spacing", type=float, default=2.0, help="Point spacing in metres (default: 2.0)")
-    parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"],
-                        help="Logging verbosity (default: INFO)")
+    parser.add_argument(
+        "--log-level",
+        default="INFO",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        help="Logging verbosity (default: INFO)",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(

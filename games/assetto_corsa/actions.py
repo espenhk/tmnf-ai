@@ -21,17 +21,20 @@ from framework.run_config import ProbeAction
 
 
 # 9-action discrete grid: {brake, coast, accel} × {left, straight, right}
-DISCRETE_ACTIONS = np.array([
-    [-1., 0., 1.],   # 0: brake + left
-    [ 0., 0., 1.],   # 1: brake + straight
-    [ 1., 0., 1.],   # 2: brake + right
-    [-1., 0., 0.],   # 3: coast + left
-    [ 0., 0., 0.],   # 4: coast + straight
-    [ 1., 0., 0.],   # 5: coast + right
-    [-1., 1., 0.],   # 6: accel + left
-    [ 0., 1., 0.],   # 7: accel + straight
-    [ 1., 1., 0.],   # 8: accel + right
-], dtype=np.float32)
+DISCRETE_ACTIONS = np.array(
+    [
+        [-1.0, 0.0, 1.0],  # 0: brake + left
+        [0.0, 0.0, 1.0],  # 1: brake + straight
+        [1.0, 0.0, 1.0],  # 2: brake + right
+        [-1.0, 0.0, 0.0],  # 3: coast + left
+        [0.0, 0.0, 0.0],  # 4: coast + straight
+        [1.0, 0.0, 0.0],  # 5: coast + right
+        [-1.0, 1.0, 0.0],  # 6: accel + left
+        [0.0, 1.0, 0.0],  # 7: accel + straight
+        [1.0, 1.0, 0.0],  # 8: accel + right
+    ],
+    dtype=np.float32,
+)
 
 
 # Probe phase fixed-action episodes — used only by the hill-climbing policy.
@@ -48,4 +51,4 @@ PROBE_ACTIONS: list[ProbeAction] = [
 
 
 # Forced action used during episode warmup (first N steps): full throttle, straight.
-WARMUP_ACTION = np.array([0., 1., 0.], dtype=np.float32)
+WARMUP_ACTION = np.array([0.0, 1.0, 0.0], dtype=np.float32)

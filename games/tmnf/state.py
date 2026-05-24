@@ -72,11 +72,10 @@ class WheelState:
 
 
 class StateData:
-    def __init__(self, state: Any, centerline: Any | None = None,
-                 hint_idx: int | None = None) -> None:
+    def __init__(self, state: Any, centerline: Any | None = None, hint_idx: int | None = None) -> None:
         dyna = state.dyna.current_state  # type: ignore[attr-defined]
-        mobil = state.scene_mobil        # type: ignore[attr-defined]
-        wheels = state.simulation_wheels # type: ignore[attr-defined]
+        mobil = state.scene_mobil  # type: ignore[attr-defined]
+        wheels = state.simulation_wheels  # type: ignore[attr-defined]
 
         pos = state.dyna.current_state.position  # type: ignore[attr-defined]
         self.position = Vec3(pos[0], pos[1], pos[2])
@@ -100,7 +99,7 @@ class StateData:
         self.track_progress = None
         self.lateral_offset = None
         self.vertical_offset = None
-        self.track_forward = None   # unit np.ndarray of track direction at car position
+        self.track_forward = None  # unit np.ndarray of track direction at car position
         self._centerline_idx = None  # nearest centerline point index (for windowed search)
         self.lookahead: list[tuple[float, float]] = [(0.0, 0.0)] * 3
         if centerline is not None:

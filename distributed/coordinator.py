@@ -42,16 +42,17 @@ Usage (called automatically by grid_search.py --distribute):
     all_runs = coord.wait_for_all()   # blocks until all results received
     coord.stop()
 """
+
 from __future__ import annotations
 
-import json
-import logging
-import threading
-import time
-import ipaddress
 import hmac
 import html
+import ipaddress
+import json
+import logging
 import secrets
+import threading
+import time
 from collections import deque
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -60,11 +61,11 @@ from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
 from distributed.protocol import (
-    ComboSpec,
     DEFAULT_GAME,
+    ComboSpec,
     combo_to_dict,
-    result_from_dict,
     experiment_from_dict,
+    result_from_dict,
 )
 
 logger = logging.getLogger(__name__)
@@ -96,8 +97,8 @@ class Coordinator:
         self._specs_by_name: dict[str, ComboSpec] = {spec.name: spec for spec in combos}
         self._combo_order: list[str] = [spec.name for spec in combos]
         self._known_names: set[str] = {spec.name for spec in combos}
-        self._in_progress: dict[str, dict[str, Any]] = {}   # name → info
-        self._results: dict[str, Any] = {}                   # name → ExperimentData
+        self._in_progress: dict[str, dict[str, Any]] = {}  # name → info
+        self._results: dict[str, Any] = {}  # name → ExperimentData
         self._total = len(combos)
         self._port = port
         self._heartbeat_timeout = heartbeat_timeout
@@ -210,14 +211,10 @@ class Coordinator:
         self._server = _ThreadingHTTPServer((self._bind_host, self._port), Handler)
         actual_port = self._server.server_address[1]
 
-        self._server_thread = threading.Thread(
-            target=self._server.serve_forever, daemon=True, name="coord-http"
-        )
+        self._server_thread = threading.Thread(target=self._server.serve_forever, daemon=True, name="coord-http")
         self._server_thread.start()
 
-        self._monitor_thread = threading.Thread(
-            target=self._heartbeat_monitor, daemon=True, name="coord-monitor"
-        )
+        self._monitor_thread = threading.Thread(target=self._heartbeat_monitor, daemon=True, name="coord-monitor")
         self._monitor_thread.start()
 
         logger.info(
@@ -408,10 +405,7 @@ class Coordinator:
     def _monitor_cookie_header(self, session_id: str, expires_now: bool = False) -> str:
         max_age = 0 if expires_now else self._monitor_session_ttl_s
         value = "" if expires_now else session_id
-        return (
-            f"gamer_ai_monitor_session={value}; Path=/monitor; HttpOnly; "
-            f"SameSite=Lax; Max-Age={max_age}"
-        )
+        return f"gamer_ai_monitor_session={value}; Path=/monitor; HttpOnly; SameSite=Lax; Max-Age={max_age}"
 
     def _prune_monitor_sessions(self) -> None:
         now = time.monotonic()
@@ -449,9 +443,7 @@ class Coordinator:
             return True
 
     def _render_monitor_login(self, error: str | None = None) -> str:
-        error_html = (
-            f'<p class="error">{html.escape(error)}</p>' if error else ""
-        )
+        error_html = f'<p class="error">{html.escape(error)}</p>' if error else ""
         default_username = "monitor" if self._monitor_username == "monitor" else ""
         username = html.escape(default_username, quote=True)
         return f"""<!doctype html>
@@ -808,15 +800,12 @@ class Coordinator:
             return
         username = form.get("username", [""])[0]
         password = form.get("password", [""])[0]
-        if (
-            hmac.compare_digest(username, self._monitor_username)
-            and hmac.compare_digest(password, self._monitor_password)
+        if hmac.compare_digest(username, self._monitor_username) and hmac.compare_digest(
+            password, self._monitor_password
         ):
             session_id = secrets.token_urlsafe(24)
             with self._lock:
-                self._monitor_sessions[session_id] = (
-                    time.monotonic() + self._monitor_session_ttl_s
-                )
+                self._monitor_sessions[session_id] = time.monotonic() + self._monitor_session_ttl_s
             handler._redirect(
                 "/monitor",
                 extra_headers={"Set-Cookie": self._monitor_cookie_header(session_id)},
@@ -878,7 +867,6 @@ class Coordinator:
             handler._send_json(400, {"error": str(exc)})
             return
 
-        done = False
         best_reward = max((s.reward for s in data.greedy_sims), default=None)
         with self._lock:
             if payload.name not in self._known_names:
@@ -896,7 +884,6 @@ class Coordinator:
             self._best_rewards[payload.name] = best_reward
             progress = len(self._results)
             if progress == self._total:
-                done = True
                 self._done_event.set()
 
         logger.info(
@@ -963,14 +950,14 @@ class Coordinator:
             now = time.monotonic()
             with self._lock:
                 stale = [
-                    name
-                    for name, info in self._in_progress.items()
-                    if now - info["last_hb"] > self._heartbeat_timeout
+                    name for name, info in self._in_progress.items() if now - info["last_hb"] > self._heartbeat_timeout
                 ]
                 for name in stale:
                     info = self._in_progress.pop(name)
                     self._work_queue.appendleft(info["spec"])
                     logger.warning(
                         "Re-queued stale item %s (worker %s, idle %.0fs)",
-                        name, info["worker_id"], now - info["last_hb"],
+                        name,
+                        info["worker_id"],
+                        now - info["last_hb"],
                     )

@@ -8,6 +8,7 @@ APM is measured in game time (game_loop / 22.4 ticks-per-second), not
 wall-clock time, so the limiter behaves identically regardless of how fast
 PySC2 runs relative to real time.
 """
+
 import unittest
 from unittest.mock import patch
 
@@ -24,8 +25,8 @@ _SC2_TICKS_PER_S = 22.4  # SC2 engine rate — mirrors the constant in env.py
 # ApmLimiter unit tests
 # ---------------------------------------------------------------------------
 
-class TestApmLimiterConstruction(unittest.TestCase):
 
+class TestApmLimiterConstruction(unittest.TestCase):
     def test_valid_construction(self):
         lim = ApmLimiter(max_apm=300)
         self.assertGreater(lim.max_tokens, 0)
@@ -57,7 +58,6 @@ class TestApmLimiterConstruction(unittest.TestCase):
 
 
 class TestApmLimiterBasicBehaviour(unittest.TestCase):
-
     def _lim(self, max_apm=60, burst_s=1.0):
         """60 APM → 1 token/s; max 1 token with burst_s=1."""
         return ApmLimiter(max_apm=max_apm, burst_s=burst_s)
@@ -90,14 +90,14 @@ class TestApmLimiterBasicBehaviour(unittest.TestCase):
         """60 APM / burst=1s → 1 max token; first costs the token, second blocked."""
         lim = self._lim(max_apm=60, burst_s=1.0)
         lim.reset(0.0)
-        lim.allow(0.0, fn_idx=1)   # consumes the token
+        lim.allow(0.0, fn_idx=1)  # consumes the token
         self.assertFalse(lim.allow(0.0, fn_idx=1))
 
     def test_token_refills_over_time(self):
         """After enough time passes the limiter allows another action."""
         lim = self._lim(max_apm=60, burst_s=1.0)
         lim.reset(0.0)
-        lim.allow(0.0, fn_idx=1)         # drain
+        lim.allow(0.0, fn_idx=1)  # drain
         self.assertFalse(lim.allow(0.0, fn_idx=1))  # still empty
         # 1 second later → +1 token refilled → should be allowed.
         self.assertTrue(lim.allow(1.0, fn_idx=1))
@@ -110,13 +110,13 @@ class TestApmLimiterBasicBehaviour(unittest.TestCase):
         lim.allow(0.0, fn_idx=1)
         lim.allow(0.0, fn_idx=1)
         # Wait 1000 seconds — tokens should cap at max_tokens.
-        lim.allow(1000.0, fn_idx=1)    # refill + one action
+        lim.allow(1000.0, fn_idx=1)  # refill + one action
         self.assertLessEqual(lim.tokens, lim.max_tokens)
 
     def test_reset_refills_bucket(self):
         lim = self._lim()
         lim.reset(0.0)
-        lim.allow(0.0, fn_idx=1)       # drain
+        lim.allow(0.0, fn_idx=1)  # drain
         lim.reset(10.0)
         self.assertAlmostEqual(lim.tokens, lim.max_tokens)
 
@@ -141,17 +141,14 @@ class TestApmLimiterBasicBehaviour(unittest.TestCase):
         """Default fn_idx=-1 (unknown) should behave like a real action."""
         lim = ApmLimiter(max_apm=60, burst_s=1.0)
         lim.reset(0.0)
-        self.assertTrue(lim.allow(0.0))      # fn_idx defaults to -1
+        self.assertTrue(lim.allow(0.0))  # fn_idx defaults to -1
         self.assertFalse(lim.allow(0.0))
 
     def test_protect_burst_budget_blocks_after_steady_capacity(self):
         """protect_burst_budget should keep burst headroom untouched."""
         lim = ApmLimiter(max_apm=300, burst_s=2.0)  # refill_rate=5, max_tokens=10
         lim.reset(0.0)
-        allowed = sum(
-            1 for _ in range(15)
-            if lim.allow(0.0, fn_idx=1, protect_burst_budget=True)
-        )
+        allowed = sum(1 for _ in range(15) if lim.allow(0.0, fn_idx=1, protect_burst_budget=True))
         self.assertEqual(allowed, 5)
         self.assertAlmostEqual(lim.tokens, 5.0)
 
@@ -185,10 +182,17 @@ class TestApmLimiterRollingBudget(unittest.TestCase):
 # SC2Env integration tests
 # ---------------------------------------------------------------------------
 
+
 def _base_info(game_loop: float = 0.0) -> dict:
-    return {"score": 0.0, "minerals": 50.0, "vespene": 0.0,
-            "food_used": 1.0, "food_cap": 15.0, "army_count": 0.0,
-            "game_loop": game_loop}
+    return {
+        "score": 0.0,
+        "minerals": 50.0,
+        "vespene": 0.0,
+        "food_used": 1.0,
+        "food_cap": 15.0,
+        "army_count": 0.0,
+        "game_loop": game_loop,
+    }
 
 
 def _make_mock_env(max_apm=None, apm_burst_s=2.0):
@@ -202,7 +206,8 @@ def _make_mock_env(max_apm=None, apm_burst_s=2.0):
     )
     mock_client.step.return_value = (
         np.zeros(BASE_OBS_DIM, dtype=np.float32),
-        0.0, False,
+        0.0,
+        False,
         _base_info(0.0),
     )
     env = SC2Env(
@@ -247,9 +252,7 @@ class TestSC2EnvApmLimiterEnabled(unittest.TestCase):
     def setUp(self):
         # 60 APM, burst_s=1 → exactly 1 max token; first action passes, rest blocked
         # until time advances.
-        self.env, self.mock_client, self.patcher = _make_mock_env(
-            max_apm=60, apm_burst_s=1.0
-        )
+        self.env, self.mock_client, self.patcher = _make_mock_env(max_apm=60, apm_burst_s=1.0)
         self.addCleanup(self.patcher.stop)
 
     def _do_reset(self, game_loop: float = 0.0):
@@ -264,7 +267,8 @@ class TestSC2EnvApmLimiterEnabled(unittest.TestCase):
         which sets _apm_game_time_s for the *next* step's APM check."""
         self.mock_client.step.return_value = (
             np.zeros(BASE_OBS_DIM, dtype=np.float32),
-            0.0, False,
+            0.0,
+            False,
             _base_info(game_loop),
         )
         return self.env.step(action)
@@ -306,9 +310,9 @@ class TestSC2EnvApmLimiterEnabled(unittest.TestCase):
     def test_episode_apm_throttled_steps_accumulates(self):
         self._do_reset()
         select_army = np.array([1.0, 0.5, 0.5, 0.0], dtype=np.float32)
-        self._do_step(select_army)   # passes (1 token consumed)
-        self._do_step(select_army)   # throttled → count = 1
-        self._do_step(select_army)   # throttled → count = 2
+        self._do_step(select_army)  # passes (1 token consumed)
+        self._do_step(select_army)  # throttled → count = 1
+        self._do_step(select_army)  # throttled → count = 2
         _, _, _, _, info = self._do_step(select_army)
         self.assertEqual(info["episode_apm_throttled_steps"], 3)
 
@@ -328,7 +332,7 @@ class TestSC2EnvApmLimiterEnabled(unittest.TestCase):
         # check sees _apm_game_time_s=1.0 and gets the refilled token.
         self._do_reset(game_loop=0.0)
         select_army = np.array([1.0, 0.5, 0.5, 0.0], dtype=np.float32)
-        self._do_step(select_army, game_loop=1.0)                # drains token
+        self._do_step(select_army, game_loop=1.0)  # drains token
         self._do_step(select_army, game_loop=_SC2_TICKS_PER_S)  # throttled; advances to 1 game-s
         # _apm_game_time_s is now 1.0 → 1 token refilled → should pass.
         _, _, _, _, info = self._do_step(select_army, game_loop=_SC2_TICKS_PER_S + 1)

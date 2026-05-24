@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+
 from games.tmnf.state import steer_percent
 
 
 @dataclass
 class Instruction:
-    time_s: float   # seconds from start of run phase
-    action: str     # e.g. "press up", "steer left"
+    time_s: float  # seconds from start of run phase
+    action: str  # e.g. "press up", "steer left"
 
 
 @dataclass

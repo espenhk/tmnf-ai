@@ -1,4 +1,5 @@
 """CarRacing-specific action definitions."""
+
 from __future__ import annotations
 
 import numpy as np
@@ -27,4 +28,4 @@ PROBE_ACTIONS: list[ProbeAction] = [
     ProbeAction(np.array([ 1., 1., 0.], dtype=np.float32), "accel right"),
 ]
 
-WARMUP_ACTION = np.array([0., 1., 0.], dtype=np.float32)
+WARMUP_ACTION = np.array([0.0, 1.0, 0.0], dtype=np.float32)

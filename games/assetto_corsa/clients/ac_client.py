@@ -84,8 +84,7 @@ class ACClient:
             obs, info = result
         else:
             obs, info = result, {}
-        return self._to_step_state(obs, reward=0.0, terminated=False,
-                                   truncated=False, info=info)
+        return self._to_step_state(obs, reward=0.0, terminated=False, truncated=False, info=info)
 
     def step(self, action: np.ndarray) -> ACStepState:
         result = self._env.step(action)
@@ -96,8 +95,7 @@ class ACClient:
             obs, reward, done, info = result
             terminated = bool(done)
             truncated = False
-        return self._to_step_state(obs, float(reward), bool(terminated),
-                                   bool(truncated), info)
+        return self._to_step_state(obs, float(reward), bool(terminated), bool(truncated), info)
 
     def close(self) -> None:
         try:
@@ -142,38 +140,37 @@ class ACClient:
         if len(angular) < 3:
             angular = angular + (0.0,) * (3 - len(angular))
 
-        finished = bool(info.get("finished", False)) or (
-            terminated and bool(info.get("lap_completed", False))
-        )
+        finished = bool(info.get("finished", False)) or (terminated and bool(info.get("lap_completed", False)))
 
         return ACStepState(
-            raw_obs        = obs,
-            reward         = reward,
-            terminated     = terminated,
-            truncated      = truncated,
-            info           = info,
-            speed_ms       = float(getter(["speed_ms", "speed"], default=0.0)),
-            lateral_offset = _as_float_or_none(getter(["lateral_offset", "lateral_offset_m"])),
-            vertical_offset= _as_float_or_none(getter(["vertical_offset", "vertical_offset_m"])),
-            yaw_error      = float(getter(["yaw_error", "yaw_error_rad"], default=0.0)),
-            pitch          = float(getter(["pitch", "pitch_rad"], default=0.0)),
-            roll           = float(getter(["roll", "roll_rad"], default=0.0)),
-            track_progress = _as_float_or_none(getter(["track_progress", "normalized_position"])),
-            steering_angle = float(getter(["steering_angle", "steer"], default=0.0)),
-            engine_rpm     = float(getter(["engine_rpm", "rpm"], default=0.0)),
-            gear           = float(getter(["gear"], default=0.0)),
-            wheel_slip     = wheel_slip,  # type: ignore[arg-type]
-            angular_velocity = angular,   # type: ignore[arg-type]
-            pos_x          = float(getter(["pos_x", "x"], default=0.0)),
-            pos_z          = float(getter(["pos_z", "z"], default=0.0)),
-            finished       = finished,
-            vision         = _maybe_array(getter(["vision", "lidar"])),
+            raw_obs=obs,
+            reward=reward,
+            terminated=terminated,
+            truncated=truncated,
+            info=info,
+            speed_ms=float(getter(["speed_ms", "speed"], default=0.0)),
+            lateral_offset=_as_float_or_none(getter(["lateral_offset", "lateral_offset_m"])),
+            vertical_offset=_as_float_or_none(getter(["vertical_offset", "vertical_offset_m"])),
+            yaw_error=float(getter(["yaw_error", "yaw_error_rad"], default=0.0)),
+            pitch=float(getter(["pitch", "pitch_rad"], default=0.0)),
+            roll=float(getter(["roll", "roll_rad"], default=0.0)),
+            track_progress=_as_float_or_none(getter(["track_progress", "normalized_position"])),
+            steering_angle=float(getter(["steering_angle", "steer"], default=0.0)),
+            engine_rpm=float(getter(["engine_rpm", "rpm"], default=0.0)),
+            gear=float(getter(["gear"], default=0.0)),
+            wheel_slip=wheel_slip,  # type: ignore[arg-type]
+            angular_velocity=angular,  # type: ignore[arg-type]
+            pos_x=float(getter(["pos_x", "x"], default=0.0)),
+            pos_z=float(getter(["pos_z", "z"], default=0.0)),
+            finished=finished,
+            vision=_maybe_array(getter(["vision", "lidar"])),
         )
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _default_env_factory(env_id: str, **kwargs: Any) -> Any:
     """Lazy import of gymnasium / assetto_corsa_rl.

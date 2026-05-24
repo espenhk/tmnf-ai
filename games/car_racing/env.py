@@ -33,7 +33,7 @@ from gymnasium import spaces
 
 from framework.base_env import BaseGameEnv
 from games.car_racing.obs_spec import BASE_OBS_DIM
-from games.car_racing.reward import CarRacingRewardConfig, CarRacingRewardCalculator
+from games.car_racing.reward import CarRacingRewardCalculator, CarRacingRewardConfig
 
 logger = logging.getLogger(__name__)
 
@@ -107,11 +107,14 @@ class CarRacingEnv(BaseGameEnv):
 
     def step(self, action: np.ndarray) -> tuple[np.ndarray, float, bool, bool, dict]:
         # CarRacing-v2 uses [steer, gas, brake] in [-1,1] × [0,1] × [0,1].
-        car_action = np.array([
-            float(action[0]),           # steer
-            float(action[1]),           # gas
-            float(action[2]),           # brake
-        ], dtype=np.float32)
+        car_action = np.array(
+            [
+                float(action[0]),  # steer
+                float(action[1]),  # gas
+                float(action[2]),  # brake
+            ],
+            dtype=np.float32,
+        )
 
         _raw_obs, native_reward, terminated, truncated, info = self._env.step(car_action)
 

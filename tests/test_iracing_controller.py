@@ -10,21 +10,21 @@ Validates:
 from __future__ import annotations
 
 import builtins
-import pytest
 import sys
 
+import pytest
+
 from games.iracing.controller import (
+    _VJOY_AXIS_MAX,
+    _VJOY_AXIS_MID,
+    _VJOY_AXIS_MIN,
     BaseController,
     NullController,
     VJoyController,
     _float_to_vjoy_axis,
     _float_to_vjoy_axis_unipolar,
-    _VJOY_AXIS_MIN,
-    _VJOY_AXIS_MAX,
-    _VJOY_AXIS_MID,
     make_controller,
 )
-
 
 # ── NullController ───────────────────────────────────────────────────
 

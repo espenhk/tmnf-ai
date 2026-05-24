@@ -4,6 +4,7 @@ Covers issue #254: each call to ``acquire_map_access_slot`` must block
 until at least ``gap_s`` seconds have elapsed since the previous grant,
 so concurrent PySC2 workers don't race on the same ``.SC2Map`` file.
 """
+
 from __future__ import annotations
 
 import multiprocessing as mp
@@ -12,7 +13,6 @@ import time
 
 import pytest
 
-from games.sc2 import map_access_gate
 from games.sc2.map_access_gate import (
     DEFAULT_GAP_S,
     acquire_map_access_slot,
@@ -163,9 +163,7 @@ class TestEnvVarConfiguration:
         )
         assert wait == pytest.approx(1.5)
 
-    def test_gap_env_var_invalid_falls_back_to_default(
-        self, lock_path, monkeypatch, caplog
-    ):
+    def test_gap_env_var_invalid_falls_back_to_default(self, lock_path, monkeypatch, caplog):
         monkeypatch.setenv("GAMER_AI_SC2_MAP_GAP_S", "garbage")
         with open(lock_path, "w") as f:
             f.write("1000.0\n")
@@ -179,9 +177,7 @@ class TestEnvVarConfiguration:
         assert wait == pytest.approx(DEFAULT_GAP_S)
         assert sleeps == [pytest.approx(DEFAULT_GAP_S)]
 
-    def test_gap_env_var_negative_falls_back_to_default(
-        self, lock_path, monkeypatch
-    ):
+    def test_gap_env_var_negative_falls_back_to_default(self, lock_path, monkeypatch):
         monkeypatch.setenv("GAMER_AI_SC2_MAP_GAP_S", "-1")
         with open(lock_path, "w") as f:
             f.write("1000.0\n")
@@ -236,10 +232,7 @@ class TestMultiProcess:
         with open(lock_path, "w") as f:
             f.write(f"{time.time()}\n")
 
-        procs = [
-            ctx.Process(target=_gate_worker, args=(lock_path, gap, q))
-            for _ in range(3)
-        ]
+        procs = [ctx.Process(target=_gate_worker, args=(lock_path, gap, q)) for _ in range(3)]
         for p in procs:
             p.start()
         try:
@@ -264,9 +257,7 @@ class TestMultiProcess:
         # Each consecutive grant must be ≥ gap apart (allow small slack
         # for scheduling jitter on slow CI).
         for earlier, later in zip(grants, grants[1:]):
-            assert later - earlier >= gap - 0.15, (
-                f"grants spaced {later - earlier:.3f}s apart, expected ≥ {gap}s"
-            )
+            assert later - earlier >= gap - 0.15, f"grants spaced {later - earlier:.3f}s apart, expected ≥ {gap}s"
 
 
 class TestRealSleepIntegration:

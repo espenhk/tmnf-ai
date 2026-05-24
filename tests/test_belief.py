@@ -1,4 +1,5 @@
 """Tests for framework/belief.py — EWMABelief module."""
+
 import unittest
 
 import numpy as np

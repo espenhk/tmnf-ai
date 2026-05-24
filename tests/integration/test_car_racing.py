@@ -29,6 +29,7 @@ import pytest
 try:
     import gymnasium as gym  # noqa: F401
     from gymnasium.envs.box2d import CarRacing  # noqa: F401
+
     _BOX2D_AVAILABLE = True
 except ImportError:
     _BOX2D_AVAILABLE = False
@@ -45,15 +46,18 @@ _skip_no_box2d = pytest.mark.skipif(
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _make_env(max_episode_steps: int = 50) -> "CarRacingEnv":
+
+def _make_env(max_episode_steps: int = 50):
     """Return a CarRacingEnv with a short episode limit for fast tests."""
     from games.car_racing.env import CarRacingEnv
+
     return CarRacingEnv(max_episode_steps=max_episode_steps)
 
 
 # ---------------------------------------------------------------------------
 # Environment reset / step / close
 # ---------------------------------------------------------------------------
+
 
 @_skip_no_box2d
 class TestCarRacingEnvBasics(unittest.TestCase):
@@ -68,6 +72,7 @@ class TestCarRacingEnvBasics(unittest.TestCase):
     def test_reset_returns_correct_obs_shape(self):
         """reset() returns a 1-D float32 array of the expected obs dimension."""
         from games.car_racing.obs_spec import BASE_OBS_DIM
+
         obs, info = self.env.reset(seed=0)
         self.assertIsInstance(obs, np.ndarray)
         self.assertEqual(obs.shape, (BASE_OBS_DIM,))
@@ -104,6 +109,7 @@ class TestCarRacingEnvBasics(unittest.TestCase):
     def test_step_obs_shape_consistent(self):
         """obs returned by step() has the same shape as from reset()."""
         from games.car_racing.obs_spec import BASE_OBS_DIM
+
         self.env.reset(seed=0)
         action = np.array([0.0, 1.0, 0.0], dtype=np.float32)
         for _ in range(5):
@@ -145,6 +151,7 @@ class TestCarRacingEnvBasics(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # Full episode with a simple constant policy
 # ---------------------------------------------------------------------------
+
 
 @_skip_no_box2d
 class TestCarRacingFullEpisode(unittest.TestCase):
@@ -203,16 +210,17 @@ class TestCarRacingFullEpisode(unittest.TestCase):
 # Training-loop integration
 # ---------------------------------------------------------------------------
 
+
 @_skip_no_box2d
 class TestCarRacingTrainingLoop(unittest.TestCase):
     """Verify the framework training loop runs end-to-end on CarRacing."""
 
     def test_hill_climbing_one_sim(self):
         """_greedy_loop runs 1 simulation against the real CarRacing env."""
-        from games.car_racing.env import CarRacingEnv
-        from games.car_racing.obs_spec import CAR_RACING_OBS_SPEC
         from framework.policies import WeightedLinearPolicy
         from framework.training import _greedy_loop
+        from games.car_racing.env import CarRacingEnv
+        from games.car_racing.obs_spec import CAR_RACING_OBS_SPEC
 
         env = CarRacingEnv(max_episode_steps=15)
         try:
@@ -235,10 +243,10 @@ class TestCarRacingTrainingLoop(unittest.TestCase):
 
     def test_genetic_policy_one_generation(self):
         """_greedy_loop_genetic runs 1 generation with a tiny population."""
-        from games.car_racing.env import CarRacingEnv
-        from games.car_racing.obs_spec import CAR_RACING_OBS_SPEC
         from framework.policies import GeneticPolicy
         from framework.training import _greedy_loop_genetic
+        from games.car_racing.env import CarRacingEnv
+        from games.car_racing.obs_spec import CAR_RACING_OBS_SPEC
 
         env = CarRacingEnv(max_episode_steps=10)
         try:
@@ -264,11 +272,11 @@ class TestCarRacingTrainingLoop(unittest.TestCase):
 
     def test_epsilon_greedy_one_episode(self):
         """_greedy_loop_q_learning runs 1 episode with ε-greedy policy."""
-        from games.car_racing.env import CarRacingEnv
-        from games.car_racing.obs_spec import CAR_RACING_OBS_SPEC
-        from games.car_racing.actions import DISCRETE_ACTIONS
         from framework.policies import EpsilonGreedyPolicy
         from framework.training import _greedy_loop_q_learning
+        from games.car_racing.actions import DISCRETE_ACTIONS
+        from games.car_racing.env import CarRacingEnv
+        from games.car_racing.obs_spec import CAR_RACING_OBS_SPEC
 
         env = CarRacingEnv(max_episode_steps=10)
         try:

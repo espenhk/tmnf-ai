@@ -10,15 +10,16 @@ The script scans a root folder recursively for grid-search summary directories
 3. rewrites copied summary links so they still point to the original runs, and
 4. writes a cross-grid ``summary.md`` comparing the discovered searches.
 """
+
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
 import logging
 import math
 import os
 import re
 import shutil
+from dataclasses import dataclass
 from statistics import fmean
 
 import yaml
@@ -141,11 +142,7 @@ def _remap_data_paths(experiment_dir: str, data) -> None:
 
 
 def _flatten_run_params(training_params: dict, reward_cfg: dict) -> dict:
-    params = {
-        key: value
-        for key, value in training_params.items()
-        if key != "policy_params"
-    }
+    params = {key: value for key, value in training_params.items() if key != "policy_params"}
     policy_params = training_params.get("policy_params")
     if isinstance(policy_params, dict):
         for key, value in policy_params.items():
@@ -164,11 +161,7 @@ def _infer_flattened_varied_keys(runs: list[tuple[str, object]]) -> list[str]:
         flattened = _flatten_run_params(data.training_params, reward_cfg)
         flattened_by_run.append(flattened)
         all_keys.update(flattened.keys())
-    return sorted(
-        key
-        for key in all_keys
-        if len({str(flattened.get(key)) for flattened in flattened_by_run}) > 1
-    )
+    return sorted(key for key in all_keys if len({str(flattened.get(key)) for flattened in flattened_by_run}) > 1)
 
 
 def discover_grid_search_families(
@@ -274,9 +267,7 @@ def _load_family_metrics(family: GridSearchFamily) -> GridSearchFamily | None:
         experiment_dir = os.path.join(family.version_dir, name)
         if not os.path.isdir(experiment_dir) or experiment_dir == family.summary_dir:
             continue
-        experiment_data_path = os.path.join(
-            experiment_dir, "results", "experiment_data.json"
-        )
+        experiment_data_path = os.path.join(experiment_dir, "results", "experiment_data.json")
         if not os.path.exists(experiment_data_path):
             continue
         try:
@@ -330,9 +321,7 @@ def _load_family_metrics(family: GridSearchFamily) -> GridSearchFamily | None:
     family.best_reward = best_reward
     family.avg_best_reward = fmean(per_run_best) if per_run_best else None
     family.best_generation = best_generation
-    family.avg_generation_to_best = (
-        fmean(per_run_generation) if per_run_generation else None
-    )
+    family.avg_generation_to_best = fmean(per_run_generation) if per_run_generation else None
     family.population_sizes = sorted(population_sizes)
     family.hidden_layer_sizes = sorted(hidden_sizes)
     family.varied_keys = varied_keys
@@ -367,11 +356,7 @@ def write_cross_grid_summary(
     ]
     for rank, family in enumerate(ranked, 1):
         run_count = len(family.runs or [])
-        summary_link = (
-            f"[copied summary]({family.copied_summary_rel})"
-            if family.copied_summary_rel
-            else "—"
-        )
+        summary_link = f"[copied summary]({family.copied_summary_rel})" if family.copied_summary_rel else "—"
         lines.append(
             f"| {rank} | {family.policy_name} | {family.version_name} | {run_count} "
             f"| {_format_reward(family.best_reward)} | {_format_reward(family.avg_best_reward)} "
@@ -402,7 +387,7 @@ def write_cross_grid_summary(
 
     report_path = os.path.join(output_dir, "summary.md")
     with open(report_path, "w", encoding="utf-8") as f:
-        f.writelines(lines)
+        f.write("".join(lines).rstrip("\n") + "\n")
     logger.info("Saved cross-grid summary → %s", report_path)
     return report_path
 
@@ -413,9 +398,7 @@ def build_cross_grid_report(
     summary_name: str = "cross_grid",
 ) -> str | None:
     root_dir = os.path.abspath(root_dir)
-    output_dir = os.path.abspath(
-        output_dir or os.path.join(root_dir, f"{summary_name}__summary")
-    )
+    output_dir = os.path.abspath(output_dir or os.path.join(root_dir, f"{summary_name}__summary"))
     os.makedirs(output_dir, exist_ok=True)
 
     families = discover_grid_search_families(root_dir, exclude_dirs=[output_dir])

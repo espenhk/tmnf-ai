@@ -14,6 +14,7 @@ Format follows PEP 440 local version identifiers:
 human-readable version number.  `scripts/release.py` keeps it in sync
 with `pyproject.toml` on every release.
 """
+
 from __future__ import annotations
 
 import functools
@@ -23,7 +24,7 @@ from pathlib import Path
 # Source of truth for the package version.  Bumped by scripts/release.py
 # at release time; pyproject.toml is updated to the same value in the
 # same commit.  Keep both in sync.
-PACKAGE_VERSION: str = "0.2.14"
+PACKAGE_VERSION: str = "0.2.15"
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 

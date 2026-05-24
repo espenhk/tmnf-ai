@@ -31,17 +31,13 @@ class PDHeadingController:
         Constant twitching even when centred and aligned   → Heading too high
     """
 
-    LATERAL_GAIN:    float = 16.0   # steer% per metre off-centre (P term)
-    DERIVATIVE_GAIN: float =  8.0   # steer% per m/s lateral velocity (D term)
-    HEADING_GAIN:    float =  5.0   # steer% per radian of heading error
+    LATERAL_GAIN: float = 16.0  # steer% per metre off-centre (P term)
+    DERIVATIVE_GAIN: float = 8.0  # steer% per m/s lateral velocity (D term)
+    HEADING_GAIN: float = 5.0  # steer% per radian of heading error
 
     def compute_steer(self, lateral: float, lateral_vel: float, yaw_error: float) -> float:
         """Return a steer percentage in [-100, 100]."""
-        return (
-            -lateral     * self.LATERAL_GAIN
-            - lateral_vel  * self.DERIVATIVE_GAIN
-            + yaw_error    * self.HEADING_GAIN
-        )
+        return -lateral * self.LATERAL_GAIN - lateral_vel * self.DERIVATIVE_GAIN + yaw_error * self.HEADING_GAIN
 
 
 def angle_diff(target: float, current: float) -> float:

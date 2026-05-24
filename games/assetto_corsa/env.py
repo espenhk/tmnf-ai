@@ -36,16 +36,14 @@ import numpy as np
 from gymnasium import spaces
 
 from framework.base_env import BaseGameEnv
-from games.assetto_corsa.clients.ac_client import ACClient, ACStepState, DEFAULT_ENV_ID
-from games.assetto_corsa.obs_spec import AC_OBS_SPEC, with_vision
+from games.assetto_corsa.clients.ac_client import DEFAULT_ENV_ID, ACClient, ACStepState
+from games.assetto_corsa.obs_spec import with_vision
 from games.assetto_corsa.reward import RewardCalculator, RewardConfig
 
 logger = logging.getLogger(__name__)
 
 
-_DEFAULT_REWARD_CONFIG = os.path.join(
-    os.path.dirname(__file__), "config", "reward_config.yaml"
-)
+_DEFAULT_REWARD_CONFIG = os.path.join(os.path.dirname(__file__), "config", "reward_config.yaml")
 
 
 class AssettoCorsaEnv(BaseGameEnv):
@@ -90,16 +88,18 @@ class AssettoCorsaEnv(BaseGameEnv):
         self._obs_spec = with_vision(n_vision)
 
         self.observation_space = spaces.Box(
-            low=-np.inf, high=np.inf, shape=(self._obs_spec.dim,), dtype=np.float32,
+            low=-np.inf,
+            high=np.inf,
+            shape=(self._obs_spec.dim,),
+            dtype=np.float32,
         )
         self.action_space = spaces.Box(
             low=np.array([-1.0, 0.0, 0.0], dtype=np.float32),
-            high=np.array([ 1.0, 1.0, 1.0], dtype=np.float32),
+            high=np.array([1.0, 1.0, 1.0], dtype=np.float32),
             dtype=np.float32,
         )
 
-        self._client = ACClient(env_id=env_id, env_factory=env_factory,
-                                env_kwargs=env_kwargs)
+        self._client = ACClient(env_id=env_id, env_factory=env_factory, env_kwargs=env_kwargs)
 
         self._prev_state: ACStepState | None = None
         self._elapsed_s: float = 0.0
@@ -129,28 +129,23 @@ class AssettoCorsaEnv(BaseGameEnv):
         step = self._client.step(np.asarray(action, dtype=np.float32))
         self._elapsed_s = time.monotonic() - self._episode_start_s
 
-        finished = bool(step.finished) or (
-            step.track_progress is not None and step.track_progress >= 1.0
-        )
-        crashed = (
-            step.lateral_offset is not None
-            and abs(step.lateral_offset) > self._reward_config.crash_threshold_m
-        )
+        finished = bool(step.finished) or (step.track_progress is not None and step.track_progress >= 1.0)
+        crashed = step.lateral_offset is not None and abs(step.lateral_offset) > self._reward_config.crash_threshold_m
         time_over = self._elapsed_s > self._max_episode_time_s
 
         accelerating = bool(float(action[1]) >= 0.5) if len(action) >= 2 else False
 
         reward = self._reward_calc.compute(
-            prev_state = self._prev_state,
-            curr_state = step,
-            finished   = finished,
-            elapsed_s  = self._elapsed_s,
-            info       = {"accelerating": accelerating},
-            n_ticks    = 1,
+            prev_state=self._prev_state,
+            curr_state=step,
+            finished=finished,
+            elapsed_s=self._elapsed_s,
+            info={"accelerating": accelerating},
+            n_ticks=1,
         )
 
         terminated = finished or crashed or step.terminated
-        truncated  = step.truncated or (time_over and not terminated)
+        truncated = step.truncated or (time_over and not terminated)
 
         if finished:
             termination_reason: str | None = "finish"
@@ -167,12 +162,14 @@ class AssettoCorsaEnv(BaseGameEnv):
         self._prev_state = step
 
         info = self._get_game_info(step)
-        info.update({
-            "finished":        finished,
-            "laps_completed":  self._laps_completed,
-            "elapsed_s":       self._elapsed_s,
-            "termination_reason": termination_reason,
-        })
+        info.update(
+            {
+                "finished": finished,
+                "laps_completed": self._laps_completed,
+                "elapsed_s": self._elapsed_s,
+                "termination_reason": termination_reason,
+            }
+        )
         obs = self._build_obs(step)
         return obs, reward, terminated, truncated, info
 
@@ -194,15 +191,15 @@ class AssettoCorsaEnv(BaseGameEnv):
         if s is None:
             return {}
         return {
-            "pos_x":          s.pos_x,
-            "pos_z":          s.pos_z,
+            "pos_x": s.pos_x,
+            "pos_z": s.pos_z,
             "track_progress": s.track_progress or 0.0,
             "lateral_offset": s.lateral_offset or 0.0,
         }
 
     def _build_obs(self, step: ACStepState) -> np.ndarray:
         wheels = step.wheel_slip
-        ang    = step.angular_velocity
+        ang = step.angular_velocity
         state = np.array(
             [
                 step.speed_ms,
@@ -214,8 +211,13 @@ class AssettoCorsaEnv(BaseGameEnv):
                 step.steering_angle,
                 step.engine_rpm,
                 step.gear,
-                wheels[0], wheels[1], wheels[2], wheels[3],
-                ang[0],    ang[1],    ang[2],
+                wheels[0],
+                wheels[1],
+                wheels[2],
+                wheels[3],
+                ang[0],
+                ang[1],
+                ang[2],
             ],
             dtype=np.float32,
         )
@@ -247,8 +249,8 @@ def make_env(
         else RewardConfig.from_yaml(_DEFAULT_REWARD_CONFIG)
     )
     return AssettoCorsaEnv(
-        reward_config       = reward_config,
-        max_episode_time_s  = in_game_episode_s,
-        n_vision            = n_vision,
-        env_factory         = env_factory,
+        reward_config=reward_config,
+        max_episode_time_s=in_game_episode_s,
+        n_vision=n_vision,
+        env_factory=env_factory,
     )

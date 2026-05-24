@@ -3,6 +3,7 @@
 Guards against future parameter drift by verifying that the new bundle-based
 parameters exist and have the expected names.
 """
+
 from __future__ import annotations
 
 import inspect
@@ -43,8 +44,7 @@ class TestTrainRLSignature:
         """Legacy flat parameter list has been removed."""
         sig = inspect.signature(train_rl)
         param_names = set(sig.parameters.keys())
-        expected = {"game", "config", "probe", "warmup",
-                    "no_interrupt", "re_initialize"}
+        expected = {"game", "config", "probe", "warmup", "no_interrupt", "re_initialize"}
         assert param_names == expected
 
     def test_gamespec_requires_game_name(self):
