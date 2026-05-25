@@ -127,6 +127,19 @@ multiple-clients** distributed layout; crucially it is **real-time, not sped
 up**. **License: MIT** — the most permissive flagship here. Active (v0.7.1, May
 2025; ~707★).
 
+**Real-time-RL lineage.** `rtgym` and tmrl's SAC descend from two papers by
+overlapping authors (Bouteiller, tmrl's lead, co-authors the second):
+**Ramstedt & Pal, "Real-Time Reinforcement Learning," NeurIPS 2019**
+(arXiv:1911.04448) — the **RTMDP** formulation + **RTAC** — and **Ramstedt,
+Bouteiller et al., "Reinforcement Learning with Random Delays," ICLR 2021**
+(arXiv:2010.02966) — the **RDMDP** + **DCAC**, from which `rtgym` derives. Their
+core result: when an environment **cannot be paused**, the action you compute
+now is applied a step late, so the bare observation is **not Markov** — you must
+augment the state with the **in-flight action(s)** (and, under random delays,
+the delay values) and prefer a **state-value critic**; naive SAC on the raw
+delayed observation collapses to near-random. The reduction `SAC ⊂ RTAC ⊂ DCAC`
+makes this a clean lineage.
+
 > Why it matters most: same game family, same LIDAR-vs-pixels question we face,
 > but it answers the algorithm question with **SAC/REDQ** and is MIT-licensed.
 
@@ -579,6 +592,21 @@ noted above — these are *ideas to try*, not code to copy.
     obs/action-design experiment and as a compute-budget lever for #327's
     "sizing a run", and as a candidate algorithm for #328.
 
+12. **Our sped-up / headless setup *sidesteps* the real-time-RL problem — state
+    that as an advantage, and know the cost if we go live.** The strongest
+    racing agents train against a **non-pausable live game** (tmrl, GT Sophy on
+    a PS4) and therefore pay for it: per the RTRL/RDMDP papers (arXiv:1911.04448,
+    arXiv:2010.02966), when you can't pause, the action computed now lands a step
+    late, the bare observation isn't Markov, and you must augment the state with
+    the in-flight action(s) + delays and use a state-value critic (naive SAC
+    collapses to near-random). **Our TMInterface speed-up (≤10×) and pausable,
+    headless PySC2 make interaction effectively turn-based, so none of this
+    machinery is needed** — a real, if unglamorous, advantage of our
+    architecture. The flip side: if we ever target a genuinely real-time,
+    non-pausable game (BeamNG / Assetto / Rocket League at native speed), we'd
+    need exactly this — RTMDP/RDMDP state augmentation (cf. our existing
+    prev-action features) and a delay-aware critic.
+
 ---
 
 ## Sources
@@ -603,6 +631,8 @@ All links verified to resolve, May 2026.
 - MOSEAC code — https://github.com/alpaficia/MOSEAC
 - GT Sophy — Wurman et al., *Nature* 2022 — https://www.nature.com/articles/s41586-021-04357-7
 - GT Sophy — race videos — https://sonyai.github.io/gt_sophy_public
+- Real-Time Reinforcement Learning (RTAC), NeurIPS 2019 — https://arxiv.org/abs/1911.04448
+- Reinforcement Learning with Random Delays (DCAC / `rtgym`), 2021 — https://arxiv.org/abs/2010.02966
 - The History of Machine Learning in Trackmania — https://hallofdreams.org/posts/trackmania-1/
 
 **StarCraft II**
