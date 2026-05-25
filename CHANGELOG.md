@@ -29,17 +29,6 @@ formatting, internal refactors with no behaviour change — can be skipped.
   Includes a master comparison table and a "takeaways for gamer-ai" section
   cross-referenced to #327/#328 (#329).
 
-
-
-
-
-
-
-
-
-
-
-
 ---
 
 ## [0.2.15] - 2026-05-22

@@ -91,7 +91,7 @@ observation design; "Act" = action space. URLs are in [Sources](#sources).
 | **Pheoxis/AITrackmania** | TM2020 | SAC, REDQ (it is a **tmrl fork**) | as tmrl | as tmrl | as tmrl | MIT | fork |
 | **TheoBoyer/TMForge** | TM2020 | DQN (reference) | CNN on frames; Gym-like API | discrete | not specified | none found `(unverified)` | beta, low |
 | **Urela/DriveForever** | TMNF | not specified | 4× stacked 84×84 greyscale (CV, no API) | gym sample | car speed | none found `(unverified)` | toy, low |
-| **ShubhamGajjar/TrackMania-RL** | TMNF | **IQN** (distributional) | dxcam frames + telemetry + virtual checkpoints (~10 m) | (n/s) | checkpoint progress − collisions/off-track | MIT | WIP (v1.4, Sep 2024) |
+| **ShubhamGajjar/TrackMania-ReinforcementLearning** | TMNF | **IQN** (distributional) | dxcam frames + telemetry + virtual checkpoints (~10 m) | (n/s) | checkpoint progress − collisions/off-track | MIT | WIP (v1.4, Sep 2024) |
 | **terafear/trackmania_rl_public** | TMNF | (n/s; earlier public "Linesight") | (n/s) | discrete keyboard | (n/s) | none found `(unverified)` | superseded by Linesight-RL |
 | **TMInterface** (donadigo) | TMNF | n/a — *tooling* (TAS / programmatic control) | n/a | n/a | n/a | closed freeware; public repo unlicensed | maintained |
 | **AlphaStar** (DeepMind) | SC2 (full game) | supervised init + multi-agent RL (PFSP league) | raw entity/unit list + spatial + scalars | autoregressive function+args, APM-limited | win/loss + pseudo-rewards | Apache-2.0 (offline-RL code only) | archived |
