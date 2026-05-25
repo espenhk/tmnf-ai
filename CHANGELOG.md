@@ -17,6 +17,11 @@ formatting, internal refactors with no behaviour change — can be skipped.
 
 ## [Unreleased]
 
+
+---
+
+## [0.2.16] - 2026-05-25
+
 ### Documentation
 - Top-level docs reframed from "TMNF-only" to the multi-game framework they
   describe, and the game roster corrected from six to **eight** (#323):
@@ -40,16 +45,6 @@ formatting, internal refactors with no behaviour change — can be skipped.
   holds cross-game protocol docs.
 - `CLAUDE.md` and `CONTRIBUTING.md` now record a hard labelling rule:
   `documentation` issues must never carry the `good first issue` label.
-
-
-
-
-
-
-
-
-
-
 
 ---
 
