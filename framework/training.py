@@ -49,7 +49,6 @@ from framework.version import code_version
 logger = logging.getLogger(__name__)
 
 _TRACE_SAMPLE_EVERY = 2  # record position every N steps
-_SC2_REMOVED_BARE_POLICY_TYPES = frozenset({"cmaes", "reinforce", "lstm", "neural_dqn"})
 
 
 def _trainer_state_path(weights_file: str) -> str:
@@ -116,17 +115,6 @@ def _make_policy(
     game_name: str = "",
 ) -> BasePolicy:
     """Construct a policy via POLICY_REGISTRY, after a game-compatibility check."""
-    if game_name == "sc2" and policy_type in _SC2_REMOVED_BARE_POLICY_TYPES:
-        sc2_compatible = sorted(
-            name
-            for name, cls in POLICY_REGISTRY.items()
-            if name not in _SC2_REMOVED_BARE_POLICY_TYPES and cls.compatible_with("sc2")[0]
-        )
-        raise ValueError(
-            f"policy_type {policy_type!r} is not valid for game 'sc2'. "
-            f"Use the sc2_-prefixed equivalent (e.g. 'sc2_{policy_type}'). "
-            f"SC2-compatible types: {sc2_compatible}"
-        )
     cls = _resolve_policy_class(policy_type)
     _assert_policy_compatible(cls, policy_type, game_name)
     return cls.make(
@@ -316,27 +304,27 @@ def _print_episode_summary(info: dict, steps: int, total_reward: float, truncate
     outcome = "truncated" if truncated else ("finished" if finished else "terminated")
     skipped_frames = _episode_skipped_frames(info)
     skipped_suffix = f"  skipped_frames={skipped_frames}" if skipped_frames is not None else ""
-    sc2_outcome = info.get("player_outcome")
-    sc2_raw_reward = info.get("raw_reward")
-    if sc2_outcome is not None or sc2_raw_reward is not None:
-        if sc2_outcome is not None:
-            sc2_outcome_v = float(sc2_outcome)
-            if sc2_outcome_v > 0:
-                sc2_outcome_s = "win"
-            elif sc2_outcome_v < 0:
-                sc2_outcome_s = "loss"
+    player_outcome = info.get("player_outcome")
+    raw_reward = info.get("raw_reward")
+    if player_outcome is not None or raw_reward is not None:
+        if player_outcome is not None:
+            outcome_v = float(player_outcome)
+            if outcome_v > 0:
+                outcome_s = "win"
+            elif outcome_v < 0:
+                outcome_s = "loss"
             else:
-                sc2_outcome_s = "draw"
+                outcome_s = "draw"
         else:
-            sc2_outcome_s = str(info.get("termination_reason", outcome))
-        reward_v = float(sc2_raw_reward if sc2_raw_reward is not None else 0.0)
+            outcome_s = str(info.get("termination_reason", outcome))
+        reward_v = float(raw_reward if raw_reward is not None else 0.0)
         score = float(info.get("score", 0.0))
         logger.info(
             "ep end  %s  r=%+.1f  steps=%d  outcome=%s  reward=%+.1f  score=%+.1f%s",
             outcome,
             total_reward,
             steps,
-            sc2_outcome_s,
+            outcome_s,
             reward_v,
             score,
             skipped_suffix,
@@ -365,9 +353,9 @@ def _log_new_best_details(info: dict, prev_best_info: dict | None) -> None:
 
     1. Reward-component breakdown (``episode_reward_components``)
     2. Action-frequency breakdown (``episode_action_counts``)
-    3. TMNF task metrics: track progress, mean lateral offset, finish time
-    4. SC2 kill stats: enemy units/structures destroyed
-    5. SC2 game-state averages: army size, enemy screen presence
+    3. Task metrics: track progress, mean lateral offset, finish time (info-key based)
+    4. Kill stats: enemy units/structures destroyed (info-key based)
+    5. Per-game state averages: any keys present in ``episode_obs_averages``
     """
     prev: dict = prev_best_info or {}
 
@@ -396,21 +384,14 @@ def _log_new_best_details(info: dict, prev_best_info: dict | None) -> None:
             logger.info("    win_bonus=%+.1f", win_bonus)
             logger.info("    loss_penalty=%+.1f", loss_penalty)
 
-    # 2. Action-frequency breakdown (SC2Env only) ----------------------------
+    # 2. Action-frequency breakdown (any game may populate episode_action_counts)
     ac = info.get("episode_action_counts")
     if ac:
         total = sum(ac.values())
         if total > 0:
             prev_ac: dict = prev.get("episode_action_counts") or {}
             prev_total = sum(prev_ac.values()) if prev_ac else 0
-            try:
-                from games.sc2.actions import FUNCTION_IDS as _FNIDS  # noqa: PLC0415
-            except ImportError:
-                # SC2 extras not installed; fall back to numeric fn{idx} names.
-                logger.debug("games.sc2.actions unavailable; action names shown as fn{idx}")
-                _FNIDS: dict = {}
             for fn_idx, count in sorted(ac.items(), key=lambda x: -x[1]):
-                name = _FNIDS.get(int(fn_idx), f"fn{fn_idx}")
                 pct = 100.0 * count / total
                 if prev_total > 0:
                     # Keys are ints from env.step(); str fallback handles any
@@ -419,9 +400,9 @@ def _log_new_best_details(info: dict, prev_best_info: dict | None) -> None:
                     cmp_s = f" (prev {ppct:.1f}%)"
                 else:
                     cmp_s = ""
-                logger.info("    %s=%.1f%%%s", name, pct, cmp_s)
+                logger.info("    %s=%.1f%%%s", fn_idx, pct, cmp_s)
 
-    # 3. TMNF task metrics ---------------------------------------------------
+    # 3. Task metrics (info-key based; any game may populate these) -----------
     progress = info.get("track_progress")
     if progress is not None:
         prev_progress = prev.get("track_progress")
@@ -440,7 +421,7 @@ def _log_new_best_details(info: dict, prev_best_info: dict | None) -> None:
             t_s = f"  finish_time={finish_t:.1f}s{ft_cmp}"
         logger.info("    progress=%.1f%%%s%s%s", 100.0 * progress, cmp_s, lat_s, t_s)
 
-    # 4. SC2 kill stats — suppress when no kills occurred --------------------
+    # 4. Kill stats — suppressed when no kills occurred ----------------------
     kills = info.get("episode_killed_value_units")
     if kills is not None:
         struct_kills = info.get("episode_killed_value_structures", 0.0)
@@ -451,11 +432,11 @@ def _log_new_best_details(info: dict, prev_best_info: dict | None) -> None:
             struct_cmp_s = f" (prev {prev_struct:.0f})" if prev_struct is not None else ""
             logger.info("    kills: units=%d%s  structures=%d%s", int(kills), cmp_s, int(struct_kills), struct_cmp_s)
 
-    # 5. SC2 game-state averages ---------------------------------------------
+    # 5. Per-game state averages (any key in episode_obs_averages) ---------------
     obs_avgs = info.get("episode_obs_averages")
     if obs_avgs:
         prev_avgs: dict = prev.get("episode_obs_averages") or {}
-        for k in ("army_count", "food_used", "screen_enemy_count"):
+        for k in sorted(obs_avgs):
             v = obs_avgs.get(k)
             if v is not None and abs(v) > 0.001:
                 pv = prev_avgs.get(k)
@@ -491,14 +472,9 @@ def _log_periodic_stats(info: dict, sim: int) -> None:
     if ac:
         total = sum(ac.values())
         if total > 0:
-            try:
-                from games.sc2.actions import FUNCTION_IDS as _FNIDS  # noqa: PLC0415
-            except ImportError:
-                _FNIDS: dict = {}
             for fn_idx, count in sorted(ac.items(), key=lambda x: -x[1]):
-                name = _FNIDS.get(int(fn_idx), f"fn{fn_idx}")
                 pct = 100.0 * count / total
-                logger.info("    %s=%.1f%%", name, pct)
+                logger.info("    %s=%.1f%%", fn_idx, pct)
 
 
 def _print_action_stats(throttle_counts: list[int], turning_steps: int, steps: int) -> None:
@@ -681,7 +657,7 @@ def _cold_start_search(
 
 
 # ---------------------------------------------------------------------------
-# Replay saving (SC2 only — no-op for all other games)
+# Replay saving (no-op for games that do not implement save_replay)
 # ---------------------------------------------------------------------------
 
 
@@ -694,7 +670,8 @@ def _next_best_prefix(weights_file: str, replay_dir: str) -> str:
     experiment_name = os.path.basename(os.path.dirname(os.path.abspath(weights_file)))
     n = 0
     if os.path.isdir(replay_dir):
-        n = sum(1 for f in os.listdir(replay_dir) if f.endswith(".SC2Replay") and not f.startswith("_"))
+        prefix_pat = f"{experiment_name}_best-"
+        n = sum(1 for f in os.listdir(replay_dir) if f.startswith(prefix_pat))
     return f"{experiment_name}_best-{n + 1:02d}"
 
 
@@ -750,7 +727,8 @@ def _finalize_candidate_replay(candidate_path: str | None, weights_file: str) ->
         logger.debug("  [replay] candidate file missing — skipping finalize.")
         return
     rdir = os.path.dirname(candidate_path)
-    dest = os.path.join(rdir, _next_best_prefix(weights_file, rdir) + ".SC2Replay")
+    ext = os.path.splitext(candidate_path)[1]
+    dest = os.path.join(rdir, _next_best_prefix(weights_file, rdir) + ext)
     try:
         os.rename(candidate_path, dest)
         logger.info("  [replay] saved → %s", dest)

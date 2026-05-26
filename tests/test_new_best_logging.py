@@ -149,7 +149,8 @@ class TestLogNewBestDetails(unittest.TestCase):
         # one log line per action (sorted by descending count: fn2, fn0, fn1)
         self.assertEqual(len(lines), 3)
         all_text = "\n".join(lines)
-        self.assertIn("Move_screen=60.0%", all_text)
+        # Actions are logged by their raw key (int) — no game-specific name lookup.
+        self.assertIn("2=60.0%", all_text)
 
     def test_action_counts_prev_comparison(self):
         info = {"episode_action_counts": {0: 10, 2: 90}}

@@ -166,7 +166,7 @@ class TestTrySaveReplay(unittest.TestCase):
             env.save_replay.assert_called_once_with(replay_dir, prefix=f"{experiment_name}_best-02")
 
     def test_candidate_files_excluded_from_count(self):
-        """_candidate.SC2Replay must not be counted as a confirmed best."""
+        """Candidate files (starting with _) must not be counted as confirmed bests."""
         import tempfile
 
         with tempfile.TemporaryDirectory() as experiment_dir:
@@ -209,7 +209,8 @@ class TestTrySaveReplay(unittest.TestCase):
             replay_dir_used = env.save_replay.call_args[0][0]
             self.assertEqual(replay_dir_used, os.path.join(experiment_dir, "replays"))
 
-    def test_only_sc2replay_files_counted_for_numbering(self):
+    def test_non_replay_files_not_counted_for_numbering(self):
+        """Files that don't match the {experiment}_best-N naming pattern are ignored."""
         import tempfile
 
         with tempfile.TemporaryDirectory() as experiment_dir:
