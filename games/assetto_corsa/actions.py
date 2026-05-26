@@ -17,6 +17,9 @@ from __future__ import annotations
 
 import numpy as np
 
+from framework.run_config import ProbeAction
+
+
 # 9-action discrete grid: {brake, coast, accel} × {left, straight, right}
 DISCRETE_ACTIONS = np.array(
     [
@@ -37,13 +40,13 @@ DISCRETE_ACTIONS = np.array(
 # Probe phase fixed-action episodes — used only by the hill-climbing policy.
 # The AC env defaults to the genetic policy, so an empty list is fine in
 # normal operation; populating it lets users opt into hill-climbing later.
-PROBE_ACTIONS: list[tuple[np.ndarray, str]] = [
-    (np.array([-1.0, 1.0, 0.0], dtype=np.float32), "accel left"),
-    (np.array([0.0, 1.0, 0.0], dtype=np.float32), "accel"),
-    (np.array([1.0, 1.0, 0.0], dtype=np.float32), "accel right"),
-    (np.array([-1.0, 0.0, 1.0], dtype=np.float32), "brake left"),
-    (np.array([0.0, 0.0, 1.0], dtype=np.float32), "brake"),
-    (np.array([1.0, 0.0, 1.0], dtype=np.float32), "brake right"),
+PROBE_ACTIONS: list[ProbeAction] = [
+    ProbeAction(np.array([-1., 1., 0.], dtype=np.float32), "accel left"),
+    ProbeAction(np.array([ 0., 1., 0.], dtype=np.float32), "accel"),
+    ProbeAction(np.array([ 1., 1., 0.], dtype=np.float32), "accel right"),
+    ProbeAction(np.array([-1., 0., 1.], dtype=np.float32), "brake left"),
+    ProbeAction(np.array([ 0., 0., 1.], dtype=np.float32), "brake"),
+    ProbeAction(np.array([ 1., 0., 1.], dtype=np.float32), "brake right"),
 ]
 
 

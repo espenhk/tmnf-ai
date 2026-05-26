@@ -72,6 +72,18 @@ class RunConfig:
 
 
 # ---------------------------------------------------------------------------
+# Probe action
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class ProbeAction:
+    """A single fixed-action probe episode: action vector + human-readable name."""
+
+    action: Any     # np.ndarray — action to hold constant for the whole episode
+    name: str       # short description, e.g. "accel" or "brake left"
+
+
+# ---------------------------------------------------------------------------
 # TMNF-only optional specs (pass None to skip)
 # ---------------------------------------------------------------------------
 
@@ -80,7 +92,7 @@ class RunConfig:
 class ProbeSpec:
     """Probe + cold-start phase config."""
 
-    actions: list  # list of (action_array, name) tuples
+    actions: list[ProbeAction]
     probe_in_game_s: float
     cold_start_restarts: int
     cold_start_sims: int

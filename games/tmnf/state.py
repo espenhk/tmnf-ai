@@ -8,17 +8,18 @@ steer_percent()        — converts a steer percentage to TMInterface integer en
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 from typing import Any
 
 from games.tmnf.constants import STEER_SCALE
 from games.tmnf.obs_spec import LOOKAHEAD_STEPS
 
 
+@dataclass
 class Vec3:
-    def __init__(self, x: float, y: float, z: float) -> None:
-        self.x = x
-        self.y = y
-        self.z = z
+    x: float
+    y: float
+    z: float
 
     def magnitude(self) -> float:
         return (self.x**2 + self.y**2 + self.z**2) ** 0.5
@@ -28,13 +29,13 @@ class Vec3:
         return self.magnitude()
 
 
+@dataclass
 class Quat:
     # TMInterface stores quat as [w, x, y, z]
-    def __init__(self, w: float, x: float, y: float, z: float) -> None:
-        self.w = w
-        self.x = x
-        self.y = y
-        self.z = z
+    w: float
+    x: float
+    y: float
+    z: float
 
     def yaw(self) -> float:
         """Rotation around Y axis (left/right), in radians."""
@@ -64,10 +65,10 @@ class Quat:
         )
 
 
+@dataclass
 class WheelState:
-    def __init__(self, contact: bool, sliding: bool) -> None:
-        self.contact = contact
-        self.sliding = sliding
+    contact: bool
+    sliding: bool
 
 
 class StateData:
@@ -102,14 +103,16 @@ class StateData:
         self._centerline_idx = None  # nearest centerline point index (for windowed search)
         self.lookahead: list[tuple[float, float]] = [(0.0, 0.0)] * 3
         if centerline is not None:
-            (
-                self.track_progress,
-                self.lateral_offset,
-                self.vertical_offset,
-                self.track_forward,
-                self._centerline_idx,
-            ) = centerline.project_with_forward(self.position, hint_idx=hint_idx)
-            self.lookahead = [centerline.project_ahead(self.position, self._centerline_idx, s) for s in LOOKAHEAD_STEPS]
+            proj = centerline.project_with_forward(self.position, hint_idx=hint_idx)
+            self.track_progress = proj.progress
+            self.lateral_offset = proj.lateral_offset
+            self.vertical_offset = proj.vertical_offset
+            self.track_forward = proj.forward
+            self._centerline_idx = proj.nearest_idx
+            self.lookahead = [
+                centerline.project_ahead(self.position, self._centerline_idx, s)
+                for s in LOOKAHEAD_STEPS
+            ]
 
     def __str__(self) -> str:
         contact_str = " ".join(str(int(w.contact)) for w in self.wheels)

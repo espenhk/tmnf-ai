@@ -24,6 +24,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from framework.run_config import ProbeAction
+
 # ---------------------------------------------------------------------------
 # Continuous action bounds
 # ---------------------------------------------------------------------------
@@ -67,13 +69,13 @@ DISCRETE_ACTIONS = np.array(
 # Probe actions — fixed-action episodes for cold-start evaluation.
 # ---------------------------------------------------------------------------
 
-PROBE_ACTIONS: list[tuple[np.ndarray, str]] = [
-    (np.array([-1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], dtype=np.float32), "reverse"),
-    (np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], dtype=np.float32), "coast"),
-    (np.array([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], dtype=np.float32), "throttle"),
-    (np.array([1.0, -1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], dtype=np.float32), "throttle left"),
-    (np.array([1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], dtype=np.float32), "throttle right"),
-    (np.array([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0], dtype=np.float32), "boost straight"),
+PROBE_ACTIONS: list[ProbeAction] = [
+    ProbeAction(np.array([-1., 0., 0., 0., 0., 0., 0., 0.], dtype=np.float32), "reverse"),
+    ProbeAction(np.array([ 0., 0., 0., 0., 0., 0., 0., 0.], dtype=np.float32), "coast"),
+    ProbeAction(np.array([ 1., 0., 0., 0., 0., 0., 0., 0.], dtype=np.float32), "throttle"),
+    ProbeAction(np.array([ 1., -1., 0., 0., 0., 0., 0., 0.], dtype=np.float32), "throttle left"),
+    ProbeAction(np.array([ 1., 1., 0., 0., 0., 0., 0., 0.], dtype=np.float32), "throttle right"),
+    ProbeAction(np.array([ 1., 0., 0., 0., 0., 0., 1., 0.], dtype=np.float32), "boost straight"),
 ]
 
 # Warmup action: full throttle straight, no boost/jump.

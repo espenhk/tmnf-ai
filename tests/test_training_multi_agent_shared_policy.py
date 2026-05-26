@@ -40,16 +40,16 @@ def test_run_episode_multi_agent_uses_shared_policy_per_agent_obs():
     policy = _RecordingPolicy()
     obs = np.array([[1.0, 0.0], [2.0, 0.0]], dtype=np.float32)
 
-    total_reward, info, throttle_counts, total_steps, _trace = _run_episode(
+    ep = _run_episode(
         env=env,
         policy=policy,
         obs=obs,
     )
 
-    assert total_reward == 1.0
-    assert info == {}
-    assert throttle_counts == [0, 0, 1]
-    assert total_steps == 1
+    assert ep.reward == 1.0
+    assert ep.info == {}
+    assert ep.throttle_counts == [0, 0, 1]
+    assert ep.total_steps == 1
 
     assert len(policy.calls) == 2
     np.testing.assert_array_equal(policy.calls[0], np.array([1.0, 0.0], dtype=np.float32))

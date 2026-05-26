@@ -59,6 +59,9 @@ from __future__ import annotations
 
 import numpy as np
 
+from framework.run_config import ProbeAction
+
+
 # ---------------------------------------------------------------------------
 # Function-id table
 # ---------------------------------------------------------------------------
@@ -420,12 +423,12 @@ DISCRETE_ACTIONS: np.ndarray = _build_discrete_actions(SCREEN_GRID_RESOLUTION)
 # Issue #127: keep no_op as the first probe so the cold-start search learns
 # whether idling is competitive on the chosen map.
 
-PROBE_ACTIONS: list[tuple[np.ndarray, str]] = [
-    (np.array([0, 0.5, 0.5, 0], dtype=np.float32), "no_op"),
-    (np.array([1, 0.5, 0.5, 0], dtype=np.float32), "select_army"),
-    (np.array([2, 0.5, 0.5, 0], dtype=np.float32), "move_centre"),
-    (np.array([2, 0.2, 0.2, 0], dtype=np.float32), "move_top_left"),
-    (np.array([2, 0.8, 0.8, 0], dtype=np.float32), "move_bottom_right"),
+PROBE_ACTIONS: list[ProbeAction] = [
+    ProbeAction(np.array([0, 0.5, 0.5, 0], dtype=np.float32), "no_op"),
+    ProbeAction(np.array([1, 0.5, 0.5, 0], dtype=np.float32), "select_army"),
+    ProbeAction(np.array([2, 0.5, 0.5, 0], dtype=np.float32), "move_centre"),
+    ProbeAction(np.array([2, 0.2, 0.2, 0], dtype=np.float32), "move_top_left"),
+    ProbeAction(np.array([2, 0.8, 0.8, 0], dtype=np.float32), "move_bottom_right"),
 ]
 
 
