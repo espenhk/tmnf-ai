@@ -17,6 +17,11 @@ formatting, internal refactors with no behaviour change — can be skipped.
 
 ## [Unreleased]
 
+
+---
+
+## [0.2.17] - 2026-05-26
+
 ### Documentation
 
 - Add `docs/research/competing-projects.md` — a verified survey of competing
