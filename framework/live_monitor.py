@@ -20,9 +20,7 @@ _IDX_RE = re.compile(r"^(?P<base>.+)_(?P<idx>\d+)$")
 _MID_IDX_RE = re.compile(r"^(?P<prefix>.+)_(?P<idx>\d+)_(?P<suffix>.+)$")
 
 # Logical display order for reward-component keys. Keys not in this list are
-# appended alphabetically. "total_reward" is always first; remaining order is
-# driven by the sorted keys from the reward config so new games need not edit
-# this file.
+# sorted alphabetically after "total_reward". New games need not edit this file.
 _REWARD_ORDER = [
     "total_reward",
 ]

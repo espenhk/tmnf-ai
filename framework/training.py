@@ -16,6 +16,7 @@ from __future__ import annotations
 import datetime
 import logging
 import os
+import re
 import time
 from collections import deque
 from collections.abc import Callable
@@ -400,24 +401,17 @@ def _log_new_best_details(info: dict, prev_best_info: dict | None) -> None:
                     cmp_s = ""
                 logger.info("    %s=%.1f%%%s", fn_idx, pct, cmp_s)
 
-    # 3. Task metrics (info-key based; any game may populate these) -----------
-    progress = info.get("track_progress")
-    if progress is not None:
-        prev_progress = prev.get("track_progress")
-        cmp_s = f" (prev {100.0 * prev_progress:.1f}%)" if prev_progress is not None else ""
-        lat = info.get("mean_abs_lateral_offset")
-        lat_s = ""
-        if lat is not None:
-            prev_lat = prev.get("mean_abs_lateral_offset")
-            lat_cmp = f" (prev {prev_lat:.2f}m)" if prev_lat is not None else ""
-            lat_s = f"  mean_lateral={lat:.2f}m{lat_cmp}"
-        finish_t = info.get("elapsed_s") if info.get("finished") else None
-        t_s = ""
-        if finish_t is not None:
-            prev_ft = prev.get("elapsed_s") if prev.get("finished") else None
-            ft_cmp = f" (prev {prev_ft:.1f}s)" if prev_ft is not None else ""
-            t_s = f"  finish_time={finish_t:.1f}s{ft_cmp}"
-        logger.info("    progress=%.1f%%%s%s%s", 100.0 * progress, cmp_s, lat_s, t_s)
+    # 3. Task metrics — adapters populate info["episode_task_metrics"] as a
+    #    dict of {label: formatted_string} so framework stays game-agnostic.
+    task_metrics: dict[str, str] = info.get("episode_task_metrics") or {}
+    if task_metrics:
+        prev_task: dict[str, str] = prev.get("episode_task_metrics") or {}
+        parts = []
+        for k, v in task_metrics.items():
+            prev_v = prev_task.get(k)
+            cmp_s = f" (prev {prev_v})" if prev_v is not None else ""
+            parts.append(f"{k}={v}{cmp_s}")
+        logger.info("    %s", "  ".join(parts))
 
     # 4. Kill stats — suppressed when no kills occurred ----------------------
     kills = info.get("episode_killed_value_units")
@@ -675,8 +669,9 @@ def _next_best_prefix(weights_file: str, replay_dir: str) -> str:
     experiment_name = os.path.basename(os.path.dirname(os.path.abspath(weights_file)))
     n = 0
     if os.path.isdir(replay_dir):
-        prefix_pat = f"{experiment_name}_best-"
-        n = sum(1 for f in os.listdir(replay_dir) if f.startswith(prefix_pat))
+        pat = re.compile(rf"^{re.escape(experiment_name)}_best-(\d+)")
+        nums = [int(m.group(1)) for f in os.listdir(replay_dir) if (m := pat.match(f))]
+        n = max(nums, default=0)
     return f"{experiment_name}_best-{n + 1:02d}"
 
 

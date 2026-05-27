@@ -300,10 +300,10 @@ worker mechanics are unit-tested with a dummy env.
 - `_log_new_best_details` — empty info emits nothing
 - reward components: logs all non-zero components, always includes `score` (even when 0), and explicitly logs `win_bonus`/`loss_penalty` split from terminal reward with previous-best comparison
 - action frequency: one log line per action logged by raw key (no game-specific name lookup); prev comparison shown
-- TMNF metrics: progress; lateral offset; finish time only when `finished=True`; prev comparison for progress + offset (all on one combined line)
+- task metrics: generic `episode_task_metrics` dict (pre-formatted strings); progress, lateral offset, finish time only when present; prev comparison for each key (all on one combined line); adapters are responsible for populating and formatting values
 - SC2 kills: units + structures on one line; prev comparison; absent when key not in info; suppressed when both values zero
 - SC2 game-state averages: one log line per non-zero metric; zero values omitted; prev comparison
-- all five groups together emit nine lines (2 components + win/loss + 2 actions + 1 progress + 1 kills + 1 game-state)
+- all five groups together emit nine lines (2 components + win/loss + 2 actions + 1 task metric + 1 kills + 1 game-state)
 
 ### test_utils.py — math/state-extraction utils
 - vector magnitude: zero / unit / 3D / compute_speed alias
@@ -600,7 +600,7 @@ handful of iterations only).
 ### test_sc2_replay.py — SC2 replay saving on new-best events (issue #210)
 - `SC2Client.save_replay`: returns None when SC2 env not running; delegates to pysc2 save_replay with correct dir and prefix keyword; `os.makedirs` inside try block so directory creation failures are swallowed; swallows SC2 exceptions and returns None
 - `SC2Env.save_replay`: thin delegation to client
-- `_try_save_replay` (single-episode loops): no-op for envs without save_replay; first new-best → `_best-01` prefix; second new-best → `_best-02` when one confirmed best exists; candidate (`_`-prefixed) files excluded from sequential count; replay_dir always `<experiment_dir>/replays/`; files not matching `{experiment}_best-*` pattern ignored for numbering; exception swallowed
+- `_try_save_replay` (single-episode loops): no-op for envs without save_replay; first new-best → `_best-01` prefix; second new-best → `_best-02` when one confirmed best exists; candidate (`_`-prefixed) files excluded from sequential count; replay_dir always `<experiment_dir>/replays/`; files not matching `{experiment}_best-\d+` regex pattern ignored for numbering (including same-prefix non-numeric files like `{exp}_best-notes.txt`); exception swallowed
 - `_save_candidate_replay`: no-op for envs without save_replay; calls save_replay with `_candidate` prefix; exception swallowed, returns None
 - `_finalize_candidate_replay`: no-op when path is None or file missing; renames to next sequential `_best-N{ext}` preserving the candidate's extension; candidate files excluded from confirmed-best count; two confirmed → `_best-02`
 - `_discard_candidate_replay`: no-op on None or missing path; deletes existing file
