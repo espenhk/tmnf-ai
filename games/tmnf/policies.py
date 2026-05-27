@@ -352,6 +352,8 @@ class NeuralDQNPolicy(_FrameworkDQN):
             "epsilon_end",
             "epsilon_decay_steps",
             "gamma",
+            "double_dqn",
+            "dueling",
         }
     )
 
@@ -393,6 +395,8 @@ class NeuralDQNPolicy(_FrameworkDQN):
             epsilon_end=pp.get("epsilon_end", 0.05),
             epsilon_decay_steps=pp.get("epsilon_decay_steps", 5_000),
             gamma=pp.get("gamma", 0.99),
+            double_dqn=pp.get("double_dqn", False),
+            dueling=pp.get("dueling", False),
         )
 
 

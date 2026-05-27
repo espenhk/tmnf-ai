@@ -37,6 +37,7 @@
   - [test\_epsilon\_greedy\_policy.py — tabular Q-learning](#test_epsilon_greedy_policypy--tabular-q-learning)
   - [test\_mcts\_policy.py — UCT-style online Q](#test_mcts_policypy--uct-style-online-q)
   - [test\_neural\_dqn\_policy.py — `DQNPolicy` (framework) + `ReplayBuffer`](#test_neural_dqn_policypy--dqnpolicy-framework--replaybuffer)
+  - [test\_ppo\_policy.py — `PPOPolicy` (framework) clipped actor-critic + GAE](#test_ppo_policypy--ppopolicy-framework-clipped-actor-critic--gae)
   - [test\_reinforce\_policy.py — `REINFORCEPolicy` (framework) Monte-Carlo PG](#test_reinforce_policypy--reinforcepolicy-framework-monte-carlo-pg)
   - [test\_lstm\_policy.py — `LSTMCore` + `LSTMEvolutionPolicy` (framework)](#test_lstm_policypy--lstmcore--lstmevolutionpolicy-framework)
 - [TMNF I/O](#tmnf-io)
@@ -349,13 +350,16 @@ in `games/tmnf/policies.py`; the bridge to the live game is in
 
 **Tested.** Every policy listed in CLAUDE.md (`WeightedLinearPolicy`,
 `NeuralNetPolicy`, `EpsilonGreedyPolicy`, `MCTSPolicy`, `GeneticPolicy`,
-`CMAESPolicy`, `NeuralDQNPolicy`, `REINFORCEPolicy`, `LSTMEvolutionPolicy`)
-is exercised in isolation: action shape and range, deterministic forward
-pass, mutation produces different weights, save/load YAML round-trips
-losslessly (including replay buffer + Adam moments for DQN, σ + covariance
-for CMA-ES, hidden-state reset for LSTM), `from_cfg` rejects shape
-mismatches, and the optimisation loop converges on a tiny stand-in
-problem (2-arm bandit, quadratic max). `RLClient`'s threading model — the
+`CMAESPolicy`, `NeuralDQNPolicy` incl. Double/Dueling, `REINFORCEPolicy`,
+`LSTMEvolutionPolicy`, `PPOPolicy`) is exercised in isolation: action shape
+and range, deterministic forward pass, mutation produces different weights,
+save/load YAML round-trips losslessly (including replay buffer + Adam moments
+for DQN, actor+critic weights + Adam moments for PPO, σ + covariance for
+CMA-ES, hidden-state reset for LSTM), `from_cfg` rejects shape mismatches, and
+the optimisation loop converges (or, for PPO, the clipped objective raises the
+rewarded action's probability) on a tiny stand-in problem (2-arm bandit,
+quadratic max). `PPOPolicy` itself lives in `framework/ppo.py` and is registered
+framework-wide, but its unit test sits with the other framework-policy tests. `RLClient`'s threading model — the
 tick-window state machine, decision_idx clamping, and the finish/respawn /
 hard-crash forced-commit paths — is fully covered against a `MagicMock`
 TMInterface.
@@ -410,6 +414,17 @@ real driving on the `a03_centerline` track.
 - DQNPolicy (`framework.dqn`): action shape+range / greedy discrete / random when ε=1 / buffer fills on update / ε decays / floored / target sync / weight shapes
 - Cfg: roundtrip (`policy_type="dqn"`) / on_episode_end no-op / missing keys raise / shape mismatch raises (via `TMNF_OBS_SPEC.with_lidar`)
 - Bandit convergence; save/load replay buffer + Adam moments; wrong obs_dim raises
+- Double DQN: flags default off / `_next_state_q` = target-Q at online-argmax / `<=` vanilla max & differs when nets disagree / cfg roundtrip preserves `double_dqn` / bandit convergence
+- Dueling: value head built (`value_w`/`value_b`) / `Q == V + (A − mean A)` / gradient step updates value head / cfg roundtrip preserves `dueling` + value-head weights / bandit convergence
+
+### test_ppo_policy.py — `PPOPolicy` (framework) clipped actor-critic + GAE
+- Registration: `"ppo"` in `POLICY_REGISTRY` from a bare `framework.policies` import; SC2 incompatible / racing compatible
+- Structure: action shape / action from DISCRETE_ACTIONS / buffers fill on call+update and clear on episode end / empty episode-end no-op / actor+critic weight shapes
+- GAE: matches hand-computed advantages+returns / λ=1 reduces to Monte-Carlo returns
+- Clipping: inert on a single epoch (ratio == 1) / a tiny `clip_range` throttles multi-epoch weight drift
+- Learning: raises probability of the consistently-rewarded action (forced-action episodes)
+- Cfg: required keys / `policy_type="ppo"` / from_cfg restores actor+critic weights & hyperparams / save+reload yaml / obs_dim mismatch raises
+- Trainer state: Adam-moment `.npz` roundtrip / wrong obs_dim raises
 
 ### test_reinforce_policy.py — `REINFORCEPolicy` (framework) Monte-Carlo PG
 - action shape; steer range; accel/brake discrete; action from DISCRETE_ACTIONS
