@@ -699,6 +699,8 @@ class SC2NeuralDQNPolicy(_FrameworkDQN):
             "epsilon_end",
             "epsilon_decay_steps",
             "gamma",
+            "double_dqn",
+            "dueling",
         }
     )
 
@@ -722,6 +724,8 @@ class SC2NeuralDQNPolicy(_FrameworkDQN):
         epsilon_end: float = 0.05,
         epsilon_decay_steps: int = 20_000,
         gamma: float = 0.995,
+        double_dqn: bool = False,
+        dueling: bool = False,
         available_actions_fn=None,
         race: str = "random",
         seed: int | None = None,
@@ -741,6 +745,8 @@ class SC2NeuralDQNPolicy(_FrameworkDQN):
             epsilon_end=epsilon_end,
             epsilon_decay_steps=epsilon_decay_steps,
             gamma=gamma,
+            double_dqn=double_dqn,
+            dueling=dueling,
             available_actions_fn=(
                 _sc2_race_available_actions_mask_fn(fn_ids_for_race(race), _n_actions)
                 if available_actions_fn is None
@@ -812,6 +818,8 @@ class SC2NeuralDQNPolicy(_FrameworkDQN):
             epsilon_end=pp.get("epsilon_end", 0.05),
             epsilon_decay_steps=pp.get("epsilon_decay_steps", 20_000),
             gamma=pp.get("gamma", 0.995),
+            double_dqn=pp.get("double_dqn", False),
+            dueling=pp.get("dueling", False),
             race=pp.get("_agent_race", "random"),
         )
 

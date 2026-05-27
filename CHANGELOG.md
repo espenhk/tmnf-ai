@@ -17,6 +17,26 @@ formatting, internal refactors with no behaviour change — can be skipped.
 
 ## [Unreleased]
 
+### Added
+- New `ppo` policy: a pure-numpy on-policy actor-critic (`framework/ppo.py`,
+  `PPOPolicy`) with a clipped surrogate objective, Generalised Advantage
+  Estimation, an entropy bonus, and multi-epoch minibatch updates. It reuses the
+  existing `q_learning` greedy loop (buffers transitions in `update`, learns in
+  `on_episode_end`) and is registered framework-wide, so it is available on every
+  game with a discrete action set (TMNF, CarRacing, TORCS, BeamNG, …). It declares
+  itself incompatible with SC2 (use `sc2_reinforce`). New `policy_params`:
+  `hidden_sizes`, `learning_rate`, `gamma`, `gae_lambda`, `clip_range`,
+  `n_epochs`, `entropy_coeff`, `value_coeff`, `minibatch_size` (#328).
+- `neural_dqn` (and `sc2_neural_dqn`) gain two opt-in upgrades over vanilla DQN:
+  `double_dqn` (online-net action selection, target-net evaluation — curbs
+  Q-value overestimation) and `dueling` (separate value + advantage streams,
+  aggregated as `Q = V + (A − mean A)`). Both default `false`; existing weight
+  files load unchanged (#328).
+
+### Removed
+- Deleted the orphaned Stable-Baselines3 PPO script `rl/train.py`. PPO is now a
+  first-class, registry-integrated, pure-numpy policy (see above); SB3/torch were
+  never core dependencies (#328).
 
 ---
 

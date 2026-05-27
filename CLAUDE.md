@@ -62,7 +62,7 @@ gamer-ai/
 │   ├── rocket_league/      # Rocket League via rlgym + Bakkesmod
 │   └── iracing/            # iRacing telemetry via pyirsdk (+ optional vJoy injection)
 ├── clients/                # Backward-compat shim → games/tmnf/clients
-├── rl/                     # Backward-compat shim + PPO/pretrain experiments
+├── rl/                     # Backward-compat shim + pretrain (behaviour-cloning) experiments
 ├── distributed/            # Coordinator, worker, protocol for distributed grid search
 ├── infrastructure/         # Terraform: auth, remote_state, environment (Azure VMs)
 ├── experiments/            # Per-experiment results (git-ignored)
@@ -235,9 +235,10 @@ Framework policies live in `framework/policies.py`, with additional game-specifi
 | `mcts` | `MCTSPolicy` | UCT-style online Q-learner (UCB1). No env cloning — builds value table over real episodes. |
 | `genetic` | `GeneticPolicy` | Population of `WeightedLinearPolicy` instances. Evolutionary selection + crossover + mutation. |
 | `cmaes` | `CMAESPolicy` | `(μ/μ_w, λ)-CMA-ES` (Hansen 2016) over flat `WeightedLinearPolicy` weights. Automatic step-size + covariance adaptation. |
-| `neural_dqn` | `NeuralDQNPolicy` | Deep Q-learning with replay buffer + target network. |
+| `neural_dqn` | `NeuralDQNPolicy` | Deep Q-learning with replay buffer + target network (optional Double / Dueling). |
 | `reinforce` | `REINFORCEPolicy` | Monte Carlo policy gradient (optional running-mean baseline). |
 | `lstm` | `LSTMEvolutionPolicy` | Recurrent (LSTM) policy, trained by evolutionary search over network weights. |
+| `ppo` | `PPOPolicy` | On-policy actor-critic, clipped surrogate + GAE (pure numpy). Registered framework-wide; not for SC2. |
 
 `SimplePolicy` = non-trainable hand-coded PD baseline (see `steering.py`).
 
@@ -292,6 +293,12 @@ MLP Q-network (pure numpy) with experience replay and a periodically-synced targ
 | `epsilon_end` | `0.05` | Final exploration rate |
 | `epsilon_decay_steps` | `5000` | Steps over which ε decays linearly |
 | `gamma` | `0.99` | Discount factor |
+| `double_dqn` | `false` | Double DQN: select the next action with the online net, evaluate it with the target net (reduces Q-value overestimation). |
+| `dueling` | `false` | Dueling architecture: split the head into a value stream + advantage stream, aggregated as `Q = V + (A − mean A)`. |
+
+Both upgrades are opt-in and independent (either, both, or neither). Defaults
+off, so existing `neural_dqn` runs and weight files are unchanged; pre-existing
+weight files load with the flags defaulting to `false`.
 
 ### REINFORCEPolicy
 
@@ -318,6 +325,32 @@ LSTM recurrent policy trained by CMA-ES-style evolutionary search over flattened
 | `hidden_size` | `32` | LSTM hidden/cell state dimensionality |
 | `population_size` | `20` | λ — offspring evaluated per generation |
 | `initial_sigma` | `0.05` | Starting perturbation scale (smaller than CMAESPolicy because the LSTM weight space is larger) |
+
+### PPOPolicy
+
+On-policy actor-critic (pure numpy) with a clipped surrogate objective and
+Generalised Advantage Estimation. A softmax actor over the discrete action set
+plus a scalar-value critic, both trained with Adam. One episode is collected per
+greedy iteration (it reuses the `q_learning` loop: transitions are buffered in
+`update`, and the multi-epoch minibatch PPO update fires in `on_episode_end`).
+`PPOPolicy` is registered framework-wide, so it is available on every game that
+exposes a discrete action set (TMNF, CarRacing, TORCS, BeamNG, …). It is **not**
+compatible with SC2 — the discrete steer/accel/brake encoding does not fit SC2's
+`[fn_idx, x, y, queue]` action space (use `sc2_reinforce` there).
+
+**Hyperparams** (in `policy_params`):
+
+| Param | Default | Description |
+|---|---|---|
+| `hidden_sizes` | `[64, 64]` | Hidden layer widths of the actor and critic MLPs |
+| `learning_rate` | `0.0003` | Adam step size (shared by actor + critic) |
+| `gamma` | `0.99` | Discount factor |
+| `gae_lambda` | `0.95` | GAE smoothing (1.0 = Monte-Carlo, 0.0 = one-step TD) |
+| `clip_range` | `0.2` | PPO probability-ratio clipping epsilon |
+| `n_epochs` | `4` | Optimisation passes over each collected episode |
+| `entropy_coeff` | `0.0` | Entropy-bonus weight (encourages exploration) |
+| `value_coeff` | `0.5` | Weight on the critic (value) loss |
+| `minibatch_size` | `64` | Transitions per gradient step within an epoch |
 
 `n_sims` controls generations; total episodes = `n_sims × population_size`. Saved champion weights are incompatible across different `hidden_size` or `n_lidar_rays` values — changing either requires `--re-initialize`.
 

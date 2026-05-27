@@ -341,5 +341,191 @@ class TestNeuralDQNTrainerState(unittest.TestCase):
             os.unlink(path)
 
 
+class TestDoubleDQN(unittest.TestCase):
+    def _make(self, **kw) -> DQNPolicy:
+        defaults = dict(hidden_sizes=[8], gamma=0.9, min_replay_size=10**9, seed=0)
+        defaults.update(kw)
+        return DQNPolicy(_OBS_SPEC, DISCRETE_ACTIONS, **defaults)
+
+    def test_flags_default_off(self):
+        p = self._make()
+        self.assertFalse(p._double)
+        self.assertFalse(p._dueling)
+
+    def test_double_target_uses_online_argmax_target_value(self):
+        """Double DQN bootstrap = Q_target(next)[argmax_a Q_online(next)]."""
+        p = self._make(double_dqn=True)
+        # Make online and target genuinely different so argmax can disagree.
+        p._target["weights"] = [w + 0.5 for w in p._online["weights"]]
+        next_norm = (np.stack([_rand_obs(), _rand_obs()]) / p._scales).astype(np.float32)
+
+        got = p._next_state_q(next_norm, None)
+
+        q_online = p._q_values(p._online, next_norm)
+        q_target = p._q_values(p._target, next_norm)
+        a_star = np.argmax(q_online, axis=1)
+        expected = q_target[np.arange(len(a_star)), a_star]
+        np.testing.assert_allclose(got, expected, rtol=1e-6)
+
+    def test_double_differs_from_vanilla_when_nets_disagree(self):
+        next_norm = (np.stack([_rand_obs(), _rand_obs(), _rand_obs()]) / _OBS_SPEC.scales).astype(np.float32)
+        vanilla = self._make(double_dqn=False)
+        vanilla._target["weights"] = [w + 0.5 for w in vanilla._online["weights"]]
+        van_q = vanilla._next_state_q(next_norm, None)
+
+        dbl = self._make(double_dqn=True)
+        dbl._online["weights"] = [w.copy() for w in vanilla._online["weights"]]
+        dbl._online["biases"] = [b.copy() for b in vanilla._online["biases"]]
+        dbl._target["weights"] = [w.copy() for w in vanilla._target["weights"]]
+        dbl._target["biases"] = [b.copy() for b in vanilla._target["biases"]]
+        dbl_q = dbl._next_state_q(next_norm, None)
+
+        # Vanilla takes max over target Q (>= any single entry), so the double
+        # estimate (target Q at the online-chosen action) cannot exceed it.
+        self.assertTrue(np.all(dbl_q <= van_q + 1e-6))
+        self.assertFalse(np.allclose(dbl_q, van_q))
+
+    def test_double_to_cfg_roundtrip(self):
+        p = self._make(double_dqn=True, epsilon_start=0.0)
+        p2 = DQNPolicy.from_cfg(p.to_cfg(), _OBS_SPEC, DISCRETE_ACTIONS)
+        self.assertTrue(p2._double)
+        p._eps = p2._eps = 0.0
+        obs = _rand_obs()
+        np.testing.assert_array_equal(p(obs), p2(obs))
+
+    def test_double_learns_bandit(self):
+        np.random.seed(0)
+        state = np.zeros(_N, dtype=np.float32)
+        BEST = 22
+        policy = DQNPolicy(
+            _OBS_SPEC,
+            DISCRETE_ACTIONS,
+            double_dqn=True,
+            hidden_sizes=[32, 32],
+            replay_buffer_size=5000,
+            batch_size=32,
+            min_replay_size=128,
+            target_update_freq=25,
+            learning_rate=0.005,
+            epsilon_start=1.0,
+            epsilon_end=1.0,
+            epsilon_decay_steps=1,
+            gamma=0.0,
+        )
+        for step in range(12500):
+            a = step % 25
+            policy.update(state, a, 1.0 if a == BEST else -0.1, state, done=True)
+        policy._eps = 0.0
+        q = policy._q_values(policy._online, (state / policy._scales).astype(np.float32))
+        self.assertEqual(int(np.argmax(q)), BEST)
+
+
+class TestDuelingDQN(unittest.TestCase):
+    def _make(self, **kw) -> DQNPolicy:
+        defaults = dict(hidden_sizes=[8], dueling=True, seed=0)
+        defaults.update(kw)
+        return DQNPolicy(_OBS_SPEC, DISCRETE_ACTIONS, **defaults)
+
+    def test_value_head_built(self):
+        p = self._make(hidden_sizes=[16, 12])
+        self.assertEqual(p._online["value_w"].shape, (1, 12))
+        self.assertEqual(p._online["value_b"].shape, (1,))
+        # advantage stream still produces n_actions, same as the vanilla output.
+        self.assertEqual(p._online["weights"][-1].shape, (25, 12))
+
+    def test_q_equals_value_plus_centered_advantage(self):
+        p = self._make()
+        obs = _rand_obs()
+        obs_norm = (obs / p._scales).astype(np.float32)
+        q = p._q_values(p._online, obs_norm)
+        # Reconstruct A and V manually from the raw forward.
+        adv, layer_inputs, _ = p._forward(p._online, obs_norm)
+        last_hidden = layer_inputs[-1]
+        v = float((last_hidden @ p._online["value_w"].T + p._online["value_b"]).ravel()[0])
+        expected = v + (adv - adv.mean())
+        np.testing.assert_allclose(q, expected, rtol=1e-6)
+
+    def test_gradient_step_runs_and_updates_value_head(self):
+        p = self._make(min_replay_size=4, batch_size=4)
+        vw_before = p._online["value_w"].copy()
+        for _ in range(20):
+            p.update(_rand_obs(), np.random.randint(25), 1.0, _rand_obs(), False)
+        self.assertFalse(np.allclose(vw_before, p._online["value_w"]))
+
+    def test_dueling_to_cfg_roundtrip(self):
+        p = self._make(epsilon_start=0.0)
+        cfg = p.to_cfg()
+        self.assertTrue(cfg["dueling"])
+        self.assertIn("online_value_w", cfg)
+        p2 = DQNPolicy.from_cfg(cfg, _OBS_SPEC, DISCRETE_ACTIONS)
+        self.assertTrue(p2._dueling)
+        p._eps = p2._eps = 0.0
+        obs = _rand_obs()
+        np.testing.assert_array_equal(p(obs), p2(obs))
+
+    def test_dueling_trainer_state_preserves_value_head_moments(self):
+        import os
+        import tempfile
+
+        p = self._make(min_replay_size=4, batch_size=4)
+        for _ in range(20):
+            p.update(_rand_obs(), np.random.randint(25), 1.0, _rand_obs(), False)
+        self.assertFalse(np.allclose(p._m_vw, 0.0), "value-head Adam moment should be non-zero after training")
+
+        with tempfile.NamedTemporaryFile(suffix=".npz", delete=False) as f:
+            path = f.name
+        try:
+            p.save_trainer_state(path)
+            p2 = self._make(min_replay_size=4, batch_size=4)
+            p2.load_trainer_state(path)
+            np.testing.assert_array_equal(p._m_vw, p2._m_vw)
+            np.testing.assert_array_equal(p._v_vw, p2._v_vw)
+            np.testing.assert_array_equal(p._m_vb, p2._m_vb)
+            np.testing.assert_array_equal(p._v_vb, p2._v_vb)
+        finally:
+            os.unlink(path)
+
+    def test_loading_nondueling_state_into_dueling_raises(self):
+        import os
+        import tempfile
+
+        vanilla = DQNPolicy(_OBS_SPEC, DISCRETE_ACTIONS, hidden_sizes=[8], replay_buffer_size=10)
+        with tempfile.NamedTemporaryFile(suffix=".npz", delete=False) as f:
+            path = f.name
+        try:
+            vanilla.save_trainer_state(path)
+            dueling = self._make()
+            with self.assertRaises(ValueError):
+                dueling.load_trainer_state(path)
+        finally:
+            os.unlink(path)
+
+    def test_dueling_learns_bandit(self):
+        np.random.seed(0)
+        state = np.zeros(_N, dtype=np.float32)
+        BEST = 22
+        policy = DQNPolicy(
+            _OBS_SPEC,
+            DISCRETE_ACTIONS,
+            dueling=True,
+            hidden_sizes=[32, 32],
+            replay_buffer_size=5000,
+            batch_size=32,
+            min_replay_size=128,
+            target_update_freq=25,
+            learning_rate=0.005,
+            epsilon_start=1.0,
+            epsilon_end=1.0,
+            epsilon_decay_steps=1,
+            gamma=0.0,
+        )
+        for step in range(12500):
+            a = step % 25
+            policy.update(state, a, 1.0 if a == BEST else -0.1, state, done=True)
+        policy._eps = 0.0
+        q = policy._q_values(policy._online, (state / policy._scales).astype(np.float32))
+        self.assertEqual(int(np.argmax(q)), BEST)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

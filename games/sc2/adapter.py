@@ -22,6 +22,7 @@ register_continuous_action_incompatible(
         "reinforce": "sc2_reinforce",
         "lstm": "sc2_lstm",
         "neural_dqn": "sc2_neural_dqn",
+        "ppo": "sc2_reinforce",
     },
 )
 

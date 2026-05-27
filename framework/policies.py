@@ -953,3 +953,12 @@ class GeneticPolicy(BasePolicy):
             policy.initialize_random()
             logger.info("[GeneticPolicy] random population of %d", pop_size)
         return policy
+
+
+# ---------------------------------------------------------------------------
+# Framework gradient policies registered as always-available policy types.
+# Deferred to the bottom of the module so the imported modules can safely
+# `from framework.policies import BasePolicy, register_policy` without a cycle.
+# ---------------------------------------------------------------------------
+
+from framework import ppo as _ppo  # noqa: E402,F401  — registers the "ppo" policy_type

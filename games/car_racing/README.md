@@ -135,5 +135,6 @@ All policies in the framework work with CarRacing. Set `policy_type` in `games/c
 | `neural_dqn` | Deep Q-network, experience replay, target network | Gradient-based neural training |
 | `reinforce` | Monte Carlo policy gradient | Stochastic policy, simpler than DQN |
 | `lstm` | LSTM + isotropic Gaussian ES | Useful when temporal memory matters |
+| `ppo` | On-policy actor-critic, clipped surrogate + GAE (pure numpy) | On-policy gradient baseline; tune `clip_range`, `n_epochs`, `gae_lambda` |
 
 Policy-specific hyperparameters go under `policy_params:` in `training_params.yaml`. See the root `README.md` or `games/tmnf/README.md` for full param reference.
