@@ -87,9 +87,7 @@ def _make_sim_recorder(greedy_sims: list, *, weights_file: str, patience: int):
                         total_steps=total_steps,
                     )
                 )
-                logger.info(
-                    "ep %d  r=%+.1f  steps=%d%s", sim_idx, reward, total_steps, "  *best*" if improved else ""
-                )
+                logger.info("ep %d  r=%+.1f  steps=%d%s", sim_idx, reward, total_steps, "  *best*" if improved else "")
                 if patience > 0 and self.sims_since_improve >= patience:
                     self.early_stopped = True
                     self.early_stop_sim = sim_idx
@@ -135,9 +133,7 @@ def run_sb3_loop(
     wrapped = Monitor(wrapped)
 
     total_timesteps = policy.total_timesteps(n_sims)
-    logger.info(
-        "[sb3] %s — training for %d timesteps (algo=%s)", policy.POLICY_TYPE, total_timesteps, policy.SB3_ALGO
-    )
+    logger.info("[sb3] %s — training for %d timesteps (algo=%s)", policy.POLICY_TYPE, total_timesteps, policy.SB3_ALGO)
 
     model = policy.build_model(wrapped)
     greedy_sims: list = []

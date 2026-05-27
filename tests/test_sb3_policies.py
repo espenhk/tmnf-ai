@@ -49,8 +49,11 @@ class _DummyEnv(BaseGameEnv):
     def step(self, action):
         action = np.asarray(action, dtype=np.float32).reshape(-1)
         self._step += 1
-        self._state = np.clip(self._state + 0.1 * action[:_OBS_DIM] if _ACT_DIM >= _OBS_DIM
-                              else np.pad(action, (0, _OBS_DIM - _ACT_DIM)), -1.0, 1.0).astype(np.float32)
+        self._state = np.clip(
+            self._state + 0.1 * action[:_OBS_DIM] if _ACT_DIM >= _OBS_DIM else np.pad(action, (0, _OBS_DIM - _ACT_DIM)),
+            -1.0,
+            1.0,
+        ).astype(np.float32)
         reward = float(-np.sum(np.abs(self._state)))
         terminated = False
         truncated = self._step >= _EP_LEN
@@ -116,13 +119,21 @@ def test_unknown_policy_param_rejected():
 def test_total_timesteps_resolution(tmp_path):
     spec = _game_spec(tmp_path)
     p = POLICY_REGISTRY["ppo"].make(
-        obs_spec=spec.obs_spec, head_names=spec.head_names, discrete_actions=spec.discrete_actions,
-        weights_file=spec.weights_file, policy_params={"steps_per_sim": 100}, re_initialize=True,
+        obs_spec=spec.obs_spec,
+        head_names=spec.head_names,
+        discrete_actions=spec.discrete_actions,
+        weights_file=spec.weights_file,
+        policy_params={"steps_per_sim": 100},
+        re_initialize=True,
     )
     assert p.total_timesteps(5) == 500  # n_sims * steps_per_sim
     p2 = POLICY_REGISTRY["ppo"].make(
-        obs_spec=spec.obs_spec, head_names=spec.head_names, discrete_actions=spec.discrete_actions,
-        weights_file=spec.weights_file, policy_params={"total_timesteps": 321}, re_initialize=True,
+        obs_spec=spec.obs_spec,
+        head_names=spec.head_names,
+        discrete_actions=spec.discrete_actions,
+        weights_file=spec.weights_file,
+        policy_params={"total_timesteps": 321},
+        re_initialize=True,
     )
     assert p2.total_timesteps(5) == 321  # explicit overrides
 
@@ -132,10 +143,13 @@ def test_total_timesteps_resolution(tmp_path):
 # --------------------------------------------------------------------------- #
 
 
-@pytest.mark.parametrize("policy_type,params", [
-    ("a2c", {"n_steps": 8}),
-    ("ppo", {"n_steps": 32, "batch_size": 16}),
-])
+@pytest.mark.parametrize(
+    "policy_type,params",
+    [
+        ("a2c", {"n_steps": 8}),
+        ("ppo", {"n_steps": 32, "batch_size": 16}),
+    ],
+)
 def test_continuous_policy_end_to_end(tmp_path, policy_type, params):
     import os
 
@@ -150,8 +164,12 @@ def test_continuous_policy_end_to_end(tmp_path, policy_type, params):
 
     # Resume from saved model and run inference.
     resumed = POLICY_REGISTRY[policy_type].make(
-        obs_spec=spec.obs_spec, head_names=spec.head_names, discrete_actions=spec.discrete_actions,
-        weights_file=spec.weights_file, policy_params={}, re_initialize=False,
+        obs_spec=spec.obs_spec,
+        head_names=spec.head_names,
+        discrete_actions=spec.discrete_actions,
+        weights_file=spec.weights_file,
+        policy_params={},
+        re_initialize=False,
     )
     resumed.build_model(_DummyEnv())
     action = resumed(np.zeros(_OBS_DIM, dtype=np.float32))

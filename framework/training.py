@@ -1918,18 +1918,26 @@ def train_rl(
             from framework.sb3_support import run_sb3_loop
 
             loop = run_sb3_loop(
-                env=env, policy=best_policy, n_sims=n_sims,
-                weights_file=weights_file, training_params=training_params,
-                patience=patience, log_stats_every_n_sims=log_stats_every_n_sims,
+                env=env,
+                policy=best_policy,
+                n_sims=n_sims,
+                weights_file=weights_file,
+                training_params=training_params,
+                patience=patience,
+                log_stats_every_n_sims=log_stats_every_n_sims,
                 **kw,
             )
         elif loop_type == "alphazero":
             from framework.alphazero import run_alphazero_loop
 
             loop = run_alphazero_loop(
-                env=env, policy=best_policy, n_sims=n_sims,
-                weights_file=weights_file, training_params=training_params,
-                patience=patience, log_stats_every_n_sims=log_stats_every_n_sims,
+                env=env,
+                policy=best_policy,
+                n_sims=n_sims,
+                weights_file=weights_file,
+                training_params=training_params,
+                patience=patience,
+                log_stats_every_n_sims=log_stats_every_n_sims,
                 **kw,
             )
         else:

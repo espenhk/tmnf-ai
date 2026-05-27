@@ -96,9 +96,7 @@ def test_call_returns_valid_action():
 def test_loop_raises_on_non_cloneable_env():
     p = _policy()
     with pytest.raises(RuntimeError, match="cloneable"):
-        run_alphazero_loop(
-            env=_NonCloneableEnv(), policy=p, n_sims=1, weights_file="/tmp/_az.yaml", training_params={}
-        )
+        run_alphazero_loop(env=_NonCloneableEnv(), policy=p, n_sims=1, weights_file="/tmp/_az.yaml", training_params={})
 
 
 def test_mcts_finds_goal_and_trains(tmp_path):
@@ -132,7 +130,11 @@ def test_mcts_finds_goal_and_trains(tmp_path):
 
     assert os.path.exists(weights)
     resumed = POLICY_REGISTRY["alphazero_mcts"].make(
-        obs_spec=_OBS_SPEC, head_names=["move"], discrete_actions=_ACTIONS,
-        weights_file=weights, policy_params={}, re_initialize=False,
+        obs_spec=_OBS_SPEC,
+        head_names=["move"],
+        discrete_actions=_ACTIONS,
+        weights_file=weights,
+        policy_params={},
+        re_initialize=False,
     )
     assert resumed(np.eye(_SIZE, dtype=np.float32)[0]).shape == (1,)

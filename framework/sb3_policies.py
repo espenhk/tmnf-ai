@@ -199,8 +199,7 @@ class _SB3Policy(BasePolicy):
     def __call__(self, obs: np.ndarray) -> np.ndarray:
         if self._model is None:
             raise RuntimeError(
-                f"{type(self).__name__}: no model — load a trained model or run the SB3 "
-                f"training loop before inference."
+                f"{type(self).__name__}: no model — load a trained model or run the SB3 training loop before inference."
             )
         if self.RECURRENT:
             action, self._lstm_state = self._model.predict(

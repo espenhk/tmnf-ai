@@ -434,8 +434,7 @@ def run_alphazero_loop(
         _clone_env(env)
     except Exception as exc:  # noqa: BLE001
         raise RuntimeError(
-            "alphazero_mcts requires a cloneable env (clone() or copy.deepcopy). "
-            f"Cloning failed: {exc}"
+            f"alphazero_mcts requires a cloneable env (clone() or copy.deepcopy). Cloning failed: {exc}"
         ) from exc
 
     net = policy._net
@@ -512,9 +511,7 @@ def run_alphazero_loop(
         else:
             sims_since_improve += 1
         sims.append(
-            GreedySimResult(
-                sim=ep, reward=ep_reward, improved=improved, throttle_counts=[0, 0, 0], total_steps=steps
-            )
+            GreedySimResult(sim=ep, reward=ep_reward, improved=improved, throttle_counts=[0, 0, 0], total_steps=steps)
         )
         logger.info("game %d  r=%+.2f  steps=%d%s", ep, ep_reward, steps, "  *best*" if improved else "")
 
