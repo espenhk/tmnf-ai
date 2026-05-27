@@ -13,7 +13,7 @@ from framework.run_config import ProbeAction
 
 
 # ---------------------------------------------------------------------------
-# Discrete action set for Q-table policies (EpsilonGreedy, MCTS)
+# Discrete action set for Q-table policies (EpsilonGreedy, UCBQ)
 # ---------------------------------------------------------------------------
 # Each row is a (3,) action: [steer, accel, brake]
 

@@ -14,7 +14,7 @@ import numpy as np
 
 from framework.policies import (
     EpsilonGreedyPolicy,
-    MCTSPolicy,
+    UCBQPolicy,
 )
 from framework.training import (
     _greedy_loop_cmaes,
@@ -38,7 +38,7 @@ from games.sc2.sc2_policies import (
 )
 from framework.policies import (
     EpsilonGreedyPolicy,
-    MCTSPolicy,
+    UCBQPolicy,
 )
 from framework.training import (
     _greedy_loop_genetic,
@@ -353,8 +353,8 @@ class TestSC2PoliciesOnLadderObs(unittest.TestCase):
         action = policy(self._obs())
         self.assertEqual(action.shape, (4,))
 
-    def test_mcts_policy(self):
-        policy = MCTSPolicy(
+    def test_ucb_q_policy(self):
+        policy = UCBQPolicy(
             obs_spec=_OBS_SPEC,
             discrete_actions=DISCRETE_ACTIONS,
             n_bins=2,

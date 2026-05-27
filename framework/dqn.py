@@ -76,6 +76,10 @@ class DQNPolicy(BasePolicy):
         epsilon_end: float = 0.05,
         epsilon_decay_steps: int = 5_000,
         gamma: float = 0.99,
+        double_dqn: bool = True,
+        huber_loss: bool = True,
+        huber_kappa: float = 1.0,
+        max_grad_norm: float | None = 10.0,
         available_actions_fn: Callable[[dict], np.ndarray] | None = None,
         seed: int | None = None,
     ) -> None:
@@ -96,6 +100,10 @@ class DQNPolicy(BasePolicy):
         self._eps_steps = int(epsilon_decay_steps)
         self._eps_delta = (float(epsilon_start) - float(epsilon_end)) / max(1, int(epsilon_decay_steps))
         self._gamma = float(gamma)
+        self._double_dqn = bool(double_dqn)
+        self._huber = bool(huber_loss)
+        self._huber_kappa = float(huber_kappa)
+        self._max_grad_norm = None if max_grad_norm is None else float(max_grad_norm)
         self._avail_fn = available_actions_fn
         self._seed = seed
         self._rng = np.random.default_rng(seed)
@@ -145,6 +153,10 @@ class DQNPolicy(BasePolicy):
             epsilon_end=cfg.get("epsilon_end", 0.05),
             epsilon_decay_steps=cfg.get("epsilon_decay_steps", 5_000),
             gamma=cfg.get("gamma", 0.99),
+            double_dqn=cfg.get("double_dqn", True),
+            huber_loss=cfg.get("huber_loss", True),
+            huber_kappa=cfg.get("huber_kappa", 1.0),
+            max_grad_norm=cfg.get("max_grad_norm", 10.0),
             available_actions_fn=available_actions_fn,
             seed=cfg.get("seed", None),
         )
@@ -192,6 +204,16 @@ class DQNPolicy(BasePolicy):
         self._target["weights"] = [w.copy() for w in self._online["weights"]]
         self._target["biases"] = [b.copy() for b in self._online["biases"]]
 
+    def _loss_grad(self, delta: np.ndarray) -> np.ndarray:
+        """Per-sample loss gradient w.r.t the predicted Q for the taken action.
+
+        Huber (smooth-L1) clamps the TD residual to ±kappa so large errors give
+        a bounded gradient; plain MSE uses 2·residual (unbounded).
+        """
+        if self._huber:
+            return np.clip(delta, -self._huber_kappa, self._huber_kappa)
+        return 2.0 * delta
+
     # ------------------------------------------------------------------
     # Forward pass
     # ------------------------------------------------------------------
@@ -234,22 +256,30 @@ class DQNPolicy(BasePolicy):
         next_norm = next_b / self._scales
         B = len(act_b)
 
-        q_next = self._q_values(self._target, next_norm)
+        # Next-state action selection.  Double-DQN selects the bootstrap action
+        # with the *online* net and evaluates it with the *target* net; vanilla
+        # DQN selects and evaluates with the target net (selector == target).
+        q_next_target = self._q_values(self._target, next_norm)
+        selector = self._q_values(self._online, next_norm) if self._double_dqn else q_next_target
         if mask_b is not None:
-            q_next_masked = q_next.copy()
-            q_next_masked[~mask_b] = -np.inf
-            # fall back to unmasked argmax if all masked for a row
+            sel = selector.copy()
+            sel[~mask_b] = -np.inf
+            # fall back to unmasked argmax if all actions are masked for a row
             all_masked = ~mask_b.any(axis=1)
             if all_masked.any():
-                q_next_masked[all_masked] = q_next[all_masked]
-            targets = rew_b + self._gamma * np.max(q_next_masked, axis=1) * (1.0 - done_b)
+                sel[all_masked] = selector[all_masked]
+            next_act = np.argmax(sel, axis=1)
         else:
-            targets = rew_b + self._gamma * np.max(q_next, axis=1) * (1.0 - done_b)
+            next_act = np.argmax(selector, axis=1)
+        q_next_eval = q_next_target[np.arange(B), next_act]
+        targets = rew_b + self._gamma * q_next_eval * (1.0 - done_b)
 
         q_all, layer_inputs, pre_relu = self._forward(self._online, obs_norm)
 
+        # Per-sample loss gradient w.r.t the predicted Q for the taken action.
+        delta = q_all[np.arange(B), act_b] - targets
         grad_out = np.zeros_like(q_all)
-        grad_out[np.arange(B), act_b] = 2.0 * (q_all[np.arange(B), act_b] - targets) / B
+        grad_out[np.arange(B), act_b] = self._loss_grad(delta) / B
 
         g = grad_out
         grad_params: list[tuple[np.ndarray, np.ndarray]] = []
@@ -261,6 +291,14 @@ class DQNPolicy(BasePolicy):
             if i > 0:
                 g = (g @ self._online["weights"][i]) * (pre_relu[i - 1] > 0)
         grad_params.reverse()
+
+        # Global-norm gradient clipping (SB3 default behaviour).
+        if self._max_grad_norm is not None:
+            total_sq = sum(float(np.sum(dW * dW)) + float(np.sum(db * db)) for dW, db in grad_params)
+            total_norm = float(np.sqrt(total_sq))
+            if total_norm > self._max_grad_norm and total_norm > 0.0:
+                scale = self._max_grad_norm / (total_norm + 1e-6)
+                grad_params = [(dW * scale, db * scale) for dW, db in grad_params]
 
         self._adam_t += 1
         t = self._adam_t
@@ -365,6 +403,10 @@ class DQNPolicy(BasePolicy):
             "epsilon_end": float(self._eps_end),
             "epsilon_decay_steps": self._eps_steps,
             "gamma": float(self._gamma),
+            "double_dqn": self._double_dqn,
+            "huber_loss": self._huber,
+            "huber_kappa": float(self._huber_kappa),
+            "max_grad_norm": self._max_grad_norm,
             "epsilon": float(self._eps),
             "total_steps": self._total_steps,
             "grad_steps": self._grad_steps,
