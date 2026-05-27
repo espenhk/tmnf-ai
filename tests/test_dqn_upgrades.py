@@ -23,7 +23,7 @@ def _policy(**kw) -> DQNPolicy:
 
 def test_defaults_are_upgraded():
     p = DQNPolicy(_SPEC, _ACTIONS)
-    assert p._double_dqn is True
+    assert p._double is True
     assert p._huber is True
     assert p._huber_kappa == 1.0
     assert p._max_grad_norm == 10.0
@@ -38,7 +38,7 @@ def test_to_cfg_from_cfg_roundtrips_new_knobs():
     assert cfg["max_grad_norm"] is None
 
     restored = DQNPolicy.from_cfg(cfg, _SPEC, _ACTIONS)
-    assert restored._double_dqn is False
+    assert restored._double is False
     assert restored._huber is False
     assert restored._huber_kappa == 2.0
     assert restored._max_grad_norm is None
@@ -53,7 +53,7 @@ def test_legacy_cfg_without_new_keys_loads_upgraded_defaults():
         "gamma": 0.9,
     }
     p = DQNPolicy.from_cfg(legacy, _SPEC, _ACTIONS)
-    assert p._double_dqn is True
+    assert p._double is True
     assert p._huber is True
     assert p._max_grad_norm == 10.0
 

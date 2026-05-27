@@ -30,7 +30,11 @@ from typing import Any, ClassVar
 import numpy as np
 
 from framework.obs_spec import ObsSpec
-from framework.policies import SC2_GAME_NAME, BasePolicy, register_policy
+from framework.policies import BasePolicy, register_policy
+
+# Game whose multi-head [fn_idx, x, y, queue] action encoding the generic SB3
+# Box/Discrete policies cannot drive — gated off below.
+_SC2_GAME_NAME = "sc2"
 
 logger = logging.getLogger(__name__)
 
@@ -109,7 +113,7 @@ class _SB3Policy(BasePolicy):
         # SC2's action space is a multi-head [fn_idx, x, y, queue] encoding that
         # SB3's generic Box/Discrete policies cannot drive correctly.  Gate it
         # off until a dedicated SC2 SB3 bridge exists.
-        if game_name == SC2_GAME_NAME:
+        if game_name == _SC2_GAME_NAME:
             return False, (
                 f"SB3 policy_type {cls.POLICY_TYPE!r} does not support SC2's multi-head "
                 f"[fn_idx, x, y, queue] action encoding. Use an sc2_-prefixed policy "

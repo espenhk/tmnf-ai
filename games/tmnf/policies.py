@@ -37,6 +37,7 @@ from framework.policies import (
 )
 from framework.policies import (
     _discretize_obs,  # noqa: F401 — re-exported for test helpers
+    check_continuous_action_compatible,
     register_policy,
     trainer_state_path,
 )
@@ -353,11 +354,16 @@ class NeuralDQNPolicy(_FrameworkDQN):
             "epsilon_decay_steps",
             "gamma",
             "double_dqn",
+            "dueling",
             "huber_loss",
             "huber_kappa",
             "max_grad_norm",
         }
     )
+
+    @classmethod
+    def compatible_with(cls, game_name: str) -> tuple[bool, str | None]:
+        return check_continuous_action_compatible(game_name, cls.POLICY_TYPE)
 
     def to_cfg(self) -> dict:
         cfg = super().to_cfg()
@@ -398,6 +404,7 @@ class NeuralDQNPolicy(_FrameworkDQN):
             epsilon_decay_steps=pp.get("epsilon_decay_steps", 5_000),
             gamma=pp.get("gamma", 0.99),
             double_dqn=pp.get("double_dqn", True),
+            dueling=pp.get("dueling", False),
             huber_loss=pp.get("huber_loss", True),
             huber_kappa=pp.get("huber_kappa", 1.0),
             max_grad_norm=pp.get("max_grad_norm", 10.0),
@@ -420,6 +427,10 @@ class CMAESPolicy(_FrameworkCMAES):
     POLICY_TYPE = "cmaes"
     LOOP_TYPE = "cmaes"
     VALID_POLICY_PARAMS = frozenset({"population_size", "initial_sigma", "eval_episodes"})
+
+    @classmethod
+    def compatible_with(cls, game_name: str) -> tuple[bool, str | None]:
+        return check_continuous_action_compatible(game_name, cls.POLICY_TYPE)
 
     def __init__(
         self,
@@ -509,6 +520,10 @@ class REINFORCEPolicy(_FrameworkREINFORCE):
     )
 
     @classmethod
+    def compatible_with(cls, game_name: str) -> tuple[bool, str | None]:
+        return check_continuous_action_compatible(game_name, cls.POLICY_TYPE)
+
+    @classmethod
     def _construct_or_resume(
         cls, *, obs_spec, head_names, discrete_actions, weights_file, policy_params, re_initialize
     ):
@@ -555,6 +570,10 @@ class LSTMEvolutionPolicy(_FrameworkLSTMEvo):
     POLICY_TYPE = "lstm"
     LOOP_TYPE = "cmaes"
     VALID_POLICY_PARAMS = frozenset({"hidden_size", "population_size", "initial_sigma"})
+
+    @classmethod
+    def compatible_with(cls, game_name: str) -> tuple[bool, str | None]:
+        return check_continuous_action_compatible(game_name, cls.POLICY_TYPE)
 
     @classmethod
     def _construct_or_resume(

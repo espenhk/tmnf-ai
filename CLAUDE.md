@@ -62,7 +62,7 @@ gamer-ai/
 │   ├── rocket_league/      # Rocket League via rlgym + Bakkesmod
 │   └── iracing/            # iRacing telemetry via pyirsdk (+ optional vJoy injection)
 ├── clients/                # Backward-compat shim → games/tmnf/clients
-├── rl/                     # Backward-compat shim + PPO/pretrain experiments
+├── rl/                     # Backward-compat shim + pretrain (behaviour-cloning) experiments
 ├── distributed/            # Coordinator, worker, protocol for distributed grid search
 ├── infrastructure/         # Terraform: auth, remote_state, environment (Azure VMs)
 ├── experiments/            # Per-experiment results (git-ignored)
@@ -235,7 +235,7 @@ Framework policies live in `framework/policies.py`, with additional game-specifi
 | `ucb_q` | `UCBQPolicy` | Tabular UCB1 online Q-learner (renamed from `mcts`; **not** tree search — no env cloning, builds Q/count tables over real episodes). |
 | `genetic` | `GeneticPolicy` | Population of `WeightedLinearPolicy` instances. Evolutionary selection + crossover + mutation. |
 | `cmaes` | `CMAESPolicy` | `(μ/μ_w, λ)-CMA-ES` (Hansen 2016) over flat `WeightedLinearPolicy` weights. Automatic step-size + covariance adaptation. |
-| `neural_dqn` | `NeuralDQNPolicy` | Deep Q-learning with replay buffer + target network. Double-DQN target, Huber loss, and gradient clipping on by default (see DQN knobs below). |
+| `neural_dqn` | `NeuralDQNPolicy` | Deep Q-learning with replay buffer + target network. Double-DQN target, Huber loss, and gradient clipping on by default; optional Dueling architecture (see DQN knobs below). |
 | `reinforce` | `REINFORCEPolicy` | Monte Carlo policy gradient (optional running-mean baseline). |
 | `lstm` | `LSTMEvolutionPolicy` | Recurrent (LSTM) policy, trained by evolutionary search over network weights. |
 | `alphazero_mcts` | `AlphaZeroMCTSPolicy` | **Real** model-based MCTS (pure numpy): PUCT tree search expanded by cloning + stepping the env, guided by a policy/value net trained from self-play. Needs a cloneable simulator — see below. |
@@ -323,13 +323,15 @@ MLP Q-network (pure numpy) with experience replay and a periodically-synced targ
 | `epsilon_decay_steps` | `5000` | Steps over which ε decays linearly |
 | `gamma` | `0.99` | Discount factor |
 | `double_dqn` | `true` | Use a Double-DQN target (online net selects the bootstrap action, target net evaluates it). `false` = vanilla `max_a Q_target`. |
+| `dueling` | `false` | Dueling architecture: split the head into a value stream + advantage stream, aggregated as `Q = V + (A − mean A)`. Opt-in (changes the weight-file shape). |
 | `huber_loss` | `true` | Huber (smooth-L1) loss: clamp the TD residual to ±`huber_kappa` for a bounded gradient. `false` = MSE. |
 | `huber_kappa` | `1.0` | Huber band half-width. |
 | `max_grad_norm` | `10.0` | Global-norm gradient clip applied before the Adam step. `null` disables clipping. |
 
-> These four knobs default to the upgraded (SB3-aligned) behaviour. Set
-> `double_dqn: false`, `huber_loss: false`, `max_grad_norm: null` to recover the
-> old vanilla DQN. They apply to `neural_dqn` (TMNF) and `sc2_neural_dqn` too.
+> `double_dqn`, `huber_loss`, and `max_grad_norm` default to the upgraded
+> (SB3-aligned) behaviour; `dueling` stays opt-in. Set `double_dqn: false`,
+> `huber_loss: false`, `max_grad_norm: null` to recover the old vanilla DQN.
+> All apply to `neural_dqn` (TMNF) and `sc2_neural_dqn` too.
 
 ### REINFORCEPolicy
 
@@ -356,6 +358,32 @@ LSTM recurrent policy trained by CMA-ES-style evolutionary search over flattened
 | `hidden_size` | `32` | LSTM hidden/cell state dimensionality |
 | `population_size` | `20` | λ — offspring evaluated per generation |
 | `initial_sigma` | `0.05` | Starting perturbation scale (smaller than CMAESPolicy because the LSTM weight space is larger) |
+
+### PPOPolicy
+
+On-policy actor-critic (pure numpy) with a clipped surrogate objective and
+Generalised Advantage Estimation. A softmax actor over the discrete action set
+plus a scalar-value critic, both trained with Adam. One episode is collected per
+greedy iteration (it reuses the `q_learning` loop: transitions are buffered in
+`update`, and the multi-epoch minibatch PPO update fires in `on_episode_end`).
+`PPOPolicy` is registered framework-wide, so it is available on every game that
+exposes a discrete action set (TMNF, CarRacing, TORCS, BeamNG, …). It is **not**
+compatible with SC2 — the discrete steer/accel/brake encoding does not fit SC2's
+`[fn_idx, x, y, queue]` action space (use `sc2_reinforce` there).
+
+**Hyperparams** (in `policy_params`):
+
+| Param | Default | Description |
+|---|---|---|
+| `hidden_sizes` | `[64, 64]` | Hidden layer widths of the actor and critic MLPs |
+| `learning_rate` | `0.0003` | Adam step size (shared by actor + critic) |
+| `gamma` | `0.99` | Discount factor |
+| `gae_lambda` | `0.95` | GAE smoothing (1.0 = Monte-Carlo, 0.0 = one-step TD) |
+| `clip_range` | `0.2` | PPO probability-ratio clipping epsilon |
+| `n_epochs` | `4` | Optimisation passes over each collected episode |
+| `entropy_coeff` | `0.0` | Entropy-bonus weight (encourages exploration) |
+| `value_coeff` | `0.5` | Weight on the critic (value) loss |
+| `minibatch_size` | `64` | Transitions per gradient step within an epoch |
 
 `n_sims` controls generations; total episodes = `n_sims × population_size`. Saved champion weights are incompatible across different `hidden_size` or `n_lidar_rays` values — changing either requires `--re-initialize`.
 

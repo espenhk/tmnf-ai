@@ -19,14 +19,15 @@ formatting, internal refactors with no behaviour change — can be skipped.
 
 ### Added
 
-- **Gradient deep-RL policies (Stable-Baselines3-backed):** `ppo`, `a2c`,
-  `sac`, `td3`, `qr_dqn` (distributional value, SB3-Contrib), and
-  `recurrent_ppo` (gradient-trained LSTM, SB3-Contrib). They share a new
-  `LOOP_TYPE = "sb3"` driven by `framework/sb3_support.py` (SB3 owns its own
-  training loop); budget is set via `policy_params.total_timesteps`
-  (default `n_sims × steps_per_sim`). Models are saved next to
-  `policy_weights.yaml` as `*_sb3_model.zip`. `sac`/`td3` are continuous-only;
-  `qr_dqn` wraps the env's `Box` into a `Discrete` index over
+- **Gradient deep-RL policies (Stable-Baselines3-backed):** `a2c`, `sac`, `td3`,
+  `qr_dqn` (distributional value, SB3-Contrib), and `recurrent_ppo`
+  (gradient-trained LSTM, SB3-Contrib), plus an SB3-backed `ppo` that **replaces
+  the pure-numpy `ppo` introduced in 0.3.0** (same `policy_type`, now backed by
+  SB3). They share a new `LOOP_TYPE = "sb3"` driven by `framework/sb3_support.py`
+  (SB3 owns its own training loop); budget is set via
+  `policy_params.total_timesteps` (default `n_sims × steps_per_sim`). Models are
+  saved next to `policy_weights.yaml` as `*_sb3_model.zip`. `sac`/`td3` are
+  continuous-only; `qr_dqn` wraps the env's `Box` into a `Discrete` index over
   `discrete_actions`. All are gated off SC2's multi-head action encoding.
 - **New optional Poetry group `deep_rl`** (`stable-baselines3`, `sb3-contrib`;
   pulls `torch`): `poetry install --with deep_rl`. Cross-platform.
@@ -39,12 +40,14 @@ formatting, internal refactors with no behaviour change — can be skipped.
 
 ### Changed
 
-- **`neural_dqn` / `sc2_neural_dqn` upgraded in place** to match modern DQN:
-  Double-DQN target, Huber (smooth-L1) loss, and global-norm gradient clipping
-  are now **on by default**. New `policy_params`: `double_dqn` (default `true`),
-  `huber_loss` (`true`), `huber_kappa` (`1.0`), `max_grad_norm` (`10.0`). Set
-  `double_dqn: false`, `huber_loss: false`, `max_grad_norm: null` to recover the
-  previous vanilla behaviour. **Behaviour change** for existing DQN configs.
+- **`neural_dqn` / `sc2_neural_dqn` DQN upgrades extended.** On top of 0.3.0's
+  `double_dqn` + `dueling` options, added Huber (smooth-L1) loss and global-norm
+  gradient clipping. The SB3-aligned knobs are now **on by default**: new
+  `policy_params` `huber_loss` (`true`), `huber_kappa` (`1.0`),
+  `max_grad_norm` (`10.0`), and `double_dqn` now defaults `true` (was `false` in
+  0.3.0); `dueling` stays opt-in (`false`). Set `double_dqn: false`,
+  `huber_loss: false`, `max_grad_norm: null` to recover vanilla behaviour.
+  **Behaviour change** for existing DQN configs.
 - **BREAKING: `mcts` policy_type renamed to `ucb_q`** (class
   `MCTSPolicy` → `UCBQPolicy`). The policy was never tree search — it is a
   tabular UCB1 online Q-learner — so the name was misleading. Update any config
@@ -58,6 +61,45 @@ formatting, internal refactors with no behaviour change — can be skipped.
   (CMA-ES, DQN, REINFORCE, LSTM, MCTS) against their canonical/field versions.
 - Updated `CLAUDE.md`, `README.md`, `framework/README.md`, and
   `tests/README.md` for the new policies, the DQN knobs, and the rename.
+
+---
+
+## [0.3.0] - 2026-05-27
+
+### Added
+- New `ppo` policy: a pure-numpy on-policy actor-critic (`framework/ppo.py`,
+  `PPOPolicy`) with a clipped surrogate objective, Generalised Advantage
+  Estimation, an entropy bonus, and multi-epoch minibatch updates. It reuses the
+  existing `q_learning` greedy loop (buffers transitions in `update`, learns in
+  `on_episode_end`) and is registered framework-wide, so it is available on every
+  game with a discrete action set (TMNF, CarRacing, TORCS, BeamNG, …). It declares
+  itself incompatible with SC2 (use `sc2_reinforce`). New `policy_params`:
+  `hidden_sizes`, `learning_rate`, `gamma`, `gae_lambda`, `clip_range`,
+  `n_epochs`, `entropy_coeff`, `value_coeff`, `minibatch_size` (#328).
+- `neural_dqn` (and `sc2_neural_dqn`) gain two opt-in upgrades over vanilla DQN:
+  `double_dqn` (online-net action selection, target-net evaluation — curbs
+  Q-value overestimation) and `dueling` (separate value + advantage streams,
+  aggregated as `Q = V + (A − mean A)`). Both default `false`; existing weight
+  files load unchanged (#328).
+
+### Removed
+- Deleted the orphaned Stable-Baselines3 PPO script `rl/train.py`. PPO is now a
+  first-class, registry-integrated, pure-numpy policy (see above); SB3/torch were
+  never core dependencies (#328).
+
+---
+
+## [0.2.19] - 2026-05-27
+
+### Changed (framework genericity — issue #325)
+
+- **`framework/policies.py`**: Replaced the hardcoded `SC2_GAME_NAME = "sc2"` gate in `WeightedLinearPolicy`, `NeuralNetPolicy`, and `GeneticPolicy` with a capability registry (`register_continuous_action_incompatible`) that any game adapter can call at import time to declare itself incompatible with steer/accel/brake policies. `_sc2_incompatible()` removed; new public helpers `register_continuous_action_incompatible()` and `check_continuous_action_compatible()` added.
+- **`games/sc2/adapter.py`**: Registers `"sc2"` via `register_continuous_action_incompatible` at module level, providing per-policy-type replacement hints (`cmaes`→`sc2_cmaes`, etc.).
+- **`games/tmnf/policies.py`**: Added `compatible_with()` to `NeuralDQNPolicy`, `CMAESPolicy`, `REINFORCEPolicy`, and `LSTMEvolutionPolicy` (the four TMNF-specific policy wrappers) using the same registry, so they are rejected on SC2 via `_assert_policy_compatible` without the old `_SC2_REMOVED_BARE_POLICY_TYPES` gate.
+- **`framework/training.py`**: Removed `_SC2_REMOVED_BARE_POLICY_TYPES` constant and the `if game_name == "sc2"` gate in `_make_policy`. Replay numbering now counts files matching `{experiment}_best-*` (any extension) instead of `*.SC2Replay`; `_finalize_candidate_replay` derives the extension from the candidate file path. Removed direct `from games.sc2.actions import FUNCTION_IDS` import; action counts are now logged by raw key. Updated section comments to be game-agnostic. `_log_new_best_details` section 5 now iterates all keys in `episode_obs_averages` instead of a hardcoded SC2 list.
+- **`framework/obs_spec.py`**: Added generic `ObsSpec.with_extra_dims(dims)` extension method. `with_lidar()` now delegates to `with_extra_dims()` (kept for backward compatibility).
+- **`framework/live_monitor.py`**: `_REWARD_ORDER` reduced to `["total_reward"]`; all other reward keys are now sorted alphabetically. New games no longer need to edit this file to get sensible live-monitor display ordering.
+- **`framework/analytics.py`**: `save_grid_summary` default `task_metric_label` changed from `"Best Track Progress"` to `"Best Task Metric"`. Callers that want TMNF-style labelling should pass `task_metric_label="Best Track Progress"` explicitly.
 
 ---
 

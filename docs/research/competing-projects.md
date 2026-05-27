@@ -63,10 +63,12 @@ docs in [`docs/framework/`](../framework/README.md) for detail.
   several SC2 binaries (`n_workers`).
 
 **Policy zoo:** mutate-and-keep linear / MLP, tabular Q, UCT, genetic, CMA-ES,
-vanilla DQN, REINFORCE, LSTM-ES, SC2 CNN-ES. **All numpy / evolutionary /
-simple-gradient — there is no PyTorch deep-RL policy (no PPO/SAC/TD3) wired
-into the registry yet.** (An orphaned Stable-Baselines3 PPO script exists at
-`rl/train.py` but is not registered — see #328.)
+vanilla DQN (+ optional Double/Dueling), REINFORCE, LSTM-ES, SC2 CNN-ES, and a
+pure-numpy **PPO** (`ppo`, registered framework-wide; #328). **Still all numpy /
+evolutionary / simple-gradient — there is no PyTorch deep-RL policy (no
+SAC/TD3) wired into the registry yet.** (PPO landed as a pure-numpy
+actor-critic, not via Stable-Baselines3; the earlier orphaned SB3 PPO script at
+`rl/train.py` has been removed — see #328.)
 
 The single biggest structural difference from the field below: **we lean
 evolutionary + sped-up/headless**, whereas the strongest comparable racing
@@ -547,7 +549,8 @@ game-specific agents — relevant as algorithm sources (#328) and as a
   Apr 2026): the de-facto PyTorch baseline library — **PPO, A2C, DQN, SAC, TD3,
   DDPG** (+ SB3-Contrib **QR-DQN, TQC, TRPO, ARS, CrossQ, RecurrentPPO,
   MaskablePPO**), all on the **Gymnasium** API. This is exactly the menu #328
-  proposes; our orphaned `rl/train.py` already uses SB3.
+  proposes. (We deliberately did **not** vendor SB3 for our first PPO — it landed
+  as a pure-numpy `ppo` policy matching the `BasePolicy` contour, per takeaway #10.)
 - **CleanRL** (`vwxyzjn/cleanrl`, **MIT**, ~9.8k★): **single-file**, readable
   implementations of **PPO, DQN, C51, SAC, TD3, DDPG, PPG, RND** (PyTorch, some
   JAX). Best source for *understanding* an algorithm before porting it to our
@@ -592,9 +595,10 @@ noted above — these are *ideas to try*, not code to copy.
    suggests).** Every general library (SB3/CleanRL/RLlib) leads with PPO, the SC2
    minigame agent `reaver` uses A2C/PPO, and AndrejGobeX uses PPO for racing
    (`pysc2-examples` covers the A2C/DQN side). This survey corroborates #328's
-   claim that PPO is "the most-cited baseline competing projects report";
-   promoting the orphaned SB3 PPO in `rl/train.py` into a registered `ppo`
-   policy is the highest-value first step.
+   claim that PPO is "the most-cited baseline competing projects report".
+   **Done (#328):** a registered pure-numpy `ppo` policy now ships framework-wide
+   (the orphaned SB3 `rl/train.py` script was removed rather than promoted, to keep
+   the first PPO consistent with the existing numpy `BasePolicy` policies).
 
 3. **Distributional value methods are proven racing winners → a concrete target
    beyond vanilla DQN (#328's "Rainbow line").** Linesight (value-based,

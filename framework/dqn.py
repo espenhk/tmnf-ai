@@ -77,6 +77,7 @@ class DQNPolicy(BasePolicy):
         epsilon_decay_steps: int = 5_000,
         gamma: float = 0.99,
         double_dqn: bool = True,
+        dueling: bool = False,
         huber_loss: bool = True,
         huber_kappa: float = 1.0,
         max_grad_norm: float | None = 10.0,
@@ -100,7 +101,8 @@ class DQNPolicy(BasePolicy):
         self._eps_steps = int(epsilon_decay_steps)
         self._eps_delta = (float(epsilon_start) - float(epsilon_end)) / max(1, int(epsilon_decay_steps))
         self._gamma = float(gamma)
-        self._double_dqn = bool(double_dqn)
+        self._double = bool(double_dqn)
+        self._dueling = bool(dueling)
         self._huber = bool(huber_loss)
         self._huber_kappa = float(huber_kappa)
         self._max_grad_norm = None if max_grad_norm is None else float(max_grad_norm)
@@ -126,6 +128,11 @@ class DQNPolicy(BasePolicy):
         self._m_b = [np.zeros_like(b) for b in self._online["biases"]]
         self._v_w = [np.zeros_like(w) for w in self._online["weights"]]
         self._v_b = [np.zeros_like(b) for b in self._online["biases"]]
+        if self._dueling:
+            self._m_vw = np.zeros_like(self._online["value_w"])
+            self._m_vb = np.zeros_like(self._online["value_b"])
+            self._v_vw = np.zeros_like(self._online["value_w"])
+            self._v_vb = np.zeros_like(self._online["value_b"])
         self._adam_t = 0
 
     # ------------------------------------------------------------------
@@ -154,6 +161,7 @@ class DQNPolicy(BasePolicy):
             epsilon_decay_steps=cfg.get("epsilon_decay_steps", 5_000),
             gamma=cfg.get("gamma", 0.99),
             double_dqn=cfg.get("double_dqn", True),
+            dueling=cfg.get("dueling", False),
             huber_loss=cfg.get("huber_loss", True),
             huber_kappa=cfg.get("huber_kappa", 1.0),
             max_grad_norm=cfg.get("max_grad_norm", 10.0),
@@ -177,6 +185,11 @@ class DQNPolicy(BasePolicy):
             obj._online["biases"] = [np.array(b, dtype=np.float32) for b in cfg["online_biases"]]
             obj._target["weights"] = [np.array(w, dtype=np.float32) for w in cfg["target_weights"]]
             obj._target["biases"] = [np.array(b, dtype=np.float32) for b in cfg["target_biases"]]
+            if obj._dueling:
+                obj._online["value_w"] = np.array(cfg["online_value_w"], dtype=np.float32)
+                obj._online["value_b"] = np.array(cfg["online_value_b"], dtype=np.float32)
+                obj._target["value_w"] = np.array(cfg["target_value_w"], dtype=np.float32)
+                obj._target["value_b"] = np.array(cfg["target_value_b"], dtype=np.float32)
             obj._eps = float(cfg.get("epsilon", obj._eps_end))
             obj._total_steps = int(cfg.get("total_steps", 0))
             obj._grad_steps = int(cfg.get("grad_steps", 0))
@@ -184,18 +197,41 @@ class DQNPolicy(BasePolicy):
             obj._m_b = [np.zeros_like(b) for b in obj._online["biases"]]
             obj._v_w = [np.zeros_like(w) for w in obj._online["weights"]]
             obj._v_b = [np.zeros_like(b) for b in obj._online["biases"]]
+            if obj._dueling:
+                obj._m_vw = np.zeros_like(obj._online["value_w"])
+                obj._m_vb = np.zeros_like(obj._online["value_b"])
+                obj._v_vw = np.zeros_like(obj._online["value_w"])
+                obj._v_vb = np.zeros_like(obj._online["value_b"])
             logger.info("[DQNPolicy] loaded weights from cfg (eps=%.4f, steps=%d)", obj._eps, obj._total_steps)
         return obj
 
     def _build_net(self) -> dict:
         rng = np.random.default_rng(self._seed)
+
+        def _layer(out_dim: int, fan_in: int) -> tuple[np.ndarray, np.ndarray]:
+            w = (rng.standard_normal((out_dim, fan_in)) * np.sqrt(2.0 / fan_in)).astype(np.float32)
+            return w, np.zeros(out_dim, dtype=np.float32)
+
+        if self._dueling:
+            # Shared trunk (hidden layers) → advantage output (kept in weights/biases,
+            # same shape as the vanilla output layer) + a separate scalar value head.
+            dims = [self._obs_dim] + self._hidden
+            weights, biases = [], []
+            for i in range(len(dims) - 1):
+                w, b = _layer(dims[i + 1], dims[i])
+                weights.append(w)
+                biases.append(b)
+            last_dim = dims[-1]
+            adv_w, adv_b = _layer(self._n_actions, last_dim)
+            weights.append(adv_w)
+            biases.append(adv_b)
+            value_w, value_b = _layer(1, last_dim)
+            return {"weights": weights, "biases": biases, "value_w": value_w, "value_b": value_b}
+
         dims = [self._obs_dim] + self._hidden + [self._n_actions]
         weights, biases = [], []
         for i in range(len(dims) - 1):
-            fan_in = dims[i]
-            w = rng.standard_normal((dims[i + 1], fan_in)).astype(np.float32)
-            w *= np.sqrt(2.0 / fan_in)
-            b = np.zeros(dims[i + 1], dtype=np.float32)
+            w, b = _layer(dims[i + 1], dims[i])
             weights.append(w)
             biases.append(b)
         return {"weights": weights, "biases": biases}
@@ -203,16 +239,9 @@ class DQNPolicy(BasePolicy):
     def _sync_target(self) -> None:
         self._target["weights"] = [w.copy() for w in self._online["weights"]]
         self._target["biases"] = [b.copy() for b in self._online["biases"]]
-
-    def _loss_grad(self, delta: np.ndarray) -> np.ndarray:
-        """Per-sample loss gradient w.r.t the predicted Q for the taken action.
-
-        Huber (smooth-L1) clamps the TD residual to ±kappa so large errors give
-        a bounded gradient; plain MSE uses 2·residual (unbounded).
-        """
-        if self._huber:
-            return np.clip(delta, -self._huber_kappa, self._huber_kappa)
-        return 2.0 * delta
+        if self._dueling:
+            self._target["value_w"] = self._online["value_w"].copy()
+            self._target["value_b"] = self._online["value_b"].copy()
 
     # ------------------------------------------------------------------
     # Forward pass
@@ -236,12 +265,53 @@ class DQNPolicy(BasePolicy):
         return (h[0] if single else h), layer_inputs, pre_relu
 
     def _q_values(self, net: dict, obs_norm: np.ndarray) -> np.ndarray:
-        q, _, _ = self._forward(net, obs_norm)
-        return q
+        out, layer_inputs, _ = self._forward(net, obs_norm)
+        if not self._dueling:
+            return out
+        # Dueling aggregation: Q = V + (A - mean_a A).  ``out`` is the advantage
+        # stream; the value stream branches off the last hidden activation
+        # (= input to the advantage layer, always stored 2-D in layer_inputs).
+        single = out.ndim == 1
+        adv = out[np.newaxis, :] if single else out
+        last_hidden = layer_inputs[-1]
+        value = last_hidden @ net["value_w"].T + net["value_b"]
+        q = value + (adv - adv.mean(axis=1, keepdims=True))
+        return q[0] if single else q
 
     # ------------------------------------------------------------------
     # Training
     # ------------------------------------------------------------------
+
+    def _mask_q(self, q: np.ndarray, mask_b: np.ndarray | None) -> np.ndarray:
+        """Set Q of unavailable actions to -inf (rows with no legal action pass through)."""
+        if mask_b is None:
+            return q
+        q_m = q.copy()
+        q_m[~mask_b] = -np.inf
+        all_masked = ~mask_b.any(axis=1)
+        if all_masked.any():
+            q_m[all_masked] = q[all_masked]
+        return q_m
+
+    def _next_state_q(self, next_norm: np.ndarray, mask_b: np.ndarray | None) -> np.ndarray:
+        """Bootstrap next-state value: vanilla uses max target-Q; Double DQN selects the
+        next action with the online net and evaluates it with the target net."""
+        if self._double:
+            q_next_online = self._mask_q(self._q_values(self._online, next_norm), mask_b)
+            next_actions = np.argmax(q_next_online, axis=1)
+            q_next_target = self._q_values(self._target, next_norm)
+            return q_next_target[np.arange(len(next_actions)), next_actions]
+        return np.max(self._mask_q(self._q_values(self._target, next_norm), mask_b), axis=1)
+
+    def _loss_grad(self, delta: np.ndarray) -> np.ndarray:
+        """Per-sample loss gradient w.r.t the predicted Q for the taken action.
+
+        Huber (smooth-L1) clamps the TD residual to ±kappa so large errors give
+        a bounded gradient; plain MSE uses 2·residual (unbounded).
+        """
+        if self._huber:
+            return np.clip(delta, -self._huber_kappa, self._huber_kappa)
+        return 2.0 * delta
 
     def _gradient_step(
         self,
@@ -256,49 +326,61 @@ class DQNPolicy(BasePolicy):
         next_norm = next_b / self._scales
         B = len(act_b)
 
-        # Next-state action selection.  Double-DQN selects the bootstrap action
-        # with the *online* net and evaluates it with the *target* net; vanilla
-        # DQN selects and evaluates with the target net (selector == target).
-        q_next_target = self._q_values(self._target, next_norm)
-        selector = self._q_values(self._online, next_norm) if self._double_dqn else q_next_target
-        if mask_b is not None:
-            sel = selector.copy()
-            sel[~mask_b] = -np.inf
-            # fall back to unmasked argmax if all actions are masked for a row
-            all_masked = ~mask_b.any(axis=1)
-            if all_masked.any():
-                sel[all_masked] = selector[all_masked]
-            next_act = np.argmax(sel, axis=1)
+        targets = rew_b + self._gamma * self._next_state_q(next_norm, mask_b) * (1.0 - done_b)
+
+        adv_or_q, layer_inputs, pre_relu = self._forward(self._online, obs_norm)
+        if self._dueling:
+            last_hidden = layer_inputs[-1]
+            value = last_hidden @ self._online["value_w"].T + self._online["value_b"]  # (B, 1)
+            q_all = value + (adv_or_q - adv_or_q.mean(axis=1, keepdims=True))
         else:
-            next_act = np.argmax(selector, axis=1)
-        q_next_eval = q_next_target[np.arange(B), next_act]
-        targets = rew_b + self._gamma * q_next_eval * (1.0 - done_b)
+            q_all = adv_or_q
 
-        q_all, layer_inputs, pre_relu = self._forward(self._online, obs_norm)
-
-        # Per-sample loss gradient w.r.t the predicted Q for the taken action.
-        delta = q_all[np.arange(B), act_b] - targets
         grad_out = np.zeros_like(q_all)
-        grad_out[np.arange(B), act_b] = self._loss_grad(delta) / B
+        grad_out[np.arange(B), act_b] = self._loss_grad(q_all[np.arange(B), act_b] - targets) / B
 
-        g = grad_out
         grad_params: list[tuple[np.ndarray, np.ndarray]] = []
-        for i in range(len(self._online["weights"]) - 1, -1, -1):
-            a_in = layer_inputs[i]
-            dW = g.T @ a_in
-            db = g.sum(axis=0)
-            grad_params.append((dW, db))
-            if i > 0:
-                g = (g @ self._online["weights"][i]) * (pre_relu[i - 1] > 0)
-        grad_params.reverse()
+        dvalue_w = dvalue_b = None
+        if self._dueling:
+            n = self._n_actions
+            sum_go = grad_out.sum(axis=1, keepdims=True)  # (B, 1)
+            grad_adv = grad_out - sum_go / n  # dLoss/dA
+            grad_value = sum_go  # dLoss/dV
+            dvalue_w = grad_value.T @ layer_inputs[-1]  # (1, last_dim)
+            dvalue_b = grad_value.sum(axis=0)  # (1,)
+            g = grad_adv
+            n_layers = len(self._online["weights"])
+            for i in range(n_layers - 1, -1, -1):
+                a_in = layer_inputs[i]
+                grad_params.append((g.T @ a_in, g.sum(axis=0)))
+                if i > 0:
+                    g_hidden = g @ self._online["weights"][i]
+                    if i == n_layers - 1:
+                        g_hidden = g_hidden + grad_value @ self._online["value_w"]
+                    g = g_hidden * (pre_relu[i - 1] > 0)
+            grad_params.reverse()
+        else:
+            g = grad_out
+            for i in range(len(self._online["weights"]) - 1, -1, -1):
+                a_in = layer_inputs[i]
+                grad_params.append((g.T @ a_in, g.sum(axis=0)))
+                if i > 0:
+                    g = (g @ self._online["weights"][i]) * (pre_relu[i - 1] > 0)
+            grad_params.reverse()
 
-        # Global-norm gradient clipping (SB3 default behaviour).
+        # Global-norm gradient clipping (SB3 default behaviour), including the
+        # dueling value-head gradients when present.
         if self._max_grad_norm is not None:
             total_sq = sum(float(np.sum(dW * dW)) + float(np.sum(db * db)) for dW, db in grad_params)
+            if dvalue_w is not None:
+                total_sq += float(np.sum(dvalue_w * dvalue_w)) + float(np.sum(dvalue_b * dvalue_b))
             total_norm = float(np.sqrt(total_sq))
             if total_norm > self._max_grad_norm and total_norm > 0.0:
                 scale = self._max_grad_norm / (total_norm + 1e-6)
                 grad_params = [(dW * scale, db * scale) for dW, db in grad_params]
+                if dvalue_w is not None:
+                    dvalue_w = dvalue_w * scale
+                    dvalue_b = dvalue_b * scale
 
         self._adam_t += 1
         t = self._adam_t
@@ -316,6 +398,18 @@ class DQNPolicy(BasePolicy):
             mb_hat = self._m_b[i] / (1.0 - b1**t)
             vb_hat = self._v_b[i] / (1.0 - b2**t)
             self._online["biases"][i] -= self._lr * mb_hat / (np.sqrt(vb_hat) + eps_a)
+
+        if self._dueling:
+            self._m_vw = b1 * self._m_vw + (1.0 - b1) * dvalue_w
+            self._v_vw = b2 * self._v_vw + (1.0 - b2) * dvalue_w**2
+            self._online["value_w"] -= (
+                self._lr * (self._m_vw / (1.0 - b1**t)) / (np.sqrt(self._v_vw / (1.0 - b2**t)) + eps_a)
+            )
+            self._m_vb = b1 * self._m_vb + (1.0 - b1) * dvalue_b
+            self._v_vb = b2 * self._v_vb + (1.0 - b2) * dvalue_b**2
+            self._online["value_b"] -= (
+                self._lr * (self._m_vb / (1.0 - b1**t)) / (np.sqrt(self._v_vb / (1.0 - b2**t)) + eps_a)
+            )
 
         self._grad_steps += 1
         if self._grad_steps % self._target_freq == 0:
@@ -391,7 +485,7 @@ class DQNPolicy(BasePolicy):
     # ------------------------------------------------------------------
 
     def to_cfg(self) -> dict:
-        return {
+        cfg = {
             "policy_type": "dqn",
             "hidden_sizes": self._hidden,
             "replay_buffer_size": self._buf_maxlen,
@@ -403,7 +497,8 @@ class DQNPolicy(BasePolicy):
             "epsilon_end": float(self._eps_end),
             "epsilon_decay_steps": self._eps_steps,
             "gamma": float(self._gamma),
-            "double_dqn": self._double_dqn,
+            "double_dqn": self._double,
+            "dueling": self._dueling,
             "huber_loss": self._huber,
             "huber_kappa": float(self._huber_kappa),
             "max_grad_norm": self._max_grad_norm,
@@ -415,6 +510,12 @@ class DQNPolicy(BasePolicy):
             "target_weights": [w.tolist() for w in self._target["weights"]],
             "target_biases": [b.tolist() for b in self._target["biases"]],
         }
+        if self._dueling:
+            cfg["online_value_w"] = self._online["value_w"].tolist()
+            cfg["online_value_b"] = self._online["value_b"].tolist()
+            cfg["target_value_w"] = self._target["value_w"].tolist()
+            cfg["target_value_b"] = self._target["value_b"].tolist()
+        return cfg
 
     # ------------------------------------------------------------------
     # Trainer state persistence
@@ -464,6 +565,13 @@ class DQNPolicy(BasePolicy):
             arrays[f"m_b_{i}"] = self._m_b[i]
             arrays[f"v_w_{i}"] = self._v_w[i]
             arrays[f"v_b_{i}"] = self._v_b[i]
+        if self._dueling:
+            arrays.update(
+                m_vw=self._m_vw,
+                m_vb=self._m_vb,
+                v_vw=self._v_vw,
+                v_vb=self._v_vb,
+            )
         np.savez(path, **arrays)
         logger.debug("[DQNPolicy] trainer state saved → %s (buf=%d)", path, n)
 
@@ -521,6 +629,13 @@ class DQNPolicy(BasePolicy):
                         bool(data["replay_done"][i]),
                     )
 
+            saved_dueling = "m_vw" in data
+            if self._dueling and not saved_dueling:
+                raise ValueError(
+                    "DQNPolicy: trainer state has no dueling value-head moments but "
+                    "this policy is dueling. Use --re-initialize to restart from scratch."
+                )
+
             self._total_steps = int(data["total_steps"])
             self._grad_steps = int(data["grad_steps"])
             self._adam_t = int(data["adam_t"])
@@ -530,6 +645,11 @@ class DQNPolicy(BasePolicy):
                 self._m_b[i] = data[f"m_b_{i}"]
                 self._v_w[i] = data[f"v_w_{i}"]
                 self._v_b[i] = data[f"v_b_{i}"]
+            if self._dueling:
+                self._m_vw = data["m_vw"]
+                self._m_vb = data["m_vb"]
+                self._v_vw = data["v_vw"]
+                self._v_vb = data["v_vb"]
         logger.info(
             "[DQNPolicy] trainer state loaded from %s (buf=%d, steps=%d, eps=%.4f)",
             path,
