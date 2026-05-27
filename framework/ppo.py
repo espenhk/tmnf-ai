@@ -264,11 +264,22 @@ class PPOPolicy(BasePolicy):
     # Policy interface
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _sanitize_mask(result) -> np.ndarray | None:
+        """Return a bool mask, or None when there is no usable mask.
+
+        An all-False mask (no legal action) is treated as None so the actor
+        never samples from a degenerate softmax over all-``-inf`` logits.
+        """
+        if result is None:
+            return None
+        mask = np.asarray(result, dtype=bool)
+        return mask if mask.any() else None
+
     def on_episode_start(self, **kwargs) -> None:
         self._reset_buffer()
         if self._avail_fn is not None:
-            result = self._avail_fn(kwargs.get("info") or {})
-            self._available_mask = None if result is None else np.asarray(result, dtype=bool)
+            self._available_mask = self._sanitize_mask(self._avail_fn(kwargs.get("info") or {}))
         else:
             self._available_mask = None
 
@@ -298,8 +309,7 @@ class PPOPolicy(BasePolicy):
         self._rew_buf.append(float(reward))
         self._done_buf.append(bool(done))
         if self._avail_fn is not None:
-            result = self._avail_fn(kwargs.get("info") or {})
-            self._available_mask = None if result is None else np.asarray(result, dtype=bool)
+            self._available_mask = self._sanitize_mask(self._avail_fn(kwargs.get("info") or {}))
 
     def _compute_gae(self, values: np.ndarray, rewards: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """Return (advantages, returns) via GAE(λ) over one episode (terminal bootstrap = 0)."""
@@ -502,6 +512,8 @@ class PPOPolicy(BasePolicy):
                 )
             if int(data["n_actor_layers"]) != len(self._actor_w):
                 raise ValueError("PPOPolicy: trainer state actor layer count mismatch.")
+            if int(data["n_critic_layers"]) != len(self._critic_w):
+                raise ValueError("PPOPolicy: trainer state critic layer count mismatch.")
             self._adam_t = int(data["adam_t"])
             for i in range(len(self._actor_w)):
                 self._am_w[i] = data[f"am_w_{i}"]

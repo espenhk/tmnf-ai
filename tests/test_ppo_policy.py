@@ -264,5 +264,43 @@ class TestPPOTrainerState(unittest.TestCase):
             os.unlink(path)
 
 
+class TestPPOMasking(unittest.TestCase):
+    def _masked(self, mask_fn, **kw):
+        return PPOPolicy(
+            _OBS_SPEC,
+            _ACTION_DEC,
+            output_dim=_N_ACTIONS,
+            hidden_sizes=[8],
+            available_actions_fn=mask_fn,
+            seed=0,
+            **kw,
+        )
+
+    def test_all_false_mask_falls_back_to_all_actions(self):
+        """An all-False mask must be treated as no mask, not a degenerate softmax."""
+        p = self._masked(lambda info: np.zeros(_N_ACTIONS, dtype=bool))
+        p.on_episode_start()
+        self.assertIsNone(p._available_mask)
+        action = p(_zero_obs())  # must not raise / must be a valid discrete action
+        self.assertTrue(any(np.allclose(action, da) for da in DISCRETE_ACTIONS))
+
+    def test_all_false_mask_mid_episode_sanitized(self):
+        p = self._masked(lambda info: np.zeros(_N_ACTIONS, dtype=bool))
+        p.on_episode_start()
+        p(_zero_obs())
+        p.update(_zero_obs(), np.array([0, 1, 0]), 1.0, _zero_obs(), False)
+        self.assertIsNone(p._available_mask)
+
+    def test_partial_mask_respected(self):
+        legal = 3
+        mask = np.zeros(_N_ACTIONS, dtype=bool)
+        mask[legal] = True
+        p = self._masked(lambda info: mask)
+        p.on_episode_start()
+        for _ in range(10):
+            action = p(_zero_obs())
+            self.assertTrue(np.allclose(action, DISCRETE_ACTIONS[legal]))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

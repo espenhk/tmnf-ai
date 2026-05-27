@@ -529,6 +529,13 @@ class DQNPolicy(BasePolicy):
             arrays[f"m_b_{i}"] = self._m_b[i]
             arrays[f"v_w_{i}"] = self._v_w[i]
             arrays[f"v_b_{i}"] = self._v_b[i]
+        if self._dueling:
+            arrays.update(
+                m_vw=self._m_vw,
+                m_vb=self._m_vb,
+                v_vw=self._v_vw,
+                v_vb=self._v_vb,
+            )
         np.savez(path, **arrays)
         logger.debug("[DQNPolicy] trainer state saved → %s (buf=%d)", path, n)
 
@@ -586,6 +593,13 @@ class DQNPolicy(BasePolicy):
                         bool(data["replay_done"][i]),
                     )
 
+            saved_dueling = "m_vw" in data
+            if self._dueling and not saved_dueling:
+                raise ValueError(
+                    "DQNPolicy: trainer state has no dueling value-head moments but "
+                    "this policy is dueling. Use --re-initialize to restart from scratch."
+                )
+
             self._total_steps = int(data["total_steps"])
             self._grad_steps = int(data["grad_steps"])
             self._adam_t = int(data["adam_t"])
@@ -595,6 +609,11 @@ class DQNPolicy(BasePolicy):
                 self._m_b[i] = data[f"m_b_{i}"]
                 self._v_w[i] = data[f"v_w_{i}"]
                 self._v_b[i] = data[f"v_b_{i}"]
+            if self._dueling:
+                self._m_vw = data["m_vw"]
+                self._m_vb = data["m_vb"]
+                self._v_vw = data["v_vw"]
+                self._v_vb = data["v_vb"]
         logger.info(
             "[DQNPolicy] trainer state loaded from %s (buf=%d, steps=%d, eps=%.4f)",
             path,

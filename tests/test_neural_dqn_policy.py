@@ -463,6 +463,43 @@ class TestDuelingDQN(unittest.TestCase):
         obs = _rand_obs()
         np.testing.assert_array_equal(p(obs), p2(obs))
 
+    def test_dueling_trainer_state_preserves_value_head_moments(self):
+        import os
+        import tempfile
+
+        p = self._make(min_replay_size=4, batch_size=4)
+        for _ in range(20):
+            p.update(_rand_obs(), np.random.randint(25), 1.0, _rand_obs(), False)
+        self.assertFalse(np.allclose(p._m_vw, 0.0), "value-head Adam moment should be non-zero after training")
+
+        with tempfile.NamedTemporaryFile(suffix=".npz", delete=False) as f:
+            path = f.name
+        try:
+            p.save_trainer_state(path)
+            p2 = self._make(min_replay_size=4, batch_size=4)
+            p2.load_trainer_state(path)
+            np.testing.assert_array_equal(p._m_vw, p2._m_vw)
+            np.testing.assert_array_equal(p._v_vw, p2._v_vw)
+            np.testing.assert_array_equal(p._m_vb, p2._m_vb)
+            np.testing.assert_array_equal(p._v_vb, p2._v_vb)
+        finally:
+            os.unlink(path)
+
+    def test_loading_nondueling_state_into_dueling_raises(self):
+        import os
+        import tempfile
+
+        vanilla = DQNPolicy(_OBS_SPEC, DISCRETE_ACTIONS, hidden_sizes=[8], replay_buffer_size=10)
+        with tempfile.NamedTemporaryFile(suffix=".npz", delete=False) as f:
+            path = f.name
+        try:
+            vanilla.save_trainer_state(path)
+            dueling = self._make()
+            with self.assertRaises(ValueError):
+                dueling.load_trainer_state(path)
+        finally:
+            os.unlink(path)
+
     def test_dueling_learns_bandit(self):
         np.random.seed(0)
         state = np.zeros(_N, dtype=np.float32)
