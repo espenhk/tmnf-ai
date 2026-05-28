@@ -12,7 +12,7 @@ import gymnasium as gym
 import numpy as np
 import pytest
 
-from framework.alphazero import AlphaZeroMCTSPolicy, run_alphazero_loop
+from framework.alphazero import _NON_CLONEABLE_GAMES, AlphaZeroMCTSPolicy, run_alphazero_loop
 from framework.base_env import BaseGameEnv
 from framework.obs_spec import ObsDim, ObsSpec
 from framework.policies import POLICY_REGISTRY
@@ -75,9 +75,13 @@ def test_registered():
 
 
 def test_gated_off_non_cloneable_games():
-    for g in ("tmnf", "sc2", "car_racing", "iracing"):
+    # Iterate the whole denylist so any drift between entries here and the
+    # actual ``game_name`` strings (in particular Assetto Corsa, which uses
+    # ``"assetto"`` rather than the dir name ``assetto_corsa``) is caught.
+    assert _NON_CLONEABLE_GAMES, "denylist is empty — gating would be a no-op"
+    for g in _NON_CLONEABLE_GAMES:
         ok, hint = AlphaZeroMCTSPolicy.compatible_with(g)
-        assert ok is False
+        assert ok is False, f"{g!r} should be gated off (in _NON_CLONEABLE_GAMES)"
         assert hint and "clone" in hint.lower()
 
 
