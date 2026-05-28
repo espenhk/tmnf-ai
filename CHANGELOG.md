@@ -17,6 +17,11 @@ formatting, internal refactors with no behaviour change — can be skipped.
 
 ## [Unreleased]
 
+
+---
+
+## [0.3.5] - 2026-05-28
+
 ### Changed
 - Assetto Corsa now conforms to the `GameAdapter` protocol and is registered
   in `GAME_ADAPTERS` like the other seven games (#326). The bespoke
