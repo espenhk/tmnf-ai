@@ -86,6 +86,7 @@ _ABBREV = {
     "minimap_layers": "mml",
     "obs_spec_preset": "osp",
     "enable_belief": "eb",
+    "self_play": "slp",
     "max_apm": "apm",
     "apm_burst_s": "apmb",
     "log_stats_every_n_sims": "lsens",
@@ -168,6 +169,8 @@ _ABBREV = {
     "tick_skip": "ts",
     # iracing params
     "action_mode": "actm",
+    # atari params
+    "clip_sign": "csign",
     # curiosity params (issue #24)
     "curiosity_type": "ck",
     "curiosity_weight": "cwgt",
@@ -712,7 +715,7 @@ def main() -> None:
     parser.add_argument(
         "--game",
         default=None,
-        choices=["tmnf", "beamng", "car_racing", "torcs", "sc2", "rocket_league", "iracing"],
+        choices=["tmnf", "beamng", "car_racing", "torcs", "sc2", "rocket_league", "iracing", "atari"],
         help="Override game (default: from YAML 'game:' field, or tmnf)",
     )
     parser.add_argument(
