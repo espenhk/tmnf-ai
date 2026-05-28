@@ -17,6 +17,11 @@ formatting, internal refactors with no behaviour change — can be skipped.
 
 ## [Unreleased]
 
+
+---
+
+## [0.3.6] - 2026-05-28
+
 ### Added
 - Atari 2600 integration via `ale-py` + Gymnasium (`--game atari`,
   issue #217). New `games/atari/` package with adapter, env, obs spec,
