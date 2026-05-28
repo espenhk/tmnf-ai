@@ -31,6 +31,7 @@ class TestGameAdapterRegistry:
             "assetto",
             "rocket_league",
             "iracing",
+            "atari",
         }
 
 
