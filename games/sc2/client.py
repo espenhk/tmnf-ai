@@ -427,7 +427,11 @@ class SC2Client:
         fn_call = self._action_to_call(action)
         if self._self_play and self._opponent_policy is not None:
             # Self-play: opponent acts from its own observation.
-            opp_obs = self._opponent_obs if self._opponent_obs is not None else np.zeros(len(self._obs_names), dtype=np.float32)
+            opp_obs = (
+                self._opponent_obs
+                if self._opponent_obs is not None
+                else np.zeros(len(self._obs_names), dtype=np.float32)
+            )
             opp_action = self._opponent_policy(opp_obs)
             opp_fn_call = self._action_to_call(np.asarray(opp_action, dtype=np.float32))
             timesteps = self._sc2_env.step([fn_call, opp_fn_call])

@@ -5,7 +5,6 @@ where two AI agents play against each other instead of one agent vs a bot.
 PySC2 is not required — all PySC2 interactions are mocked.
 """
 
-import copy
 import os
 import tempfile
 import unittest
@@ -15,7 +14,6 @@ import numpy as np
 
 from games.sc2.client import SC2Client
 from games.sc2.obs_spec import BASE_OBS_DIM, LADDER_OBS_DIM
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -114,15 +112,18 @@ class TestSC2ClientSelfPlayMakeEnv(unittest.TestCase):
         mock_pysc2_env_pkg = MagicMock()
         mock_pysc2_env_pkg.sc2_env = mock_sc2_env
 
-        with patch.dict("sys.modules", {
-            "pysc2": MagicMock(),
-            "pysc2.env": mock_pysc2_env_pkg,
-            "pysc2.env.sc2_env": mock_sc2_env,
-            "pysc2.lib": MagicMock(),
-            "pysc2.lib.features": mock_features,
-            "absl": mock_absl,
-            "absl.flags": mock_absl,
-        }):
+        with patch.dict(
+            "sys.modules",
+            {
+                "pysc2": MagicMock(),
+                "pysc2.env": mock_pysc2_env_pkg,
+                "pysc2.env.sc2_env": mock_sc2_env,
+                "pysc2.lib": MagicMock(),
+                "pysc2.lib.features": mock_features,
+                "absl": mock_absl,
+                "absl.flags": mock_absl,
+            },
+        ):
             with patch("games.sc2.map_access_gate.acquire_map_access_slot"):
                 client = SC2Client(map_name="Simple64", self_play=True)
                 client._make_sc2_env()
@@ -244,9 +245,7 @@ class TestSC2ClientNonSelfPlayUnchanged(unittest.TestCase):
         client._sc2_env = fake_env
         client._selected_count = 1.0
         client._action_to_call = MagicMock(return_value=MagicMock())
-        client._timestep_to_obs_info = MagicMock(
-            return_value=(_make_fake_obs(), _make_fake_info())
-        )
+        client._timestep_to_obs_info = MagicMock(return_value=(_make_fake_obs(), _make_fake_info()))
 
         action = np.array([0, 0.5, 0.5, 0], dtype=np.float32)
         client.step(action)
@@ -269,7 +268,7 @@ class TestSC2EnvSelfPlay(unittest.TestCase):
         from games.sc2.env import SC2Env
 
         opp = MagicMock()
-        env = SC2Env(
+        SC2Env(
             map_name="Simple64",
             self_play=True,
             opponent_policy=opp,
@@ -303,7 +302,7 @@ class TestMakeEnvSelfPlay(unittest.TestCase):
         from games.sc2.env import make_env
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            env = make_env(
+            make_env(
                 experiment_dir=tmpdir,
                 map_name="Simple64",
                 self_play=True,
@@ -381,7 +380,6 @@ class TestTrainRLSelfPlayWiring(unittest.TestCase):
     def test_opponent_set_when_self_play_enabled(self, _mock_lm, _mock_eval, mock_loop):
         """When training_params has self_play=True and env has set_opponent_policy,
         train_rl should call set_opponent_policy with a deepcopy of the policy."""
-        from unittest.mock import call
 
         from framework.run_config import GameSpec, RunConfig
         from framework.training import train_rl
