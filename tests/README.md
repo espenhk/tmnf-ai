@@ -767,6 +767,7 @@ handful of iterations only).
 - `TestSelfPlayManagerExactMode`: invalid mode raises / `build_initial_opponent` returns a callable / `step` returns a fresh callable every generation regardless of `improved`
 - `TestSelfPlayManagerMutatedMode`: `step` calls `mutated()` on the champion when available / falls back to deepcopy when policy has no `mutated` method
 - `TestSelfPlayManagerTopNMode`: pool grows on improvement / capped at `top_n` / weakest entry replaced by a stronger champion / no pool update when not improved and pool is non-empty / callable returned from pool / weak champion does not displace a stronger pool entry
+- `TestGreedyLoopCmaesWithSelfPlay`: `_greedy_loop_cmaes` calls `manager.step()` once per generation and forwards the returned opponent to `env.set_opponent_policy()`; without a manager `set_opponent_policy` is never called
 - `TestTrainRLSelfPlayModes`: verifies that all three modes (`exact`, `mutated`, `top_n`) wire a `SelfPlayManager` through `train_rl` and that the genetic greedy loop receives the correct `self_play_manager` kwarg
 
 ### test_sc2_analytics.py — SC2-specific analytics plots and flags

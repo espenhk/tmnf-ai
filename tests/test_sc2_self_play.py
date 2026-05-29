@@ -638,6 +638,90 @@ class TestSelfPlayManagerTopNMode(unittest.TestCase):
         self.assertNotIn(1.0, scores)
 
 
+class TestGreedyLoopCmaesWithSelfPlay(unittest.TestCase):
+    """_greedy_loop_cmaes calls self_play_manager.step() each generation."""
+
+    def _make_mock_cmaes_policy(self, champion_reward=0.0):
+        """Return a minimal CMA-ES-like policy stub."""
+        from unittest.mock import MagicMock
+        import numpy as np
+
+        policy = MagicMock()
+        policy.champion_reward = champion_reward
+        policy.sigma = 0.1
+        # sample_population returns two individuals
+        ind = MagicMock()
+        ind.__call__ = MagicMock(return_value=np.zeros(4, dtype=np.float32))
+        policy.sample_population.return_value = [ind, ind]
+        # update_distribution returns True (improved) on first call
+        policy.update_distribution.side_effect = [True, False, False]
+        return policy
+
+    def test_self_play_manager_step_called_each_gen(self):
+        """Manager.step() is called once per generation and env.set_opponent_policy updated."""
+        import numpy as np
+        import tempfile
+        import os
+        from unittest.mock import MagicMock, call
+        from framework.training import _greedy_loop_cmaes
+        from framework.self_play import SelfPlayManager
+
+        policy = self._make_mock_cmaes_policy(champion_reward=1.0)
+
+        # Minimal env stub
+        obs = np.zeros(15, dtype=np.float32)
+        mock_env = MagicMock()
+        mock_env.get_episode_time_limit.return_value = None
+        mock_env.reset.return_value = (obs, {})
+        mock_env.step.return_value = (obs, 1.0, True, False, {"episode_reward_components": {}})
+
+        manager = MagicMock(spec=SelfPlayManager)
+        new_opp = MagicMock()
+        manager.step.return_value = new_opp
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            weights_file = os.path.join(tmpdir, "w.yaml")
+            _greedy_loop_cmaes(
+                env=mock_env,
+                policy=policy,
+                n_generations=3,
+                weights_file=weights_file,
+                self_play_manager=manager,
+            )
+
+        # step() called once per generation
+        self.assertEqual(manager.step.call_count, 3)
+        # env.set_opponent_policy updated each time with the returned opponent
+        self.assertEqual(mock_env.set_opponent_policy.call_count, 3)
+        for c in mock_env.set_opponent_policy.call_args_list:
+            self.assertIs(c[0][0], new_opp)
+
+    def test_no_self_play_manager_no_set_opponent(self):
+        """Without a manager, set_opponent_policy is never called."""
+        import numpy as np
+        import tempfile
+        import os
+        from unittest.mock import MagicMock
+        from framework.training import _greedy_loop_cmaes
+
+        policy = self._make_mock_cmaes_policy()
+        obs = np.zeros(15, dtype=np.float32)
+        mock_env = MagicMock()
+        mock_env.get_episode_time_limit.return_value = None
+        mock_env.reset.return_value = (obs, {})
+        mock_env.step.return_value = (obs, 0.5, True, False, {})
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _greedy_loop_cmaes(
+                env=mock_env,
+                policy=policy,
+                n_generations=2,
+                weights_file=os.path.join(tmpdir, "w.yaml"),
+            )
+
+        mock_env.set_opponent_policy.assert_not_called()
+
+
 class TestTrainRLSelfPlayModes(unittest.TestCase):
     """train_rl passes SelfPlayManager to the genetic loop when self_play is set."""
 

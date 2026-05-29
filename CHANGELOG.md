@@ -20,8 +20,9 @@ formatting, internal refactors with no behaviour change — can be skipped.
 ### Added
 - SC2 self-play now supports three opponent-selection modes (issue #345).
   Set `self_play_mode` in `training_params.yaml` (default `"exact"`):
-  - `"exact"` — opponent is an exact snapshot of the current champion,
-    refreshed every generation (previously opponent was set once at run start).
+  - `"exact"` — opponent is a fresh snapshot of the current champion,
+    refreshed every generation (previously the opponent was set only once
+    at run start and never updated).
   - `"mutated"` — opponent is a slightly mutated copy of the champion;
     mutation strength controlled by `self_play_mutation_scale` (default
     inherits `mutation_scale`).

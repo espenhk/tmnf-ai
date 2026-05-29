@@ -73,8 +73,8 @@ enable_belief: false   # set true to activate fog-of-war belief obs + scouting r
 # ignored on minigames.
 #
 # self_play_mode controls how the opponent is chosen each generation:
-#   exact   — opponent is always an exact copy of the current champion
-#             (default; refreshed each generation)
+#   exact   — opponent is a fresh snapshot of the current champion, taken
+#             each generation so it always mirrors the latest weights (default)
 #   mutated — opponent is a slightly mutated copy of the current champion;
 #             mutation strength set by self_play_mutation_scale
 #   top_n   — opponent rotates through a pool of the top-N champions seen

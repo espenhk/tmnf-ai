@@ -196,7 +196,13 @@ class SelfPlayManager:
                 self._pool[worst_idx] = entry
 
     def _pick_from_pool(self) -> Any | None:
-        """Return a uniformly random callable from the pool."""
+        """Return a deepcopy of a uniformly random pool entry.
+
+        A fresh copy is returned on every call so stateful opponents (e.g.
+        LSTM policies whose hidden state evolves during ``__call__``) always
+        start from a clean snapshot and pool entries are never mutated by
+        the opponent's own execution.
+        """
         if not self._pool:
             return None
         idx = int(self._rng.integers(len(self._pool)))
