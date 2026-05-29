@@ -16,9 +16,17 @@ from games.sc2.tech_tree import (
     fn_idx_satisfied,
 )
 
-_SCV = "SCV"
-_PROBE = "Probe"
-_DRONE = "Drone"
+# Selection-set shorthands.  ``fn_idx_satisfied`` takes a ``frozenset`` so
+# that a single API can express "nothing selected" (empty), single-type
+# selections (one element), and post-``select_army`` mixed-type
+# selections (multiple elements).
+_NONE: frozenset[str] = frozenset()
+_SCV = frozenset({"SCV"})
+
+
+def _sel(*names: str) -> frozenset[str]:
+    """Build a selection-set from one or more unit-type names."""
+    return frozenset(names)
 
 
 class TestBuildingPrereqsMet(unittest.TestCase):
@@ -61,48 +69,55 @@ class TestFnIdxSatisfiedTerran(unittest.TestCase):
         # No buildings required; just an SCV.
         self.assertTrue(fn_idx_satisfied(9, frozenset(), frozenset(), _SCV))
         # No selection → unsatisfied.
-        self.assertFalse(fn_idx_satisfied(9, frozenset(), frozenset(), None))
+        self.assertFalse(fn_idx_satisfied(9, frozenset(), frozenset(), _NONE))
         # Marine selected (wrong type) → unsatisfied.
-        self.assertFalse(fn_idx_satisfied(9, frozenset(), frozenset(), "Marine"))
+        self.assertFalse(fn_idx_satisfied(9, frozenset(), frozenset(), _sel("Marine")))
 
     def test_train_marine_needs_barracks_selected(self):
         # SCV selected → unsatisfied (Barracks needs to be selected).
         self.assertFalse(fn_idx_satisfied(7, frozenset({"Barracks"}), frozenset(), _SCV))
         # Barracks selected → satisfied.
-        self.assertTrue(fn_idx_satisfied(7, frozenset({"Barracks"}), frozenset(), "Barracks"))
+        self.assertTrue(fn_idx_satisfied(7, frozenset({"Barracks"}), frozenset(), _sel("Barracks")))
 
     def test_train_marauder_needs_tech_lab(self):
         # Barracks selected but no TechLab → unsatisfied.
-        self.assertFalse(fn_idx_satisfied(35, frozenset({"Barracks"}), frozenset(), "Barracks"))
+        self.assertFalse(fn_idx_satisfied(35, frozenset({"Barracks"}), frozenset(), _sel("Barracks")))
         # BarracksTechLab present → satisfied.
         self.assertTrue(
             fn_idx_satisfied(
                 35,
                 frozenset({"Barracks", "BarracksTechLab"}),
                 frozenset(),
-                "Barracks",
+                _sel("Barracks"),
             )
         )
 
     def test_train_battlecruiser_chain(self):
         # fn_idx=43 (Battlecruiser) needs StarportTechLab + FusionCore + Starport selected.
         # Missing FusionCore.
-        self.assertFalse(fn_idx_satisfied(43, frozenset({"Starport", "StarportTechLab"}), frozenset(), "Starport"))
+        self.assertFalse(
+            fn_idx_satisfied(
+                43,
+                frozenset({"Starport", "StarportTechLab"}),
+                frozenset(),
+                _sel("Starport"),
+            )
+        )
         # Complete chain.
         self.assertTrue(
             fn_idx_satisfied(
                 43,
                 frozenset({"Starport", "StarportTechLab", "FusionCore"}),
                 frozenset(),
-                "Starport",
+                _sel("Starport"),
             )
         )
 
     def test_effect_stim_requires_research(self):
         # Marine selected but no Stim research → unsatisfied.
-        self.assertFalse(fn_idx_satisfied(47, frozenset({"Barracks"}), frozenset(), "Marine"))
+        self.assertFalse(fn_idx_satisfied(47, frozenset({"Barracks"}), frozenset(), _sel("Marine")))
         # Stim research completed.
-        self.assertTrue(fn_idx_satisfied(47, frozenset({"Barracks"}), frozenset({"Stimpack"}), "Marine"))
+        self.assertTrue(fn_idx_satisfied(47, frozenset({"Barracks"}), frozenset({"Stimpack"}), _sel("Marine")))
         # Stim research but SCV selected → unsatisfied (Marines/Marauders only).
         self.assertFalse(fn_idx_satisfied(47, frozenset({"Barracks"}), frozenset({"Stimpack"}), _SCV))
 
@@ -110,50 +125,50 @@ class TestFnIdxSatisfiedTerran(unittest.TestCase):
 class TestFnIdxSatisfiedProtoss(unittest.TestCase):
     def test_carrier_needs_fleet_beacon(self):
         # fn_idx=73 (Carrier) needs Stargate selected + FleetBeacon exists.
-        self.assertFalse(fn_idx_satisfied(73, frozenset({"Stargate"}), frozenset(), "Stargate"))
-        self.assertTrue(fn_idx_satisfied(73, frozenset({"Stargate", "FleetBeacon"}), frozenset(), "Stargate"))
+        self.assertFalse(fn_idx_satisfied(73, frozenset({"Stargate"}), frozenset(), _sel("Stargate")))
+        self.assertTrue(fn_idx_satisfied(73, frozenset({"Stargate", "FleetBeacon"}), frozenset(), _sel("Stargate")))
 
     def test_stalker_from_gateway_or_warpgate(self):
         # fn_idx=67 (Stalker) — accept either Gateway or WarpGate as selected.
         for selected in ("Gateway", "WarpGate"):
             with self.subTest(selected=selected):
-                self.assertTrue(fn_idx_satisfied(67, frozenset({"CyberneticsCore"}), frozenset(), selected))
+                self.assertTrue(fn_idx_satisfied(67, frozenset({"CyberneticsCore"}), frozenset(), _sel(selected)))
 
 
 class TestFnIdxSatisfiedZerg(unittest.TestCase):
     def test_hive_needs_lair_and_infestation_pit(self):
         # fn_idx=114 (Morph_Hive_quick) needs Lair selected + InfestationPit exists.
-        self.assertFalse(fn_idx_satisfied(114, frozenset(), frozenset(), "Lair"))
-        self.assertTrue(fn_idx_satisfied(114, frozenset({"InfestationPit"}), frozenset(), "Lair"))
+        self.assertFalse(fn_idx_satisfied(114, frozenset(), frozenset(), _sel("Lair")))
+        self.assertTrue(fn_idx_satisfied(114, frozenset({"InfestationPit"}), frozenset(), _sel("Lair")))
 
     def test_lurker_needs_hydra_den(self):
         # fn_idx=111 (Train_Lurker_quick) morphs Hydralisk + needs LurkerDenMP.
-        self.assertFalse(fn_idx_satisfied(111, frozenset(), frozenset(), "Hydralisk"))
-        self.assertTrue(fn_idx_satisfied(111, frozenset({"LurkerDenMP"}), frozenset(), "Hydralisk"))
+        self.assertFalse(fn_idx_satisfied(111, frozenset(), frozenset(), _sel("Hydralisk")))
+        self.assertTrue(fn_idx_satisfied(111, frozenset({"LurkerDenMP"}), frozenset(), _sel("Hydralisk")))
 
     def test_baneling_morph_consumes_zergling(self):
         # fn_idx=100 (Train_Baneling) — needs Zergling selected + BanelingNest exists.
-        self.assertFalse(fn_idx_satisfied(100, frozenset(), frozenset(), "Zergling"))
-        self.assertFalse(fn_idx_satisfied(100, frozenset({"BanelingNest"}), frozenset(), "Roach"))
-        self.assertTrue(fn_idx_satisfied(100, frozenset({"BanelingNest"}), frozenset(), "Zergling"))
+        self.assertFalse(fn_idx_satisfied(100, frozenset(), frozenset(), _sel("Zergling")))
+        self.assertFalse(fn_idx_satisfied(100, frozenset({"BanelingNest"}), frozenset(), _sel("Roach")))
+        self.assertTrue(fn_idx_satisfied(100, frozenset({"BanelingNest"}), frozenset(), _sel("Zergling")))
 
     def test_overseer_needs_lair_or_hive(self):
         # fn_idx=115 (Morph_Overseer) — Overlord selected + Lair OR Hive exists.
-        self.assertFalse(fn_idx_satisfied(115, frozenset({"Hatchery"}), frozenset(), "Overlord"))
-        self.assertTrue(fn_idx_satisfied(115, frozenset({"Lair"}), frozenset(), "Overlord"))
-        self.assertTrue(fn_idx_satisfied(115, frozenset({"Hive"}), frozenset(), "Overlord"))
+        self.assertFalse(fn_idx_satisfied(115, frozenset({"Hatchery"}), frozenset(), _sel("Overlord")))
+        self.assertTrue(fn_idx_satisfied(115, frozenset({"Lair"}), frozenset(), _sel("Overlord")))
+        self.assertTrue(fn_idx_satisfied(115, frozenset({"Hive"}), frozenset(), _sel("Overlord")))
         # Zergling selected (wrong type) → unsatisfied.
-        self.assertFalse(fn_idx_satisfied(115, frozenset({"Lair"}), frozenset(), "Zergling"))
+        self.assertFalse(fn_idx_satisfied(115, frozenset({"Lair"}), frozenset(), _sel("Zergling")))
 
     def test_lair_morph_consumes_hatchery(self):
         # fn_idx=113 (Morph_Lair) — Hatchery selected + SpawningPool exists.
-        self.assertFalse(fn_idx_satisfied(113, frozenset(), frozenset(), "Hatchery"))
-        self.assertTrue(fn_idx_satisfied(113, frozenset({"SpawningPool"}), frozenset(), "Hatchery"))
+        self.assertFalse(fn_idx_satisfied(113, frozenset(), frozenset(), _sel("Hatchery")))
+        self.assertTrue(fn_idx_satisfied(113, frozenset({"SpawningPool"}), frozenset(), _sel("Hatchery")))
 
     def test_brood_lord_needs_greater_spire(self):
         # fn_idx=108 (Train_BroodLord_quick) — Corruptor selected + GreaterSpire exists.
-        self.assertFalse(fn_idx_satisfied(108, frozenset({"Spire"}), frozenset(), "Corruptor"))
-        self.assertTrue(fn_idx_satisfied(108, frozenset({"GreaterSpire"}), frozenset(), "Corruptor"))
+        self.assertFalse(fn_idx_satisfied(108, frozenset({"Spire"}), frozenset(), _sel("Corruptor")))
+        self.assertTrue(fn_idx_satisfied(108, frozenset({"GreaterSpire"}), frozenset(), _sel("Corruptor")))
 
 
 class TestMorphsFullyIntegrated(unittest.TestCase):
@@ -166,34 +181,62 @@ class TestMorphsFullyIntegrated(unittest.TestCase):
         # fn_idx=80 (Morph_Archon) — should accept either templar type.
         for selected in ("HighTemplar", "DarkTemplar"):
             with self.subTest(selected=selected):
-                self.assertTrue(fn_idx_satisfied(80, frozenset({"TemplarArchive"}), frozenset(), selected))
+                self.assertTrue(fn_idx_satisfied(80, frozenset({"TemplarArchive"}), frozenset(), _sel(selected)))
         # Zealot is not a templar → unsatisfied.
-        self.assertFalse(fn_idx_satisfied(80, frozenset({"TemplarArchive"}), frozenset(), "Zealot"))
+        self.assertFalse(fn_idx_satisfied(80, frozenset({"TemplarArchive"}), frozenset(), _sel("Zealot")))
 
     def test_siege_mode_consumes_unsieged_tank(self):
         # fn_idx=48 (Morph_SiegeMode) — SiegeTank selected + FactoryTechLab.
-        self.assertFalse(fn_idx_satisfied(48, frozenset(), frozenset(), "SiegeTank"))
-        self.assertTrue(fn_idx_satisfied(48, frozenset({"FactoryTechLab"}), frozenset(), "SiegeTank"))
+        self.assertFalse(fn_idx_satisfied(48, frozenset(), frozenset(), _sel("SiegeTank")))
+        self.assertTrue(fn_idx_satisfied(48, frozenset({"FactoryTechLab"}), frozenset(), _sel("SiegeTank")))
 
     def test_unsiege_consumes_sieged_tank(self):
         # fn_idx=49 (Morph_Unsiege) — SiegeTankSieged selected, no building req.
-        self.assertTrue(fn_idx_satisfied(49, frozenset(), frozenset(), "SiegeTankSieged"))
-        self.assertFalse(fn_idx_satisfied(49, frozenset(), frozenset(), "SiegeTank"))
+        self.assertTrue(fn_idx_satisfied(49, frozenset(), frozenset(), _sel("SiegeTankSieged")))
+        self.assertFalse(fn_idx_satisfied(49, frozenset(), frozenset(), _sel("SiegeTank")))
 
 
 class TestUniversalActions(unittest.TestCase):
     def test_no_op_always_satisfied(self):
-        self.assertTrue(fn_idx_satisfied(0, frozenset(), frozenset(), None))
+        self.assertTrue(fn_idx_satisfied(0, frozenset(), frozenset(), _NONE))
 
     def test_select_army_always_satisfied(self):
-        self.assertTrue(fn_idx_satisfied(1, frozenset(), frozenset(), None))
+        self.assertTrue(fn_idx_satisfied(1, frozenset(), frozenset(), _NONE))
 
     def test_select_point_always_satisfied(self):
-        self.assertTrue(fn_idx_satisfied(6, frozenset(), frozenset(), None))
+        self.assertTrue(fn_idx_satisfied(6, frozenset(), frozenset(), _NONE))
 
     def test_move_screen_needs_any_unit(self):
-        self.assertFalse(fn_idx_satisfied(2, frozenset(), frozenset(), None))
-        self.assertTrue(fn_idx_satisfied(2, frozenset(), frozenset(), "Marine"))
+        self.assertFalse(fn_idx_satisfied(2, frozenset(), frozenset(), _NONE))
+        self.assertTrue(fn_idx_satisfied(2, frozenset(), frozenset(), _sel("Marine")))
+
+
+class TestMixedSelection(unittest.TestCase):
+    """A mixed-type selection (post-``select_army``) must still satisfy
+    ANY_UNIT and OF_TYPE actions whose target intersects the selection.
+    Regression for the bug Copilot reviewer caught on PR #348."""
+
+    def test_mixed_army_satisfies_move(self):
+        # After select_army on a Marine + Marauder army, Move_screen must
+        # still be available even though no single "type" describes the selection.
+        self.assertTrue(fn_idx_satisfied(2, frozenset(), frozenset(), _sel("Marine", "Marauder")))
+
+    def test_mixed_army_satisfies_stim(self):
+        # Effect_Stim needs Marine or Marauder selected — a mixed selection
+        # containing either should satisfy it (PySC2 applies Stim to both).
+        self.assertTrue(
+            fn_idx_satisfied(
+                47,
+                frozenset({"Barracks"}),
+                frozenset({"Stimpack"}),
+                _sel("Marine", "Marauder"),
+            )
+        )
+
+    def test_mixed_army_without_target_type_still_fails_of_type(self):
+        # Train_Marine needs Barracks selected; a mixed army selection
+        # without any Barracks should still fail.
+        self.assertFalse(fn_idx_satisfied(7, frozenset({"Barracks"}), frozenset(), _sel("Marine", "Marauder")))
 
 
 class TestPreconditionsTableShape(unittest.TestCase):

@@ -34,6 +34,18 @@ formatting, internal refactors with no behaviour change — can be skipped.
   GreaterSpire) route through `UNIT_PRODUCERS` via the same `_train()`
   helper as regular units; Archon morph now accepts HighTemplar *or*
   DarkTemplar selection (previously HT-only).
+- `SC2Client._compute_selected_unit_types` (renamed from
+  `_compute_selected_unit_type`) now returns a ``frozenset[str]`` of
+  every distinct unit type in the current selection rather than collapsing
+  multi-type selections to ``None``. ``fn_idx_satisfied`` consumes the
+  set so that ``ANY_UNIT`` actions (Move/Attack/Stop/Patrol/HoldPosition)
+  stay satisfied after ``select_army`` on a mixed army, and ``OF_TYPE``
+  actions match whenever any selected type is in the target set (PySC2
+  applies the command to compatible units in the selection).
+- `SC2Client._compute_owned_buildings` now filters scanned
+  ``feature_units`` rows against the new `games.sc2.tech_tree.STRUCTURE_NAMES`
+  set, so SCVs / Marines / Probes no longer leak into the "buildings"
+  side of the tech-tree mask or the periodic state dump.
 - DEBUG-level periodic state dump in `SC2Client` (issue #346 follow-up).
   Every ~10 s of wall-clock time, the client logs a readable snapshot of
   current units, owned buildings, completed upgrades, currently-selected

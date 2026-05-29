@@ -845,25 +845,25 @@ class TestSC2ClientResolveAndDefer(unittest.TestCase):
 
     def test_no_op_passes_through(self):
         self.client._selected_count = 0.0
-        self.client._selected_unit_type = None
+        self.client._selected_unit_types = frozenset()
         self.client.step(np.array([0, 0.5, 0.5, 0], dtype=np.float32))
         self.assertEqual(int(self._captured_action[0]), 0)
 
     def test_select_army_passes_through(self):
         self.client._selected_count = 0.0
-        self.client._selected_unit_type = None
+        self.client._selected_unit_types = frozenset()
         self.client.step(np.array([1, 0.5, 0.5, 0], dtype=np.float32))
         self.assertEqual(int(self._captured_action[0]), 1)
 
     def test_any_unit_action_passes_when_unit_selected(self):
         self.client._selected_count = 3.0
-        self.client._selected_unit_type = "Marine"
+        self.client._selected_unit_types = frozenset({"Marine"})
         self.client.step(np.array([2, 0.4, 0.6, 0], dtype=np.float32))
         self.assertEqual(int(self._captured_action[0]), 2)  # Move_screen
 
     def test_build_passes_when_worker_selected(self):
         self.client._selected_count = 1.0
-        self.client._selected_unit_type = "SCV"
+        self.client._selected_unit_types = frozenset({"SCV"})
         self.client.step(np.array([8, 0.4, 0.6, 0], dtype=np.float32))
         self.assertEqual(int(self._captured_action[0]), 8)  # Build_Barracks
 
@@ -872,7 +872,7 @@ class TestSC2ClientResolveAndDefer(unittest.TestCase):
     def test_any_unit_action_with_empty_selection_emits_select_army_and_defers(self):
         """Move_screen with no selection → step 1 is select_army, step 2 replays Move."""
         self.client._selected_count = 0.0
-        self.client._selected_unit_type = None
+        self.client._selected_unit_types = frozenset()
         self.client.step(np.array([2, 0.4, 0.6, 0], dtype=np.float32))
         # Step 1: select_army issued.
         self.assertEqual(int(self._captured_action[0]), 1)
@@ -884,7 +884,7 @@ class TestSC2ClientResolveAndDefer(unittest.TestCase):
         # select_army (the mocked _timestep_to_obs_info doesn't do this).
         # The deferred Move_screen should now replay verbatim.
         self.client._selected_count = 3.0
-        self.client._selected_unit_type = "Marine"
+        self.client._selected_unit_types = frozenset({"Marine"})
         self.client.step(np.array([0, 0.0, 0.0, 0], dtype=np.float32))
         self.assertEqual(int(self._captured_action[0]), 2)
         self.assertIsNone(self.client._deferred_action)
@@ -897,7 +897,7 @@ class TestSC2ClientResolveAndDefer(unittest.TestCase):
             _FakeFunctions.Build_Barracks_screen.id,
         }
         self.client._selected_count = 1.0
-        self.client._selected_unit_type = "Marine"  # wrong: needs SCV
+        self.client._selected_unit_types = frozenset({"Marine"})  # wrong: needs SCV
         self.client.step(np.array([8, 0.5, 0.5, 0], dtype=np.float32))
         # select_idle_worker (fn_idx=4) issued first.
         self.assertEqual(int(self._captured_action[0]), 4)
@@ -915,7 +915,7 @@ class TestSC2ClientResolveAndDefer(unittest.TestCase):
             _FakeFunctions.Build_Barracks_screen.id,
         }
         self.client._selected_count = 0.0
-        self.client._selected_unit_type = None
+        self.client._selected_unit_types = frozenset()
         self.client._screen_xy_by_unit_type = {"SCV": (20, 30)}
         self.client.step(np.array([8, 0.5, 0.5, 0], dtype=np.float32))
         # select_point (fn_idx=6) issued at the cached worker position.
@@ -931,7 +931,7 @@ class TestSC2ClientResolveAndDefer(unittest.TestCase):
         (the mask should have prevented this upstream)."""
         self.client._available_actions = {_FakeFunctions.no_op.id}
         self.client._selected_count = 0.0
-        self.client._selected_unit_type = None
+        self.client._selected_unit_types = frozenset()
         self.client._screen_xy_by_unit_type = {}  # no Barracks cached
         # Train_Marine (fn_idx=7) with no Barracks anywhere.
         self.client.step(np.array([7, 0.5, 0.5, 0], dtype=np.float32))
@@ -946,7 +946,7 @@ class TestSC2ClientResolveAndDefer(unittest.TestCase):
         not raw PySC2 available_actions."""
         self.client._available_fn_ids = {2}  # only Move_screen
         self.client._selected_count = 1.0
-        self.client._selected_unit_type = "Marine"
+        self.client._selected_unit_types = frozenset({"Marine"})
         self.client._extreme_random_run_count = 2
         self.client._episodes_started = 1
         self.client.step(np.array([0, 0.0, 0.0, 0], dtype=np.float32))
@@ -958,7 +958,7 @@ class TestSC2ClientResolveAndDefer(unittest.TestCase):
     def test_extreme_random_phase_disabled_after_threshold(self):
         self.client._available_fn_ids = {2}
         self.client._selected_count = 1.0
-        self.client._selected_unit_type = "Marine"
+        self.client._selected_unit_types = frozenset({"Marine"})
         self.client._extreme_random_run_count = 1
         self.client._episodes_started = 2
 
@@ -1683,7 +1683,7 @@ class TestSC2ClientLastFnIdx(unittest.TestCase):
         self.client._timestep_to_obs_info = MagicMock(return_value=(np.zeros(10), {}))
         self.client._available_actions = None  # all available, so select_army resolves
         self.client._selected_count = 0.0
-        self.client._selected_unit_type = None
+        self.client._selected_unit_types = frozenset()
         self.client.step(np.array([2, 0.4, 0.6, 0], dtype=np.float32))
         self.assertEqual(self.client.last_fn_idx, 1)
 
@@ -1738,7 +1738,7 @@ class TestSC2ClientStateDumpLogging(unittest.TestCase):
         feats = {"game_loop": 5.0, "unit_count_SCV": 12.0, "unit_count_Marine": 3.0}
         self.client._owned_buildings = frozenset({"CommandCenter", "Barracks"})
         self.client._completed_upgrades = frozenset({"Stimpack"})
-        self.client._selected_unit_type = "Barracks"
+        self.client._selected_unit_types = frozenset({"Barracks"})
         self.client._available_fn_ids = {0, 7}  # no_op, Train_Marine_quick
 
         self.client._maybe_log_state_dump(feats)
@@ -1793,7 +1793,7 @@ class TestSC2ClientStateDumpLogging(unittest.TestCase):
         feats = {"game_loop": 5.0}
         self.client._owned_buildings = frozenset()
         self.client._completed_upgrades = frozenset()
-        self.client._selected_unit_type = None
+        self.client._selected_unit_types = frozenset()
         self.client._available_fn_ids = set()
 
         self.client._maybe_log_state_dump(feats)

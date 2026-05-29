@@ -23,6 +23,7 @@ from games.sc2.actions import FUNCTION_IDS, action_to_function_call, fn_ids_for_
 from games.sc2.obs_spec import get_spec
 from games.sc2.tech_tree import (
     PRECONDITIONS,
+    STRUCTURE_NAMES,
     WORKER_NAMES,
     SelectionReq,
     fn_idx_satisfied,
@@ -347,7 +348,11 @@ class SC2Client:
         self._completed_upgrades: frozenset[str] = frozenset()
         # Currently-selected unit-type name (None when nothing selected or
         # the selection is mixed across types).
-        self._selected_unit_type: str | None = None
+        # Set of currently-selected unit-type names.  Multi-type
+        # selections (e.g. ``select_army`` on a mixed Marine+Marauder
+        # army) keep both names so ``ANY_UNIT`` actions and ``OF_TYPE``
+        # actions whose target matches either type stay satisfied.
+        self._selected_unit_types: frozenset[str] = frozenset()
         # Cached screen (x, y) per friendly unit-type name, populated from
         # feature_units each step.  The deferred-action resolver uses this
         # to issue select_point on the right worker/building/unit when the
@@ -389,7 +394,7 @@ class SC2Client:
         self._last_fn_idx = 0
         self._owned_buildings = frozenset()
         self._completed_upgrades = frozenset()
-        self._selected_unit_type = None
+        self._selected_unit_types = frozenset()
         self._screen_xy_by_unit_type = {}
         self._deferred_action = None
         self._last_state_log_wall_s = None
@@ -641,8 +646,8 @@ class SC2Client:
                 return action, None  # no recourse; PySC2 will no-op it
             return selector, action
 
-        # OF_TYPE — selection must match one of selection_target.
-        if self._selected_unit_type is not None and self._selected_unit_type in pre.selection_target:
+        # OF_TYPE — selection must contain at least one type in selection_target.
+        if self._selected_unit_types & pre.selection_target:
             return action, None
 
         selector = self._pick_typed_selector(pre.selection_target)
@@ -873,7 +878,7 @@ class SC2Client:
         # (via info["available_fn_ids"]), and the deferred-action resolver.
         self._owned_buildings = self._compute_owned_buildings(ob)
         self._completed_upgrades = self._compute_completed_upgrades(ob)
-        self._selected_unit_type = self._compute_selected_unit_type(ob)
+        self._selected_unit_types = self._compute_selected_unit_types(ob)
         available_fn_ids = self._compute_available_fn_ids(ob)
         self._available_fn_ids = available_fn_ids
 
@@ -1491,7 +1496,7 @@ class SC2Client:
             if int(row[1]) != 1:
                 continue
             name = self._unit_type_id_to_name.get(int(row[0]))
-            if name is not None:
+            if name is not None and name in STRUCTURE_NAMES:
                 names.add(name)
         return frozenset(names)
 
@@ -1515,13 +1520,16 @@ class SC2Client:
                 names.add(name)
         return frozenset(names)
 
-    def _compute_selected_unit_type(self, ob: Any) -> str | None:
-        """Return the name of the currently-selected unit type, or None.
+    def _compute_selected_unit_types(self, ob: Any) -> frozenset[str]:
+        """Return the set of unit-type names currently in the selection.
 
-        Reads ``single_select`` and ``multi_select``; if the selection is
-        empty returns None; if it covers multiple distinct unit-type
-        names returns None (signalling "mixed", which the tech-tree
-        filter treats as "no specific type selected").
+        Reads ``single_select`` and ``multi_select``.  Empty selection →
+        empty frozenset.  Mixed-type selections (e.g. ``select_army`` on
+        a Marine + Marauder army) return all distinct types so that
+        ``ANY_UNIT`` precondition checks stay satisfied and ``OF_TYPE``
+        checks succeed whenever at least one selected unit matches the
+        action's target — PySC2 will route the command to the
+        compatible units in the selection.
         """
         if self._unit_type_id_to_name is None:
             self._unit_type_id_to_name = self._build_unit_type_lookup()
@@ -1541,9 +1549,7 @@ class SC2Client:
                 name = self._unit_type_id_to_name.get(int(row[0]))
                 if name is not None:
                     names.add(name)
-        if len(names) != 1:
-            return None
-        return next(iter(names))
+        return frozenset(names)
 
     def _compute_available_fn_ids(self, ob: Any) -> set[int]:
         """Compute the per-step internal fn_idx mask.
@@ -1577,7 +1583,7 @@ class SC2Client:
         # Tech-tree filter — exact game-state check.  Skipped when the
         # unit-type lookup is empty (PySC2 unavailable, e.g. unit tests):
         # without unit-type names we can't determine owned_buildings or
-        # selected_unit_type, so the tech filter would drop everything
+        # selected_unit_types, so the tech filter would drop everything
         # that requires a specific selection.  Fall back to race ∩ PySC2.
         if not self._unit_type_id_to_name:
             return set(candidate)
@@ -1589,7 +1595,7 @@ class SC2Client:
                 fn_idx,
                 self._owned_buildings,
                 self._completed_upgrades,
-                self._selected_unit_type,
+                self._selected_unit_types,
             )
         }
 
@@ -1646,7 +1652,10 @@ class SC2Client:
         buildings_str = self._format_set_or_dash(self._owned_buildings)
         upgrades_str = self._format_set_or_dash(self._completed_upgrades)
         actions_str = self._format_available_actions(self._available_fn_ids)
-        selected_str = self._selected_unit_type or "(nothing selected)"
+        if not self._selected_unit_types:
+            selected_str = "(nothing selected)"
+        else:
+            selected_str = ", ".join(sorted(self._selected_unit_types))
 
         logger.debug(
             "SC2 state @ game_loop=%d:\n"

@@ -251,6 +251,84 @@ UPGRADE_PREREQS: dict[str, frozenset[str]] = {
 
 
 # ---------------------------------------------------------------------------
+# Structure / building name set.
+# ---------------------------------------------------------------------------
+# Friendly unit-type names that count as structures for tech-tree purposes.
+# ``SC2Client._compute_owned_buildings`` filters its scan of ``feature_units``
+# down to this set so that SCVs / Marines / Probes don't pollute the
+# building set (which would bloat the state-dump's "buildings" line and
+# fool any future logic that scans owned_buildings).
+#
+# Covers every structure referenced by BUILDING_PREREQS, UNIT_PRODUCERS,
+# and PRECONDITIONS.required_buildings, plus add-ons and morphed-tier
+# buildings (Lair, Hive, OrbitalCommand, PlanetaryFortress, WarpGate,
+# GreaterSpire) and the six Terran tech-lab / reactor add-ons.
+
+STRUCTURE_NAMES: frozenset[str] = frozenset(
+    {
+        # Terran
+        "CommandCenter",
+        "OrbitalCommand",
+        "PlanetaryFortress",
+        "SupplyDepot",
+        "Refinery",
+        "Barracks",
+        "EngineeringBay",
+        "Bunker",
+        "MissileTurret",
+        "Factory",
+        "GhostAcademy",
+        "Armory",
+        "Starport",
+        "FusionCore",
+        "BarracksTechLab",
+        "BarracksReactor",
+        "FactoryTechLab",
+        "FactoryReactor",
+        "StarportTechLab",
+        "StarportReactor",
+        # Protoss
+        "Nexus",
+        "Pylon",
+        "Assimilator",
+        "Gateway",
+        "WarpGate",
+        "Forge",
+        "CyberneticsCore",
+        "PhotonCannon",
+        "ShieldBattery",
+        "RoboticsFacility",
+        "Stargate",
+        "TwilightCouncil",
+        "TemplarArchive",
+        "DarkShrine",
+        "RoboticsBay",
+        "FleetBeacon",
+        # Zerg
+        "Hatchery",
+        "Lair",
+        "Hive",
+        "Extractor",
+        "SpawningPool",
+        "EvolutionChamber",
+        "RoachWarren",
+        "BanelingNest",
+        "HydraliskDen",
+        "LurkerDenMP",
+        "Spire",
+        "GreaterSpire",
+        "NydusNetwork",
+        "InfestationPit",
+        "UltraliskCavern",
+        "SpineCrawler",
+        "SporeCrawler",
+        "CreepTumor",
+        "CreepTumorBurrowed",
+    }
+)
+
+
+# ---------------------------------------------------------------------------
 # Per-fn_idx Preconditions table.
 # ---------------------------------------------------------------------------
 # One Preconditions record per fn_idx in games.sc2.actions.FUNCTION_IDS.
@@ -491,12 +569,12 @@ def fn_idx_satisfied(
     fn_idx: int,
     owned_buildings: frozenset[str],
     completed_upgrades: frozenset[str],
-    selected_unit_type: str | None,
+    selected_unit_types: frozenset[str],
 ) -> bool:
     """Return True if all preconditions for *fn_idx* are met.
 
     Selection presence is checked here: if ``required_selection`` is
-    ``OF_TYPE`` or ``ANY_UNIT`` and *selected_unit_type* is ``None``,
+    ``OF_TYPE`` or ``ANY_UNIT`` and *selected_unit_types* is empty,
     the action is reported as unsatisfied.  The client's
     deferred-action queue is responsible for *issuing* the right
     selection — this function only reports whether the action could
@@ -510,9 +588,14 @@ def fn_idx_satisfied(
         Set of structure names currently owned by the agent.
     completed_upgrades :
         Set of upgrade/research names already completed.
-    selected_unit_type :
-        Name of the currently-selected unit, or ``None`` if nothing is
-        selected (or the selection is mixed).
+    selected_unit_types :
+        Set of unit-type names currently in the selection.  Empty
+        frozenset means "nothing selected".  A multi-type selection
+        (e.g. ``{"Marine", "Marauder"}`` after ``select_army``) satisfies
+        ``ANY_UNIT``, and satisfies ``OF_TYPE`` whenever any selected
+        type is in :attr:`Preconditions.selection_target` — PySC2 will
+        apply the issued command only to compatible units in the
+        selection.
     """
     pre = PRECONDITIONS.get(fn_idx)
     if pre is None:
@@ -533,12 +616,12 @@ def fn_idx_satisfied(
 
     if pre.required_selection == SelectionReq.NONE:
         return True
-    if selected_unit_type is None:
+    if not selected_unit_types:
         return False
     if pre.required_selection == SelectionReq.ANY_UNIT:
         return True
-    # OF_TYPE
-    return selected_unit_type in pre.selection_target
+    # OF_TYPE — at least one selected type must be in the target set.
+    return bool(selected_unit_types & pre.selection_target)
 
 
 def building_prereqs_met(building_name: str, owned_buildings: frozenset[str]) -> bool:
