@@ -17,6 +17,11 @@ formatting, internal refactors with no behaviour change — can be skipped.
 
 ## [Unreleased]
 
+
+---
+
+## [0.3.9] - 2026-05-29
+
 ### Added
 - SC2 hardcoded tech tree at `games/sc2/tech_tree.py` and a
   deferred-action queue in `games/sc2/client.py` (issue #346). Every
@@ -72,7 +77,6 @@ formatting, internal refactors with no behaviour change — can be skipped.
   filter can recognise structures and morph parents. The
   `_RICH_UNIT_TYPES`-driven per-unit-type observation features are
   unaffected (they filter at the feature-dict layer).
-
 
 ---
 
