@@ -200,4 +200,4 @@ class SelfPlayManager:
         if not self._pool:
             return None
         idx = int(self._rng.integers(len(self._pool)))
-        return self._pool[idx][1]
+        return copy.deepcopy(self._pool[idx][1])

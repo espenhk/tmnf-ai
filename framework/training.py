@@ -971,6 +971,11 @@ def _greedy_loop(
                 if log_stats_every_n_sims > 0 and sim % log_stats_every_n_sims == 0:
                     _log_periodic_stats(best_ep.info, sim)
 
+            if self_play_manager is not None:
+                _new_opp = self_play_manager.step(best_policy, improved)
+                if _new_opp is not None:
+                    env.set_opponent_policy(_new_opp)
+
             improvement_history.append(improved)
             if adaptive_mutation and len(improvement_history) == ADAPT_WINDOW and sim % ADAPT_WINDOW == 0:
                 p = sum(improvement_history) / ADAPT_WINDOW

@@ -74,7 +74,7 @@ enable_belief: false   # set true to activate fog-of-war belief obs + scouting r
 #
 # self_play_mode controls how the opponent is chosen each generation:
 #   exact   — opponent is always an exact copy of the current champion
-#             (default; equivalent to the original single-deepcopy behaviour)
+#             (default; refreshed each generation)
 #   mutated — opponent is a slightly mutated copy of the current champion;
 #             mutation strength set by self_play_mutation_scale
 #   top_n   — opponent rotates through a pool of the top-N champions seen

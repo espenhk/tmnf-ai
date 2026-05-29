@@ -613,6 +613,15 @@ class TestSelfPlayManagerTopNMode(unittest.TestCase):
         self.assertIsNotNone(opp)
         self.assertTrue(callable(opp))
 
+    def test_step_returns_fresh_copy_from_pool(self):
+        from framework.self_play import SelfPlayManager
+
+        manager = SelfPlayManager(mode="top_n", top_n=3, seed=0)
+        policy = _CallablePolicy(reward=1.0)
+        manager.build_initial_opponent(policy)
+        opp = manager.step(policy, improved=False)
+        self.assertIsNot(opp, manager._pool[0][1])
+
     def test_weak_champion_does_not_replace_stronger_pool_entry(self):
         from framework.self_play import SelfPlayManager
 
