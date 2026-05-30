@@ -43,9 +43,9 @@ jobs:
       sc2: ${{ steps.filter.outputs.sc2 }}
       atari: ${{ steps.filter.outputs.atari }}
       torcs: ${{ steps.filter.outputs.torcs }}
-      rocket-league: ${{ steps.filter.outputs.rocket-league }}
+      rocket_league: ${{ steps.filter.outputs.rocket_league }}
       iracing: ${{ steps.filter.outputs.iracing }}
-      assetto-corsa: ${{ steps.filter.outputs.assetto-corsa }}
+      assetto_corsa: ${{ steps.filter.outputs.assetto_corsa }}
     steps:
       - uses: actions/checkout@v4
 
@@ -76,6 +76,9 @@ jobs:
               - 'framework/**'
               - 'main.py'
               - 'pyproject.toml'
+              - 'tests/conftest.py'
+              - 'tests/helpers.py'
+              - 'tests/_parallel_eval_helpers.py'
               - 'tests/test_reward.py'
               - 'tests/test_rl_client.py'
               - 'tests/test_track.py'
@@ -85,36 +88,54 @@ jobs:
               - 'framework/**'
               - 'main.py'
               - 'pyproject.toml'
+              - 'tests/conftest.py'
+              - 'tests/helpers.py'
+              - 'tests/_parallel_eval_helpers.py'
               - 'tests/test_sc2_*.py'
             atari:
               - 'games/atari/**'
               - 'framework/**'
               - 'main.py'
               - 'pyproject.toml'
+              - 'tests/conftest.py'
+              - 'tests/helpers.py'
+              - 'tests/_parallel_eval_helpers.py'
               - 'tests/test_atari_*.py'
             torcs:
               - 'games/torcs/**'
               - 'framework/**'
               - 'main.py'
               - 'pyproject.toml'
+              - 'tests/conftest.py'
+              - 'tests/helpers.py'
+              - 'tests/_parallel_eval_helpers.py'
               - 'tests/test_torcs_*.py'
-            rocket-league:
+            rocket_league:
               - 'games/rocket_league/**'
               - 'framework/**'
               - 'main.py'
               - 'pyproject.toml'
+              - 'tests/conftest.py'
+              - 'tests/helpers.py'
+              - 'tests/_parallel_eval_helpers.py'
               - 'tests/test_rocket_league_*.py'
             iracing:
               - 'games/iracing/**'
               - 'framework/**'
               - 'main.py'
               - 'pyproject.toml'
+              - 'tests/conftest.py'
+              - 'tests/helpers.py'
+              - 'tests/_parallel_eval_helpers.py'
               - 'tests/test_iracing_controller.py'
-            assetto-corsa:
+            assetto_corsa:
               - 'games/assetto_corsa/**'
               - 'framework/**'
               - 'main.py'
               - 'pyproject.toml'
+              - 'tests/conftest.py'
+              - 'tests/helpers.py'
+              - 'tests/_parallel_eval_helpers.py'
               - 'tests/assetto_corsa/**'
 
   # -----------------------------------------------------------------
@@ -277,7 +298,7 @@ jobs:
   # -----------------------------------------------------------------
   test-rocket-league:
     needs: detect-changes
-    if: needs.detect-changes.outputs.rocket-league == 'true'
+    if: needs.detect-changes.outputs.rocket_league == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -329,7 +350,7 @@ jobs:
   # -----------------------------------------------------------------
   test-assetto-corsa:
     needs: detect-changes
-    if: needs.detect-changes.outputs.assetto-corsa == 'true'
+    if: needs.detect-changes.outputs.assetto_corsa == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
