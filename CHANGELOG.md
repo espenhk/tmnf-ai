@@ -17,6 +17,16 @@ formatting, internal refactors with no behaviour change — can be skipped.
 
 ## [Unreleased]
 
+### Fixed
+- SC2: build and train actions are now excluded from `available_fn_ids` when
+  the agent cannot afford them (issue #357). The action mask now filters by
+  mineral and vespene cost in addition to the existing tech-tree, building
+  prerequisite, and selection checks. `fn_idx_satisfied()` in
+  `games/sc2/tech_tree.py` accepts optional `minerals` and `vespene`
+  arguments (defaulting to `inf` for backwards compatibility); the client
+  tracks current resource counts each step and passes them to the filter.
+  Costs for all 118 fn_idx entries across Terran, Protoss, and Zerg are
+  recorded in the new `RESOURCE_COSTS` table in `tech_tree.py`.
 
 ---
 

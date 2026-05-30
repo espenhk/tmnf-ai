@@ -346,6 +346,9 @@ class SC2Client:
         # Tech-tree state cached from the latest timestep.
         self._owned_buildings: frozenset[str] = frozenset()
         self._completed_upgrades: frozenset[str] = frozenset()
+        # Current resource counts cached from the latest timestep (issue #357).
+        self._minerals: float = 0.0
+        self._vespene: float = 0.0
         # Currently-selected unit-type name (None when nothing selected or
         # the selection is mixed across types).
         # Set of currently-selected unit-type names.  Multi-type
@@ -395,6 +398,8 @@ class SC2Client:
         self._owned_buildings = frozenset()
         self._completed_upgrades = frozenset()
         self._selected_unit_types = frozenset()
+        self._minerals = 0.0
+        self._vespene = 0.0
         self._screen_xy_by_unit_type = {}
         self._deferred_action = None
         self._last_state_log_wall_s = None
@@ -873,12 +878,14 @@ class SC2Client:
         else:
             self._available_actions = None
 
-        # Compute the full internal mask: race ∩ PySC2 ∩ tech-tree ∩ selection.
+        # Compute the full internal mask: race ∩ PySC2 ∩ tech-tree ∩ selection ∩ resources.
         # Single source of truth — read by extreme-random sampler, policies
         # (via info["available_fn_ids"]), and the deferred-action resolver.
         self._owned_buildings = self._compute_owned_buildings(ob)
         self._completed_upgrades = self._compute_completed_upgrades(ob)
         self._selected_unit_types = self._compute_selected_unit_types(ob)
+        self._minerals = feats.get("minerals", 0.0)
+        self._vespene = feats.get("vespene", 0.0)
         available_fn_ids = self._compute_available_fn_ids(ob)
         self._available_fn_ids = available_fn_ids
 
@@ -1558,8 +1565,8 @@ class SC2Client:
           1. Race mask (configured race; falls back to inferred race when
              configured is "random").
           2. PySC2 ``available_actions`` (mapped to internal fn_idx).
-          3. Tech-tree filter: building prereqs, upgrade prereqs, and
-             selection-type requirements (see
+          3. Tech-tree filter: building prereqs, upgrade prereqs,
+             selection-type requirements, and resource costs (see
              :func:`games.sc2.tech_tree.fn_idx_satisfied`).
         """
         configured = (self._agent_race or "random").lower()
@@ -1580,8 +1587,8 @@ class SC2Client:
 
         candidate = race_set if pysc2_mapped is None else race_set & pysc2_mapped
 
-        # Tech-tree filter — exact game-state check.  Skipped when the
-        # unit-type lookup is empty (PySC2 unavailable, e.g. unit tests):
+        # Tech-tree + resource filter — exact game-state check.  Skipped when
+        # the unit-type lookup is empty (PySC2 unavailable, e.g. unit tests):
         # without unit-type names we can't determine owned_buildings or
         # selected_unit_types, so the tech filter would drop everything
         # that requires a specific selection.  Fall back to race ∩ PySC2.
@@ -1596,6 +1603,8 @@ class SC2Client:
                 self._owned_buildings,
                 self._completed_upgrades,
                 self._selected_unit_types,
+                self._minerals,
+                self._vespene,
             )
         }
 
