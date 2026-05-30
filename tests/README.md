@@ -595,7 +595,7 @@ import, so the suite runs with no SC2 binary or PySC2 package installed.
 fog-of-war belief machinery beyond the standalone `test_belief.py`
 encoder; long-horizon RL convergence on Simple64 (loops are run for a
 handful of iterations only); reading real `.SC2Replay` files end-to-end
-(covered by integration tests in `tests/integration/test_sc2.py`).
+(no integration test exists yet for `replay_bc`).
 
 ### test_sc2_obs_spec.py — SC2 obs spec
 - minigame dim (15); ladder dim (46); rich dim (103 = exact breakdown); ladder extends minigame; default = minigame; get_spec for minigame / ladder; minigame count; obs_names match dims

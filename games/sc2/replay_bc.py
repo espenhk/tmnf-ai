@@ -99,10 +99,13 @@ def _parse_replay_info(info: Any) -> tuple[int, dict[int, str]]:
 
 
 def _resolve_player_id(player_id: int | str, winner_id: int) -> int:
-    """Convert *player_id* (``"winner"`` or 1/2) to a concrete integer."""
+    """Convert *player_id* (``"winner"`` or a positive integer) to a concrete integer."""
     if player_id == _WINNER_SENTINEL:
         return winner_id if winner_id != 0 else 1
-    return int(player_id)
+    pid = int(player_id)
+    if pid < 1:
+        raise ValueError(f"player_id must be a positive integer, got {player_id!r}")
+    return pid
 
 
 def _pick_best_action(function_calls: list[Any], strategy: str) -> Any | None:
@@ -236,12 +239,14 @@ def replay_observations(
             # Extract actions issued during this step.
             raw_actions = list(obs_proto.actions)
             if not raw_actions:
+                state.last_fn_idx = 0  # idle frame → no_op for next obs
                 controller.step(step_mul)
                 continue
 
             function_calls = [feat.reverse_action(a) for a in raw_actions]
             chosen_fc = _pick_best_action(function_calls, multi_action_strategy)
             if chosen_fc is None:
+                state.last_fn_idx = 0
                 controller.step(step_mul)
                 continue
 
@@ -250,6 +255,7 @@ def replay_observations(
             )
             if action_vec is None:
                 skipped_unknown += 1
+                state.last_fn_idx = 0
                 logger.debug(
                     "Skipping step in %s: unknown PySC2 fn_id %d",
                     path.name,
@@ -356,12 +362,14 @@ def _read_one_replay(
 
             raw_actions = list(obs_proto.actions)
             if not raw_actions:
+                state.last_fn_idx = 0  # idle frame → no_op for next obs
                 controller.step(step_mul)
                 continue
 
             function_calls = [feat.reverse_action(a) for a in raw_actions]
             chosen_fc = _pick_best_action(function_calls, multi_action_strategy)
             if chosen_fc is None:
+                state.last_fn_idx = 0
                 controller.step(step_mul)
                 continue
 
@@ -370,6 +378,7 @@ def _read_one_replay(
             )
             if action_vec is None:
                 skipped_unknown += 1
+                state.last_fn_idx = 0
                 logger.debug(
                     "Skipping step in %s: unknown PySC2 fn_id %d",
                     path.name,

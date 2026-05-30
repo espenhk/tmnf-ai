@@ -76,11 +76,11 @@ def _make_fake_pysc2():
     pysc2.run_configs = run_configs_mod
     pysc2.lib = lib_mod
 
-    sys.modules.setdefault("pysc2", pysc2)
-    sys.modules.setdefault("pysc2.run_configs", run_configs_mod)
-    sys.modules.setdefault("pysc2.lib", lib_mod)
-    sys.modules.setdefault("pysc2.lib.features", features_mod)
-    sys.modules.setdefault("pysc2.lib.actions", actions_mod)
+    sys.modules["pysc2"] = pysc2
+    sys.modules["pysc2.run_configs"] = run_configs_mod
+    sys.modules["pysc2.lib"] = lib_mod
+    sys.modules["pysc2.lib.features"] = features_mod
+    sys.modules["pysc2.lib.actions"] = actions_mod
     return pysc2, run_configs_mod, features_mod
 
 
@@ -102,8 +102,8 @@ def _make_fake_s2api():
     api_mod.RequestStartReplay = _ProtoStub
 
     s2_mod.sc2api_pb2 = api_mod
-    sys.modules.setdefault("s2clientprotocol", s2_mod)
-    sys.modules.setdefault("s2clientprotocol.sc2api_pb2", api_mod)
+    sys.modules["s2clientprotocol"] = s2_mod
+    sys.modules["s2clientprotocol.sc2api_pb2"] = api_mod
     return s2_mod, api_mod
 
 
