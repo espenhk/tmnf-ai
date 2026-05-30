@@ -17,6 +17,11 @@ formatting, internal refactors with no behaviour change — can be skipped.
 
 ## [Unreleased]
 
+
+---
+
+## [0.3.11] - 2026-05-30
+
 ### Added
 - SC2 self-play now supports three opponent-selection modes (issue #345).
   Set `self_play_mode` in `training_params.yaml` (default `"exact"`):
@@ -33,7 +38,6 @@ formatting, internal refactors with no behaviour change — can be skipped.
   Implemented in `framework/self_play.py` (`SelfPlayManager`); the
   opponent is refreshed at the end of each generation in all four greedy
   loops (`hill_climbing`, `q_learning`, `cmaes`, `genetic`).
-
 
 ---
 
