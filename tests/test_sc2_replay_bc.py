@@ -111,6 +111,7 @@ def _make_fake_s2api():
 _pysc2_pkg, _run_configs_mod, _features_mod = _make_fake_pysc2()
 _s2_pkg, _sc2_api_mod = _make_fake_s2api()
 
+from games.sc2.obs_spec import SC2_MINIGAME_OBS_SPEC  # noqa: E402
 from games.sc2.replay_bc import (  # noqa: E402
     _parse_replay_info,
     _pick_best_action,
@@ -121,7 +122,6 @@ from games.sc2.replay_bc import (  # noqa: E402
     load_dataset,
     replay_observations,
 )
-from games.sc2.obs_spec import SC2_MINIGAME_OBS_SPEC
 
 _OBS_DIM = len(SC2_MINIGAME_OBS_SPEC.names)
 _OBS_NAMES = SC2_MINIGAME_OBS_SPEC.names
@@ -803,7 +803,7 @@ class TestLoadDataset(unittest.TestCase):
         ep_starts = np.array(episode_starts, dtype=np.int64)
         ep_lengths = np.array(episode_lengths, dtype=np.int64)
         ep_id = np.concatenate(
-            [np.full(l, i, dtype=np.int64) for i, l in enumerate(episode_lengths)]
+            [np.full(n, i, dtype=np.int64) for i, n in enumerate(episode_lengths)]
         )
         np.savez_compressed(
             str(path),
