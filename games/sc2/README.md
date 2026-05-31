@@ -658,20 +658,23 @@ Champion weights are saved as `<experiment_dir>/weights.npz`. Trainer state (ES 
 ## Behaviour cloning from replays
 
 Offline behaviour cloning (BC) lets you base-train a policy from human (or
-high-level AI) SC2 gameplay before any RL fine-tuning. The workflow:
+high-level AI) SC2 gameplay before any RL fine-tuning. The planned workflow
+(CLI wired up in issue #353 [4/6]):
 
 ```bash
 # 1. Behaviour-clone from a folder of replays (winner of each game, Terran-only)
+#    NOTE: --bc / --replay-dir / --bc-race are added in issue #353 [4/6].
+#    The commands below will not work until that PR is merged.
 python main.py myrun --game sc2 --bc --replay-dir /path/to/replays --bc-race terran
 
 # 2. Fine-tune from the BC weights with whatever policy_type is configured
 python main.py myrun --game sc2
 ```
 
-`--bc` is SC2-only (rejected with an error for other games). The resulting
-`policy_weights.yaml` (and optional `trainer_state.npz`) are written to the
-standard experiment directory; the normal SC2 training loop auto-loads them on
-the next run, so step 2 is just a regular training run.
+Once wired up, `--bc` will be SC2-only (rejected with an error for other games).
+The resulting `policy_weights.yaml` (and optional `trainer_state.npz`) are
+written to the standard experiment directory; the normal SC2 training loop
+auto-loads them on the next run, so step 2 is just a regular training run.
 
 ### Getting replay data
 

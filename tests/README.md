@@ -71,7 +71,7 @@
   - [test\_sc2\_play.py — `play_sc2.py` script](#test_sc2_playpy--play_sc2py-script)
   - [test\_sc2\_simple64\_training.py — Simple64 ladder integration](#test_sc2_simple64_trainingpy--simple64-ladder-integration)
   - [test\_sc2\_analytics.py — SC2-specific analytics plots and flags](#test_sc2_analyticspy--sc2-specific-analytics-plots-and-flags)
-  - [test\_sc2\_replay\_bc.py — SC2 replay reader → BC demonstration dataset (issue #351)](#test_sc2_replay_bcpy--sc2-replay-reader--bc-demonstration-dataset-issue-351)
+  - [test\_sc2\_replay\_bc.py — SC2 replay reader → BC demonstration dataset (issues #351, #352)](#test_sc2_replay_bcpy--sc2-replay-reader--bc-demonstration-dataset-issues-351-352)
 - [Rocket League](#rocket-league)
   - [test\_rocket\_league\_obs\_spec.py — Rocket League observation spec (142-dim)](#test_rocket_league_obs_specpy--rocket-league-observation-spec-142-dim)
   - [test\_rocket\_league\_reward.py — Rocket League reward calc](#test_rocket_league_rewardpy--rocket-league-reward-calc)
