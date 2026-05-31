@@ -17,6 +17,11 @@ formatting, internal refactors with no behaviour change — can be skipped.
 
 ## [Unreleased]
 
+
+---
+
+## [0.3.12] - 2026-05-31
+
 ### Fixed
 - SC2: build and train actions are now excluded from `available_fn_ids` when
   the agent cannot afford them (issue #357). The action mask now filters by
