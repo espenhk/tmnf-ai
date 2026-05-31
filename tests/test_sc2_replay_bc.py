@@ -121,6 +121,7 @@ from games.sc2.replay_bc import (  # noqa: E402
     iter_replays,
     load_dataset,
     replay_observations,
+    validate_replay_dir,
 )
 
 _OBS_DIM = len(SC2_MINIGAME_OBS_SPEC.names)
@@ -250,6 +251,124 @@ def _reset_fakes() -> None:
     """Reset the injected fakes to avoid test cross-contamination."""
     _run_configs_mod.get.reset_mock(return_value=True, side_effect=True)
     _features_mod.features_from_game_info.reset_mock(return_value=True, side_effect=True)
+
+
+# ---------------------------------------------------------------------------
+# Tests: validate_replay_dir (issue #352)
+# ---------------------------------------------------------------------------
+
+
+class TestValidateReplayDir(unittest.TestCase):
+    def test_nonexistent_folder_raises(self):
+        with self.assertRaises(ValueError) as ctx:
+            validate_replay_dir("/nonexistent/path/that/does/not/exist")
+        self.assertIn("does not exist", str(ctx.exception))
+
+    def test_file_path_raises(self):
+        import tempfile
+
+        with tempfile.NamedTemporaryFile(suffix=".SC2Replay") as f:
+            with self.assertRaises(ValueError) as ctx:
+                validate_replay_dir(f.name)
+        self.assertIn("not a directory", str(ctx.exception))
+
+    def test_empty_folder_raises(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as d:
+            with self.assertRaises(ValueError) as ctx:
+                validate_replay_dir(d)
+        self.assertIn("No .SC2Replay files found", str(ctx.exception))
+
+    def test_returns_sc2replay_files_only(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            (d / "game1.SC2Replay").touch()
+            (d / "game2.SC2Replay").touch()
+            (d / "notes.txt").touch()
+            result = validate_replay_dir(d)
+            self.assertEqual([p.name for p in result], ["game1.SC2Replay", "game2.SC2Replay"])
+
+    def test_returns_sorted_paths(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            (d / "b.SC2Replay").touch()
+            (d / "a.SC2Replay").touch()
+            result = validate_replay_dir(d)
+            self.assertEqual(result[0].name, "a.SC2Replay")
+            self.assertEqual(result[1].name, "b.SC2Replay")
+
+    def test_race_filter_warning_emitted(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            (d / "game.SC2Replay").touch()
+            with self.assertLogs("games.sc2.replay_bc", level="WARNING") as cm:
+                validate_replay_dir(d, race="terran")
+            self.assertTrue(any("terran" in msg for msg in cm.output))
+
+    def test_race_any_no_warning(self):
+        import logging
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            (d / "game.SC2Replay").touch()
+            with self.assertLogs("games.sc2.replay_bc", level="INFO") as cm:
+                validate_replay_dir(d, race="any")
+            # No WARNING lines about race should appear
+            self.assertFalse(any("WARNING" in msg and "Race filter" in msg for msg in cm.output))
+
+    def test_race_none_no_warning(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            (d / "game.SC2Replay").touch()
+            with self.assertLogs("games.sc2.replay_bc", level="INFO") as cm:
+                validate_replay_dir(d, race=None)
+            self.assertFalse(any("Race filter" in msg for msg in cm.output))
+
+    def test_version_mismatch_warning_emitted(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            (d / "replay_3.0.0.12345.SC2Replay").touch()
+            with self.assertLogs("games.sc2.replay_bc", level="WARNING") as cm:
+                validate_replay_dir(d, version="4.9.3")
+            self.assertTrue(any("4.9.3" in msg for msg in cm.output))
+
+    def test_version_match_no_warning(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            (d / "replay_4.9.3.77379.SC2Replay").touch()
+            with self.assertLogs("games.sc2.replay_bc", level="INFO") as cm:
+                validate_replay_dir(d, version="4.9.3")
+            self.assertFalse(
+                any("WARNING" in msg and "version" in msg.lower() for msg in cm.output)
+            )
+
+    def test_version_partial_mismatch_warns(self):
+        """Warns when SOME but not all replays match the version string."""
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            (d / "replay_4.9.3.77379.SC2Replay").touch()
+            (d / "replay_4.8.2.70000.SC2Replay").touch()
+            with self.assertLogs("games.sc2.replay_bc", level="WARNING") as cm:
+                validate_replay_dir(d, version="4.9.3")
+            warning_msgs = [m for m in cm.output if "WARNING" in m and "version" in m.lower()]
+            self.assertEqual(len(warning_msgs), 1)
+            self.assertIn("1/2", warning_msgs[0])
 
 
 # ---------------------------------------------------------------------------
