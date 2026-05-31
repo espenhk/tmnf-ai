@@ -17,6 +17,11 @@ formatting, internal refactors with no behaviour change — can be skipped.
 
 ## [Unreleased]
 
+
+---
+
+## [0.3.14] - 2026-05-31
+
 ### Changed
 - **SC2: removed the Patrol commands from the action space (issue #359).**
   `Patrol_screen` and `Patrol_minimap` (the rarely-useful follow/patrol-unit
