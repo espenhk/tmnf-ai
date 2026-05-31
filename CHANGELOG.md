@@ -17,6 +17,11 @@ formatting, internal refactors with no behaviour change — can be skipped.
 
 ## [Unreleased]
 
+
+---
+
+## [0.3.15] - 2026-05-31
+
 ### Added
 - SC2: new `idle_worker_penalty` reward config key (issue #358).  Per-step
   penalty scaled by `idle_worker_count` from PySC2 — each idle worker
