@@ -136,3 +136,13 @@ small_selection_bonus: 0.0
 # --- Economy delta (mineral + vespene) ---
 # Recommended: 0.001 for ladder maps (Simple64), 0.0 for minigames.
 economy_weight: 0.001
+
+# --- Tech-tree unlock bonus (issue #360) ---
+# One-shot bonus per fn_idx that becomes newly available for the first time in
+# an episode, restricted to actions whose tech-tree preconditions include at
+# least one required building (e.g. Build_Barracks_screen unlocks when a
+# SupplyDepot is finished; Build_Factory_screen unlocks when Barracks is built).
+# Selection-only actions (Move_screen, Attack_screen, Train_Marine_quick) and
+# always-available actions (no_op, select_army) are excluded.
+# Set to 0.0 to disable (default).  Recommended starting range: 1.0–10.0.
+new_action_unlock_bonus: 0.0
