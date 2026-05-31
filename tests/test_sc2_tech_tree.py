@@ -242,7 +242,7 @@ class TestMixedSelection(unittest.TestCase):
 
 class TestResourceCostFilter(unittest.TestCase):
     """Resource-cost gating (issue #357): actions whose mineral/vespene cost
-    exceeds current supply must be excluded from the available mask."""
+    exceeds current resources must be excluded from the available mask."""
 
     def test_no_minerals_blocks_supply_depot(self):
         # fn_idx=9 (Build_SupplyDepot) costs 100 minerals.

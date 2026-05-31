@@ -54,7 +54,7 @@ from __future__ import annotations
 import json
 import logging
 import pathlib
-from typing import TYPE_CHECKING, Any, Iterator
+from typing import Any, Iterator
 
 import numpy as np
 
@@ -537,7 +537,9 @@ def build_dataset(
     replay_paths = iter_replays(folder)
     if not replay_paths:
         raise ValueError(f"No .SC2Replay files found in {folder!r}")
-    if max_replays is not None and max_replays > 0:
+    if max_replays is not None:
+        if max_replays <= 0:
+            raise ValueError(f"max_replays must be a positive integer, got {max_replays!r}")
         replay_paths = replay_paths[:max_replays]
         logger.info("max_replays=%d: processing first %d replay(s)", max_replays, len(replay_paths))
 
@@ -783,8 +785,9 @@ def _fit_bc_mlp(
             if sp_mask.any():
                 diff = sp_sig[sp_mask] - xy_b[sp_mask]  # (M, 2)
                 sp_loss = float(np.mean(diff**2))
-                # Gradient: ∂MSE/∂sp_logit = (2*(sig-y)/B) * sig*(1-sig)
-                d_sp_sig = 2.0 * diff / B
+                M = int(sp_mask.sum())
+                # Gradient: ∂MSE/∂sp_logit = (diff/M) * sig*(1-sig)
+                d_sp_sig = diff / M
                 d_sp[sp_mask] = d_sp_sig * sp_sig[sp_mask] * (1.0 - sp_sig[sp_mask])
 
             total_loss += ce_loss + sp_loss
@@ -958,6 +961,12 @@ def fit_bc(
     if target == "sc2_genetic":
         return _fit_bc_linear(obs_arr, act_arr, obs_spec)
 
+    if target != "sc2_reinforce":
+        raise ValueError(
+            f"Unknown BC target {target!r}. "
+            "Supported targets: 'sc2_reinforce' (MLP), 'sc2_genetic' (linear)."
+        )
+
     return _fit_bc_mlp(
         obs_arr,
         act_arr,
@@ -1041,6 +1050,8 @@ def run(
     race_filter: str | None = None
     if race and race.lower() not in ("", "any"):
         race_filter = race.lower()
+
+    validate_replay_dir(replay_dir, race=race_filter)
 
     # Build dataset in a temporary file
     with tempfile.TemporaryDirectory() as tmp:
