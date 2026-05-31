@@ -25,8 +25,10 @@ formatting, internal refactors with no behaviour change — can be skipped.
   `games/sc2/tech_tree.py` accepts optional `minerals` and `vespene`
   arguments (defaulting to `inf` for backwards compatibility); the client
   tracks current resource counts each step and passes them to the filter.
-  Costs for all 118 fn_idx entries across Terran, Protoss, and Zerg are
-  recorded in the new `RESOURCE_COSTS` table in `tech_tree.py`.
+  Costs for every build/train fn_idx with a non-zero mineral or vespene
+  cost across Terran, Protoss, and Zerg are recorded in the new
+  `RESOURCE_COSTS` table in `tech_tree.py`; zero-cost actions (movement,
+  selection, energy abilities, mode-change morphs) have no entry.
 
 ---
 

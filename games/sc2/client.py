@@ -1568,6 +1568,12 @@ class SC2Client:
           3. Tech-tree filter: building prereqs, upgrade prereqs,
              selection-type requirements, and resource costs (see
              :func:`games.sc2.tech_tree.fn_idx_satisfied`).
+
+        Note: the resource filter uses the agent's current mineral/vespene
+        bank as of this step.  It does not account for resources already
+        committed by a deferred/queued action in the same decision cycle, so
+        back-to-back build commands can still over-draw resources if the mask
+        is consulted again before the first command executes.
         """
         configured = (self._agent_race or "random").lower()
         if configured == "random":

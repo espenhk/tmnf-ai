@@ -260,12 +260,8 @@ class TestResourceCostFilter(unittest.TestCase):
     def test_vespene_cost_gating(self):
         # fn_idx=26 (Build_Factory) costs 150 minerals + 100 vespene.
         # Fail on insufficient vespene even if minerals are sufficient.
-        self.assertFalse(
-            fn_idx_satisfied(26, frozenset({"Barracks"}), frozenset(), _SCV, minerals=200, vespene=99)
-        )
-        self.assertTrue(
-            fn_idx_satisfied(26, frozenset({"Barracks"}), frozenset(), _SCV, minerals=150, vespene=100)
-        )
+        self.assertFalse(fn_idx_satisfied(26, frozenset({"Barracks"}), frozenset(), _SCV, minerals=200, vespene=99))
+        self.assertTrue(fn_idx_satisfied(26, frozenset({"Barracks"}), frozenset(), _SCV, minerals=150, vespene=100))
 
     def test_battlecruiser_double_cost(self):
         # fn_idx=43 (Train_Battlecruiser) costs 400 minerals + 300 vespene.
@@ -312,9 +308,7 @@ class TestResourceCostFilter(unittest.TestCase):
         # resource cost (mode changes only).
         self.assertFalse(fn_idx_satisfied(48, frozenset(), frozenset(), _sel("SiegeTank"), minerals=0))
         # fails because missing FactoryTechLab prerequisite, not resource cost
-        self.assertTrue(
-            fn_idx_satisfied(48, frozenset({"FactoryTechLab"}), frozenset(), _sel("SiegeTank"), minerals=0)
-        )
+        self.assertTrue(fn_idx_satisfied(48, frozenset({"FactoryTechLab"}), frozenset(), _sel("SiegeTank"), minerals=0))
         self.assertTrue(fn_idx_satisfied(49, frozenset(), frozenset(), _sel("SiegeTankSieged"), minerals=0))
 
     def test_backwards_compat_no_resource_args(self):
