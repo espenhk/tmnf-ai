@@ -1789,5 +1789,122 @@ class TestSC2IdleWorkerPenalty(unittest.TestCase):
         self.assertAlmostEqual(comp["idle_worker_penalty"], -8.0)
 
 
+class TestNewActionUnlockBonus(unittest.TestCase):
+    """Tests for SC2RewardCalculator.new_action_unlock_bonus (issue #360)."""
+
+    def _base_info(self) -> dict:
+        return {
+            "prev_score": 0.0,
+            "score": 0.0,
+            "prev_minerals": 0.0,
+            "minerals": 0.0,
+            "prev_vespene": 0.0,
+            "vespene": 0.0,
+            "action_fn_idx": 0,
+        }
+
+    def _make_calc(self, bonus: float) -> SC2RewardCalculator:
+        return SC2RewardCalculator(
+            SC2RewardConfig(
+                new_action_unlock_bonus=bonus,
+                score_weight=0.0,
+                step_penalty=0.0,
+                economy_weight=0.0,
+                win_bonus=0.0,
+                loss_penalty=0.0,
+                move_exploration_bonus=0.0,
+            )
+        )
+
+    def test_default_is_zero(self):
+        cfg = SC2RewardConfig()
+        self.assertEqual(cfg.new_action_unlock_bonus, 0.0)
+
+    def test_tech_gated_fn_ids_nonempty(self):
+        # Verify the class-level precomputed set has at least some entries.
+        # fn_idx 8 = Build_Barracks_screen (requires SupplyDepot) must be included.
+        self.assertIn(8, SC2RewardCalculator._TECH_GATED_FN_IDS)
+
+    def test_non_gated_fn_ids_excluded(self):
+        # no_op (0), select_army (1), Move_screen (2) have no required_buildings.
+        for fn_idx in (0, 1, 2):
+            self.assertNotIn(fn_idx, SC2RewardCalculator._TECH_GATED_FN_IDS)
+
+    def test_bonus_fires_on_first_appearance(self):
+        calc = self._make_calc(bonus=5.0)
+        info = {**self._base_info(), "available_fn_ids": {8}}  # Build_Barracks_screen
+        total, comp = calc.compute_with_components(
+            prev_state=None, curr_state=None, finished=False, elapsed_s=1.0, info=info
+        )
+        self.assertAlmostEqual(comp["new_action_unlock"], 5.0)
+        self.assertAlmostEqual(total, 5.0)
+
+    def test_bonus_does_not_fire_again_same_episode(self):
+        calc = self._make_calc(bonus=5.0)
+        info = {**self._base_info(), "available_fn_ids": {8}}
+        calc.compute_with_components(prev_state=None, curr_state=None, finished=False, elapsed_s=1.0, info=info)
+        # Second step — same fn_idx still available.
+        _, comp2 = calc.compute_with_components(
+            prev_state=None, curr_state=None, finished=False, elapsed_s=1.0, info=info
+        )
+        self.assertAlmostEqual(comp2["new_action_unlock"], 0.0)
+
+    def test_bonus_fires_again_after_reset(self):
+        calc = self._make_calc(bonus=5.0)
+        info = {**self._base_info(), "available_fn_ids": {8}}
+        calc.compute_with_components(prev_state=None, curr_state=None, finished=False, elapsed_s=1.0, info=info)
+        calc.reset()
+        _, comp = calc.compute_with_components(
+            prev_state=None, curr_state=None, finished=False, elapsed_s=1.0, info=info
+        )
+        self.assertAlmostEqual(comp["new_action_unlock"], 5.0)
+
+    def test_bonus_scales_with_count(self):
+        # Two tech-gated fn_ids unlocked simultaneously → 2× bonus.
+        calc = self._make_calc(bonus=3.0)
+        # fn_idx 8 = Build_Barracks_screen, fn_idx 26 = Build_Factory_screen
+        # (both are building-gated per PRECONDITIONS)
+        tech_gated = SC2RewardCalculator._TECH_GATED_FN_IDS
+        two_gated = set(list(tech_gated)[:2])
+        info = {**self._base_info(), "available_fn_ids": two_gated}
+        _, comp = calc.compute_with_components(
+            prev_state=None, curr_state=None, finished=False, elapsed_s=1.0, info=info
+        )
+        self.assertAlmostEqual(comp["new_action_unlock"], 3.0 * 2)
+
+    def test_non_gated_actions_do_not_trigger(self):
+        calc = self._make_calc(bonus=5.0)
+        # Only non-gated fn_ids in available_fn_ids.
+        info = {**self._base_info(), "available_fn_ids": {0, 1, 2, 3}}
+        _, comp = calc.compute_with_components(
+            prev_state=None, curr_state=None, finished=False, elapsed_s=1.0, info=info
+        )
+        self.assertAlmostEqual(comp["new_action_unlock"], 0.0)
+
+    def test_disabled_when_bonus_is_zero(self):
+        calc = self._make_calc(bonus=0.0)
+        info = {**self._base_info(), "available_fn_ids": {8, 26}}
+        _, comp = calc.compute_with_components(
+            prev_state=None, curr_state=None, finished=False, elapsed_s=1.0, info=info
+        )
+        self.assertAlmostEqual(comp["new_action_unlock"], 0.0)
+
+    def test_missing_available_fn_ids_key_no_crash(self):
+        calc = self._make_calc(bonus=5.0)
+        info = self._base_info()  # no "available_fn_ids" key
+        _, comp = calc.compute_with_components(
+            prev_state=None, curr_state=None, finished=False, elapsed_s=1.0, info=info
+        )
+        self.assertAlmostEqual(comp["new_action_unlock"], 0.0)
+
+    def test_components_sum_equals_total(self):
+        calc = self._make_calc(bonus=5.0)
+        info = {**self._base_info(), "available_fn_ids": {8}}
+        total, comp = calc.compute_with_components(
+            prev_state=None, curr_state=None, finished=False, elapsed_s=1.0, info=info
+        )
+        self.assertAlmostEqual(total, sum(comp.values()), places=5)
+
+
 if __name__ == "__main__":
     unittest.main()

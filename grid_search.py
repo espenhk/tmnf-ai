@@ -157,6 +157,8 @@ _ABBREV = {
     "passive_under_fire_penalty": "pufp",
     "small_selection_bonus": "ssb",
     "attack_bonus": "atb",
+    "early_random_action_bonus": "erab",
+    "new_action_unlock_bonus": "naub",
     "airborne_penalty": "ap",
     "crash_threshold_m": "ct",
     "off_track_penalty": "otp",

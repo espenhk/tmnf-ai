@@ -17,6 +17,14 @@ formatting, internal refactors with no behaviour change — can be skipped.
 
 ## [Unreleased]
 
+### Added
+- SC2: `new_action_unlock_bonus` reward config key (issue #360). Fires a
+  one-shot bonus per episode the first time a tech-tree-gated action appears
+  in `available_fn_ids` (i.e. becomes fully executable — prerequisite building
+  exists, correct unit selected, and affordable). Only actions with at least
+  one `required_buildings` precondition are eligible; selection-only and
+  always-available actions are excluded. Default `0.0` — opt-in. Set in
+  `reward_config.yaml`.
 
 ---
 
