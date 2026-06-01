@@ -378,7 +378,7 @@ class SC2RewardCalculator(RewardCalculatorBase):
         ``click_attack_bonus``, ``attack_bonus``, ``attack_friendly_penalty``,
         ``early_random_action``, ``new_action_unlock``, ``unit_loss``,
         ``damage_taken``, ``passive_under_fire``, ``small_selection``,
-        ``step_penalty`` and ``terminal`` separately.
+        ``resource_banking``, ``step_penalty`` and ``terminal`` separately.
         """
         cfg = self.config
         components: dict[str, float] = {}
