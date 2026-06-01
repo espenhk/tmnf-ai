@@ -249,7 +249,7 @@ class TestSC2RewardCalculator(unittest.TestCase):
                 "vespene": 250.0,   # 50 excess
             },
         )
-        # Total excess: 250 * -0.001 = -0.25
+        # Total excess: (200 + 50) * -0.001 = -0.25
         self.assertAlmostEqual(r, -0.25)
 
     def test_excess_resource_penalty_not_applied_below_thresholds(self):
@@ -271,6 +271,62 @@ class TestSC2RewardCalculator(unittest.TestCase):
             },
         )
         self.assertAlmostEqual(r, 0.0)
+
+    def test_excess_resource_penalty_exact_threshold(self):
+        calc = self._make_calc(
+            score_weight=0.0,
+            step_penalty=0.0,
+            excess_resource_penalty=-0.001,
+        )
+        r = calc.compute(
+            prev_state=None,
+            curr_state=None,
+            finished=False,
+            elapsed_s=1.0,
+            info={
+                "prev_score": 0.0,
+                "score": 0.0,
+                "minerals": 300.0,  # exactly threshold
+                "vespene": 200.0,   # exactly threshold
+            },
+        )
+        self.assertAlmostEqual(r, 0.0)
+
+    def test_excess_resource_penalty_one_exceeds(self):
+        calc = self._make_calc(
+            score_weight=0.0,
+            step_penalty=0.0,
+            excess_resource_penalty=-0.001,
+        )
+        # Only minerals exceed
+        r_min = calc.compute(
+            prev_state=None,
+            curr_state=None,
+            finished=False,
+            elapsed_s=1.0,
+            info={
+                "prev_score": 0.0,
+                "score": 0.0,
+                "minerals": 400.0,  # 100 excess
+                "vespene": 0.0,
+            },
+        )
+        self.assertAlmostEqual(r_min, -0.1)
+
+        # Only gas exceeds
+        r_gas = calc.compute(
+            prev_state=None,
+            curr_state=None,
+            finished=False,
+            elapsed_s=1.0,
+            info={
+                "prev_score": 0.0,
+                "score": 0.0,
+                "minerals": 0.0,
+                "vespene": 250.0,  # 50 excess
+            },
+        )
+        self.assertAlmostEqual(r_gas, -0.05)
 
     def test_excess_resource_penalty_scales_with_n_ticks(self):
         calc = self._make_calc(
@@ -759,14 +815,14 @@ class TestSC2RewardComponents(unittest.TestCase):
             self.assertIn(key, comp)
 
     def test_components_sum_equals_total(self):
-        calc = self._calc(score_weight=2.0, economy_weight=0.01, step_penalty=-0.5, win_bonus=200.0)
+        calc = self._calc(score_weight=2.0, economy_weight=0.01, step_penalty=-0.5, win_bonus=200.0, excess_resource_penalty=-0.01)
         info = {
             "prev_score": 5.0,
             "score": 8.0,
             "prev_minerals": 100.0,
-            "minerals": 200.0,
+            "minerals": 400.0,  # 100 excess
             "prev_vespene": 0.0,
-            "vespene": 0.0,
+            "vespene": 250.0,   # 50 excess
             "player_outcome": 1.0,
         }
         total, comp = calc.compute_with_components(
@@ -780,8 +836,9 @@ class TestSC2RewardComponents(unittest.TestCase):
         self.assertAlmostEqual(total, sum(comp.values()), places=5)
         # Spot-check individual contributions.
         self.assertAlmostEqual(comp["score"], 6.0)  # 2.0 * (8 - 5)
-        self.assertAlmostEqual(comp["economy"], 1.0)  # 0.01 * 100
+        self.assertAlmostEqual(comp["economy"], 5.5)  # 0.01 * (300 + 250)
         self.assertAlmostEqual(comp["step_penalty"], -1.0)  # -0.5 * 2
+        self.assertAlmostEqual(comp["excess_resource_penalty"], -3.0)  # -0.01 * 150 * 2
         self.assertAlmostEqual(comp["terminal"], 200.0)  # win_bonus
 
     def test_compute_default_delegates_to_with_components(self):
