@@ -17,6 +17,11 @@ formatting, internal refactors with no behaviour change — can be skipped.
 
 ## [Unreleased]
 
+
+---
+
+## [0.3.17] - 2026-06-01
+
 ### Added
 - SC2: new `resource_banking_penalty`, `mineral_banking_threshold`, and
   `gas_banking_threshold` reward config keys (issue #372).  Per-step penalty
