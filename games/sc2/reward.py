@@ -166,6 +166,11 @@ class SC2RewardConfig:
         Number of episode steps from reset in which
         ``early_random_action_bonus`` may fire. Outside this window the bonus
         is disabled. Default ``250``.
+    excess_resource_penalty :
+        Per-step penalty for banking more than 300 minerals or 200 gas.
+        The penalty scales linearly with the degree of excess (sum of minerals
+        above 300 and gas above 200). Discourages agents from hoarding resources
+        instead of building or training units. Default ``0.0`` — opt-in.
     """
 
     score_weight: float = 1.0
@@ -192,6 +197,7 @@ class SC2RewardConfig:
     attack_bonus: float = 0.0
     early_random_action_bonus: float = 0.0
     early_random_action_window_steps: int = 250
+    excess_resource_penalty: float = 0.0
 
     @classmethod
     def from_yaml(cls, path: str) -> SC2RewardConfig:
@@ -617,6 +623,15 @@ class SC2RewardCalculator(RewardCalculatorBase):
             elif outcome < 0:
                 terminal = cfg.loss_penalty
         components["terminal"] = float(terminal)
+
+        # Excess resource penalty: penalise banking >300 minerals or >200 gas.
+        excess_pen = 0.0
+        if cfg.excess_resource_penalty != 0.0:
+            excess_min = max(0.0, float(info.get("minerals", 0.0)) - 300.0)
+            excess_gas = max(0.0, float(info.get("vespene", 0.0)) - 200.0)
+            if excess_min > 0 or excess_gas > 0:
+                excess_pen = cfg.excess_resource_penalty * (excess_min + excess_gas) * n_ticks
+        components["excess_resource_penalty"] = float(excess_pen)
 
         reward = float(sum(components.values()))
         return reward, components

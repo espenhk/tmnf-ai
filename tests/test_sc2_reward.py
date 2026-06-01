@@ -231,6 +231,69 @@ class TestSC2RewardCalculator(unittest.TestCase):
         )
         self.assertAlmostEqual(r, 0.0)
 
+    def test_excess_resource_penalty_when_hoarding(self):
+        calc = self._make_calc(
+            score_weight=0.0,
+            step_penalty=0.0,
+            excess_resource_penalty=-0.001,
+        )
+        r = calc.compute(
+            prev_state=None,
+            curr_state=None,
+            finished=False,
+            elapsed_s=1.0,
+            info={
+                "prev_score": 0.0,
+                "score": 0.0,
+                "minerals": 500.0,  # 200 excess
+                "vespene": 250.0,   # 50 excess
+            },
+        )
+        # Total excess: 250 * -0.001 = -0.25
+        self.assertAlmostEqual(r, -0.25)
+
+    def test_excess_resource_penalty_not_applied_below_thresholds(self):
+        calc = self._make_calc(
+            score_weight=0.0,
+            step_penalty=0.0,
+            excess_resource_penalty=-0.001,
+        )
+        r = calc.compute(
+            prev_state=None,
+            curr_state=None,
+            finished=False,
+            elapsed_s=1.0,
+            info={
+                "prev_score": 0.0,
+                "score": 0.0,
+                "minerals": 300.0,  # 0 excess
+                "vespene": 200.0,   # 0 excess
+            },
+        )
+        self.assertAlmostEqual(r, 0.0)
+
+    def test_excess_resource_penalty_scales_with_n_ticks(self):
+        calc = self._make_calc(
+            score_weight=0.0,
+            step_penalty=0.0,
+            excess_resource_penalty=-0.001,
+        )
+        r = calc.compute(
+            prev_state=None,
+            curr_state=None,
+            finished=False,
+            elapsed_s=1.0,
+            info={
+                "prev_score": 0.0,
+                "score": 0.0,
+                "minerals": 400.0,  # 100 excess
+                "vespene": 0.0,     # 0 excess
+            },
+            n_ticks=4,
+        )
+        # 100 * -0.001 * 4 = -0.4
+        self.assertAlmostEqual(r, -0.4)
+
 
 class TestSC2IdleBonus(unittest.TestCase):
     """Tests for the idle_bonus reward (issue #127)."""
@@ -689,6 +752,7 @@ class TestSC2RewardComponents(unittest.TestCase):
             "attack_friendly_penalty",
             "early_random_action",
             "small_selection",
+            "excess_resource_penalty",
             "step_penalty",
             "terminal",
         ):
