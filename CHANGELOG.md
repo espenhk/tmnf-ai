@@ -17,6 +17,11 @@ formatting, internal refactors with no behaviour change — can be skipped.
 
 ## [Unreleased]
 
+
+---
+
+## [0.3.19] - 2026-06-01
+
 ### Changed
 - **SC2 training log: action shares now show function names instead of raw indices** (issue #375).
   `>> NEW BEST` and `[stats @ sim N]` blocks now display e.g. `Attack_screen=3.0%` instead
