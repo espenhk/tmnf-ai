@@ -138,10 +138,12 @@ small_selection_bonus: 0.0
 economy_weight: 0.001
 
 # --- Tech-tree unlock bonus (issue #360) ---
-# One-shot bonus per fn_idx that becomes newly available for the first time in
-# an episode, restricted to actions whose tech-tree preconditions include at
-# least one required building (e.g. Build_Barracks_screen unlocks when a
-# SupplyDepot is finished; Build_Factory_screen unlocks when Barracks is built).
+# One-shot bonus per fn_idx that appears in available_fn_ids for the first time
+# in an episode, restricted to actions whose tech-tree preconditions include at
+# least one required building.  The bonus fires the first time the action is
+# fully executable (prerequisite building exists AND correct unit selected AND
+# affordable) — not strictly at building-completion (e.g. Build_Barracks_screen
+# triggers when a SupplyDepot exists, an SCV is selected, and minerals suffice).
 # Selection-only actions (Move_screen, Attack_screen, Train_Marine_quick) and
 # always-available actions (no_op, select_army) are excluded.
 # Set to 0.0 to disable (default).  Recommended starting range: 1.0–10.0.

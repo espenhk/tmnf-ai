@@ -168,18 +168,22 @@ class SC2RewardConfig:
         ``early_random_action_bonus`` may fire. Outside this window the bonus
         is disabled. Default ``250``.
     new_action_unlock_bonus :
-        One-shot bonus per fn_idx that becomes newly available for the first
-        time in an episode, restricted to actions whose tech-tree preconditions
-        include at least one required building (i.e. the action was gated behind
-        a building that was just completed — e.g. ``Build_Barracks_screen``
-        unlocks when a ``SupplyDepot`` is finished).  Selection-only actions
-        (``Move_screen``, ``Attack_screen``, basic training) and always-available
-        actions (``no_op``, ``select_army``) do not trigger the bonus.  The
-        bonus fires once per qualifying fn_idx per episode; each subsequent step
-        where that fn_idx appears earns no additional reward.  Default ``0.0``
-        — opt-in.  Recommended starting range: ``1.0–10.0`` (much larger than
-        per-step shaping terms so the tech-unlock signal is clearly visible to
-        the policy).
+        One-shot bonus per fn_idx that appears in ``available_fn_ids`` for
+        the first time in an episode, restricted to actions whose tech-tree
+        preconditions include at least one required building.  The bonus fires
+        the first time the action is *fully executable* — meaning the tech-tree
+        prerequisite building exists, the correct unit type is selected, and the
+        action is affordable — not strictly at the moment the prerequisite
+        building completes (e.g. ``Build_Barracks_screen`` first becomes
+        available when a ``SupplyDepot`` exists *and* an SCV is selected and
+        minerals are sufficient).  Selection-only actions (``Move_screen``,
+        ``Attack_screen``, basic training) and always-available actions
+        (``no_op``, ``select_army``) do not trigger the bonus.  The bonus fires
+        once per qualifying fn_idx per episode; each subsequent step where that
+        fn_idx appears earns no additional reward.  Default ``0.0`` — opt-in.
+        Recommended starting range: ``1.0–10.0`` (much larger than per-step
+        shaping terms so the tech-unlock signal is clearly visible to the
+        policy).
     """
 
     score_weight: float = 1.0
